@@ -1,0 +1,137 @@
+from rest_framework import viewsets, status, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils import timezone
+from .models import User, PasswordResetToken, EmailVerificationToken
+from .serialzers import RegisterSerializer, UserSerializer, LoginSerializer
+from .email_service import EmailService
+from .utils import generate_password_reset_token, generate_email_verification_token
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.AllowAny]  # For development
+
+    def get_serializer_class(self):
+        if self.action == "register":
+            return RegisterSerializer
+        if self.action == "login":
+            return LoginSerializer
+        if self.action == "me":
+            return UserSerializer
+        return UserSerializer
+
+    def get_permissions(self):
+        if self.action in ["register", "login", "request_password_reset", "reset_password", "verify_email"]:
+            return [permissions.AllowAny()]
+        if self.action in ["me", "logout"]:
+            return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]  # For development 
+        
+
+    @action(detail=False, methods=["post"], url_path="login")
+    def login(self, request):
+        serializer = self.get_serializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "user": UserSerializer(user, context={"request": request}).data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["post"], url_path="register")
+    def register(self, request):
+        serializer = self.get_serializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save() 
+        token = generate_email_verification_token(user)
+        EmailService.send_verification_email(user, token)
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "user": UserSerializer(user, context={"request": request}).data,
+            "message": "Verification email sent"
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["post"], url_path="logout")
+    def logout(self, request):
+        try:
+            refresh_token = request.data["refresh"]
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response({"detail": "Successfully logged out."}, status=status.HTTP_205_RESET_CONTENT)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=["get", "put"], url_path="me")
+    def me(self, request):
+        if request.method == "GET":
+            serializer = self.get_serializer(request.user, context={"request": request})
+            return Response(serializer.data)
+
+        elif request.method == "PUT":
+            serializer = self.get_serializer(request.user, data=request.data, partial=True, context={"request": request})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
+
+    @action(detail=False, methods=["post"], url_path="verify-email")
+    def verify_email(self, request):
+        token_str = request.data.get("token")
+        if not token_str:
+            return Response({"error": "Token required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            token = EmailVerificationToken.objects.get(token=token_str)
+            if not token.is_valid():
+                return Response({"error": "Token expired or already used"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            token.user.is_email_verified = True
+            token.user.save()
+            token.is_used = True
+            token.save()
+            
+            return Response({"message": "Email verified successfully"}, status=status.HTTP_200_OK)
+        except EmailVerificationToken.DoesNotExist:
+            return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=["post"], url_path="request-password-reset")
+    def request_password_reset(self, request):
+        email = request.data.get("email")
+        if not email:
+            return Response({"error": "Email required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(email=email)
+            token = generate_password_reset_token(user)
+            EmailService.send_password_reset_email(user, token)
+            return Response({"message": "Password reset email sent"}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"message": "Password reset email sent"}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["post"], url_path="reset-password")
+    def reset_password(self, request):
+        token_str = request.data.get("token")
+        new_password = request.data.get("password")
+        
+        if not token_str or not new_password:
+            return Response({"error": "Token and password required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            token = PasswordResetToken.objects.get(token=token_str)
+            if not token.is_valid():
+                return Response({"error": "Token expired or already used"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            token.user.set_password(new_password)
+            token.user.save()
+            token.is_used = True
+            token.save()
+            
+            return Response({"message": "Password reset successfully"}, status=status.HTTP_200_OK)
+        except PasswordResetToken.DoesNotExist:
+            return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)

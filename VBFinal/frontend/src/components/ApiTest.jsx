@@ -11,7 +11,7 @@ const ApiTest = () => {
   const testApi = async () => {
     try {
       // Test basic connection
-      const response = await fetch('https://8000-cs-292964466724-default.cs-europe-west1-xedi.cloudshell.dev/api/complaints/', {
+      const response = await fetch('http://localhost:8000/api/complaints', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

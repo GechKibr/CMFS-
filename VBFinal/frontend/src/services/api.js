@@ -1,4 +1,5 @@
-const API_BASE_URL = 'https://8000-cs-292964466724-default.cs-europe-west1-xedi.cloudshell.dev/api';
+// const API_BASE_URL = 'https://verbose-fiesta-r4p5rqw5jgw6fgx4-8000.app.github.dev/api';
+const API_BASE_URL = "http://localhost:8000/api";
 
 class ApiService {
   constructor() {
@@ -28,12 +29,22 @@ class ApiService {
       ...options,
     };
 
+    console.log(`Making API request to: ${url}`);
+    console.log('Request config:', config);
+
     try {
       const response = await fetch(url, config);
+      console.log(`Response status: ${response.status}`);
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
-      return await response.json();
+      
+      const data = await response.json();
+      console.log('API Response data:', data);
+      return data;
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
@@ -115,50 +126,50 @@ class ApiService {
 
   // Resolver Levels
   async getResolverLevels() {
-    return this.request('/complaints/resolver-levels/');
+    return this.request('/resolver-levels/');
   }
 
   async createResolverLevel(data) {
-    return this.request('/complaints/resolver-levels/', {
+    return this.request('/resolver-levels/', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async updateResolverLevel(id, data) {
-    return this.request(`/complaints/resolver-levels/${id}/`, {
+    return this.request(`/resolver-levels/${id}/`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
 
   async deleteResolverLevel(id) {
-    return this.request(`/complaints/resolver-levels/${id}/`, {
+    return this.request(`/resolver-levels/${id}/`, {
       method: 'DELETE',
     });
   }
 
   // Category Resolvers
   async getCategoryResolvers() {
-    return this.request('/complaints/resolver-assignments/');
+    return this.request('/resolver-assignments/');
   }
 
   async createCategoryResolver(data) {
-    return this.request('/complaints/resolver-assignments/', {
+    return this.request('/resolver-assignments/', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   async updateCategoryResolver(id, data) {
-    return this.request(`/complaints/resolver-assignments/${id}/`, {
+    return this.request(`/resolver-assignments/${id}/`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
 
   async deleteCategoryResolver(id) {
-    return this.request(`/complaints/resolver-assignments/${id}/`, {
+    return this.request(`/resolver-assignments/${id}/`, {
       method: 'DELETE',
     });
   }

@@ -17,7 +17,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
     const currentUser = authService.getCurrentUser();
     const token = authService.getToken();
     
@@ -39,6 +38,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const register = async (userData) => {
+    try {
+      const response = await authService.register(userData);
+      if (response.user) {
+        setUser(response.user);
+        apiService.setToken(response.access);
+      }
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const logout = () => {
     authService.logout();
     setUser(null);
@@ -46,15 +58,36 @@ export const AuthProvider = ({ children }) => {
   };
 
   const getUserRole = () => {
-    return authService.getUserRole();
+    return user?.role || authService.getUserRole();
   };
 
+  const isAdmin = () => getUserRole() === 'admin';
+  const isOfficer = () => getUserRole() === 'officer';
+  const isUser = () => getUserRole() === 'user';
+
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, getUserRole }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      register, 
+      logout, 
+      getUserRole, 
+      isAdmin, 
+      isOfficer, 
+      isUser,
+      isAuthenticated: !!user 
+    }}>
       {children}
     </AuthContext.Provider>
   );

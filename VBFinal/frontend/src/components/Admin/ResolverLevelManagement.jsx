@@ -24,8 +24,8 @@ const ResolverLevelManagement = () => {
         apiService.getResolverLevels(),
         apiService.getInstitutions()
       ]);
-      setResolverLevels(levelsData);
-      setInstitutions(institutionsData);
+      setResolverLevels(levelsData.results || levelsData || []);
+      setInstitutions(institutionsData.results || institutionsData || []);
     } catch (error) {
       console.error('Failed to load data:', error);
     }
@@ -71,21 +71,19 @@ const ResolverLevelManagement = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="p-6 border-b">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-neutral">Resolver Levels</h3>
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-primary text-white px-4 py-2 rounded hover:bg-blue-800"
-          >
-            Add Resolver Level
-          </button>
-        </div>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold text-gray-700">Resolver Level Management</h3>
+        <button
+          onClick={() => setShowModal(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+        >
+          Add Resolver Level
+        </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Institution</th>
@@ -95,36 +93,39 @@ const ResolverLevelManagement = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
-            {resolverLevels.map((level) => (
-              <tr key={level.id}>
-                <td className="px-6 py-4 text-sm text-neutral">{level.institution_name}</td>
-                <td className="px-6 py-4 text-sm text-neutral">{level.name}</td>
-                <td className="px-6 py-4 text-sm text-neutral">Level {level.level_order}</td>
-                <td className="px-6 py-4 text-sm text-neutral">{level.escalation_time}</td>
-                <td className="px-6 py-4 text-sm space-x-2">
-                  <button
-                    onClick={() => handleEdit(level)}
-                    className="text-primary hover:text-blue-800"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(level.id)}
-                    className="text-error hover:text-red-600"
-                  >
-                    Delete
-                  </button>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {(resolverLevels || []).length === 0 ? (
+              <tr>
+                <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
+                  No resolver levels found. Click "Add Resolver Level" to create one.
                 </td>
               </tr>
-            ))}
+            ) : (
+              (resolverLevels || []).map((level) => (
+                <tr key={level.id}>
+                  <td className="px-6 py-4 text-sm text-gray-900">{level.institution_name}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900">{level.name}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900">Level {level.level_order}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900">{level.escalation_time}</td>
+                  <td className="px-6 py-4 text-sm space-x-2">
+                    <button
+                      onClick={() => handleEdit(level)}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(level.id)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
-        {resolverLevels.length === 0 && (
-          <div className="p-6 text-center text-gray-500">
-            No resolver levels found
-          </div>
-        )}
       </div>
 
       <Modal
@@ -138,39 +139,39 @@ const ResolverLevelManagement = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Institution</label>
+            <label className="block text-sm font-medium text-gray-700">Institution *</label>
             <select
               value={formData.institution}
               onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               required
             >
               <option value="">Select Institution</option>
-              {institutions.map((inst) => (
+              {(institutions || []).map((inst) => (
                 <option key={inst.id} value={inst.id}>{inst.name}</option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Name</label>
+            <label className="block text-sm font-medium text-gray-700">Name *</label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="e.g., Department Head, Dean, President"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Level Order</label>
+            <label className="block text-sm font-medium text-gray-700">Level Order *</label>
             <input
               type="number"
               value={formData.level_order}
               onChange={(e) => setFormData({ ...formData, level_order: e.target.value })}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="1, 2, 3..."
               min="1"
               required
@@ -178,28 +179,29 @@ const ResolverLevelManagement = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Escalation Time</label>
+            <label className="block text-sm font-medium text-gray-700">Escalation Time *</label>
             <input
               type="text"
               value={formData.escalation_time}
               onChange={(e) => setFormData({ ...formData, escalation_time: e.target.value })}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-              placeholder="e.g., 2 days, 48:00:00"
+              className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="e.g., 2 days, 48 hours"
               required
             />
+            <p className="mt-1 text-xs text-gray-500">Format: "X days" or "X hours"</p>
           </div>
 
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-end space-x-3">
             <button
               type="button"
               onClick={() => setShowModal(false)}
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-blue-800"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               {editingLevel ? 'Update' : 'Create'}
             </button>

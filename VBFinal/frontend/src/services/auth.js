@@ -1,10 +1,9 @@
-const AUTH_API_URL = 'https://8000-cs-292964466724-default.cs-europe-west1-xedi.cloudshell.dev/api/accounts';
+// const AUTH_API_URL = 'https://verbose-fiesta-r4p5rqw5jgw6fgx4-8000.app.github.dev/api/accounts';
+const AUTH_API_URL = "http://localhost:8000/api/accounts";
 
 class AuthService {
   async login(email, password) {
     try {
-      console.log('Attempting login with:', { email, password });
-      
       const response = await fetch(`${AUTH_API_URL}/login/`, {
         method: 'POST',
         headers: {
@@ -13,42 +12,58 @@ class AuthService {
         body: JSON.stringify({ identifier: email, password }),
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-
       const data = await response.json();
-      console.log('Response data:', data);
 
       if (!response.ok) {
-        // Handle specific error messages from backend
-        if (data.non_field_errors) {
-          throw new Error(data.non_field_errors[0]);
-        }
-        if (data.identifier) {
-          throw new Error(data.identifier[0]);
-        }
-        if (data.password) {
-          throw new Error(data.password[0]);
-        }
-        throw new Error(data.message || data.error || 'Login failed');
+        throw new Error(data.non_field_errors?.[0] || data.detail || 'Login failed');
       }
       
-      if (data.access || data.token) {
-        const token = data.access || data.token;
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(data.user || data));
+      if (data.access) {
+        localStorage.setItem('token', data.access);
+        localStorage.setItem('refresh', data.refresh);
+        localStorage.setItem('user', JSON.stringify(data.user));
         return data;
       }
       
       throw new Error('No token received');
     } catch (error) {
-      console.error('Login error:', error);
+      throw error;
+    }
+  }
+
+  async register(userData) {
+    try {
+      const response = await fetch(`${AUTH_API_URL}/register/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = Object.values(data).flat().join(', ') || 'Registration failed';
+        throw new Error(errorMsg);
+      }
+
+      if (data.access) {
+        localStorage.setItem('token', data.access);
+        localStorage.setItem('refresh', data.refresh);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        return data;
+      }
+
+      return data;
+    } catch (error) {
       throw error;
     }
   }
 
   logout() {
     localStorage.removeItem('token');
+    localStorage.removeItem('refresh');
     localStorage.removeItem('user');
   }
 
@@ -67,17 +82,19 @@ class AuthService {
 
   getUserRole() {
     const user = this.getCurrentUser();
-    if (!user) return null;
-    
-    // Map backend roles to frontend roles
-    switch (user.role) {
+    return user?.role || null;
+  }
+
+  getRoleBasedRoute() {
+    const role = this.getUserRole();
+    switch (role) {
       case 'admin':
-        return 'admin';
+        return '/admin';
       case 'officer':
-        return 'officer';
+        return '/officer';
       case 'user':
       default:
-        return 'user';
+        return '/user';
     }
   }
 }

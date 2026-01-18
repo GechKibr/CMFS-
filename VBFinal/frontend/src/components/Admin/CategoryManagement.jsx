@@ -1,69 +1,53 @@
 import { useState, useEffect } from 'react';
+import apiService from '../../services/api';
 import Modal from '../UI/Modal';
 
 const CategoryManagement = () => {
   const [categories, setCategories] = useState([]);
-  const [officers, setOfficers] = useState([]);
+  const [institutions, setInstitutions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    assigned_officers: []
+    institution: '',
+    is_active: true
   });
 
   useEffect(() => {
-    fetchCategories();
-    fetchOfficers();
+    fetchData();
   }, []);
 
-  const fetchCategories = async () => {
+  const fetchData = async () => {
     try {
-      const response = await fetch('/api/categories/');
-      const data = await response.json();
-      setCategories(data.results || data);
+      setLoading(true);
+      const [categoriesData, institutionsData] = await Promise.all([
+        apiService.getCategories(),
+        apiService.getInstitutions()
+      ]);
+      setCategories(categoriesData.results || categoriesData);
+      setInstitutions(institutionsData.results || institutionsData);
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchOfficers = async () => {
-    try {
-      const response = await fetch('/api/accounts/officers/');
-      const data = await response.json();
-      setOfficers(data.results || data);
-    } catch (error) {
-      console.error('Error fetching officers:', error);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const url = editingCategory 
-        ? `/api/categories/${editingCategory.id}/`
-        : '/api/categories/';
-      
-      const method = editingCategory ? 'PUT' : 'POST';
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        fetchCategories();
-        setShowModal(false);
-        setEditingCategory(null);
-        setFormData({ name: '', description: '', assigned_officers: [] });
+      if (editingCategory) {
+        await apiService.updateCategory(editingCategory.category_id, formData);
+      } else {
+        await apiService.createCategory(formData);
       }
+      
+      fetchData();
+      setShowModal(false);
+      setEditingCategory(null);
+      setFormData({ name: '', description: '', institution: '', is_active: true });
     } catch (error) {
       console.error('Error saving category:', error);
     }
@@ -74,23 +58,17 @@ const CategoryManagement = () => {
     setFormData({
       name: category.name,
       description: category.description || '',
-      assigned_officers: category.assigned_officers || []
+      institution: category.institution || '',
+      is_active: category.is_active
     });
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (categoryId) => {
     if (confirm('Are you sure you want to delete this category?')) {
       try {
-        const response = await fetch(`/api/categories/${id}/`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (response.ok) {
-          fetchCategories();
-        }
+        await apiService.deleteCategory(categoryId);
+        fetchData();
       } catch (error) {
         console.error('Error deleting category:', error);
       }
@@ -99,17 +77,8 @@ const CategoryManagement = () => {
 
   const openCreateModal = () => {
     setEditingCategory(null);
-    setFormData({ name: '', description: '', assigned_officers: [] });
+    setFormData({ name: '', description: '', institution: '', is_active: true });
     setShowModal(true);
-  };
-
-  const handleOfficerToggle = (officerId) => {
-    const currentOfficers = formData.assigned_officers;
-    const newOfficers = currentOfficers.includes(officerId)
-      ? currentOfficers.filter(id => id !== officerId)
-      : [...currentOfficers, officerId];
-    
-    setFormData({...formData, assigned_officers: newOfficers});
   };
 
   if (loading) return <div className="text-center py-4">Loading...</div>;
@@ -120,7 +89,7 @@ const CategoryManagement = () => {
         <h3 className="text-lg font-semibold text-gray-700">Category Management</h3>
         <button
           onClick={openCreateModal}
-          className="bg-blue-700 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
           Add Category
         </button>
@@ -132,38 +101,56 @@ const CategoryManagement = () => {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned Officers</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Institution</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {categories.map((category) => (
-              <tr key={category.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {category.name}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {category.description}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {category.assigned_officers?.length || 0} officers
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <button
-                    onClick={() => handleEdit(category)}
-                    className="text-blue-700 hover:text-blue-600"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(category.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    Delete
-                  </button>
+            {categories.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
+                  No categories found. Click "Add Category" to create one.
                 </td>
               </tr>
-            ))}
+            ) : (
+              categories.map((category) => (
+                <tr key={category.category_id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {category.name}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {category.description}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {institutions.find(inst => inst.id === category.institution)?.name || 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      category.is_active 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {category.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <button
+                      onClick={() => handleEdit(category)}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(category.category_id)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -175,13 +162,14 @@ const CategoryManagement = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Name</label>
+            <label className="block text-sm font-medium text-gray-700">Name *</label>
             <input
               type="text"
               required
               value={formData.name}
               onChange={(e) => setFormData({...formData, name: e.target.value})}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-700 focus:border-blue-700"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="e.g., Academic Issues"
             />
           </div>
           <div>
@@ -189,39 +177,49 @@ const CategoryManagement = () => {
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({...formData, description: e.target.value})}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-700 focus:border-blue-700"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               rows={3}
+              placeholder="Brief description of the category"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Assign Officers</label>
-            <div className="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
-              {officers.map((officer) => (
-                <label key={officer.id} className="flex items-center space-x-2 py-1">
-                  <input
-                    type="checkbox"
-                    checked={formData.assigned_officers.includes(officer.id)}
-                    onChange={() => handleOfficerToggle(officer.id)}
-                    className="h-4 w-4 text-blue-700 focus:ring-blue-700 border-gray-300 rounded"
-                  />
-                  <span className="text-sm text-gray-700">
-                    {officer.first_name} {officer.last_name} ({officer.email})
-                  </span>
-                </label>
+            <label className="block text-sm font-medium text-gray-700">Institution</label>
+            <select
+              value={formData.institution}
+              onChange={(e) => setFormData({...formData, institution: e.target.value})}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select Institution (Optional)</option>
+              {institutions.map((institution) => (
+                <option key={institution.id} value={institution.id}>
+                  {institution.name}
+                </option>
               ))}
-            </div>
+            </select>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="is_active"
+              checked={formData.is_active}
+              onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="is_active" className="ml-2 block text-sm text-gray-700">
+              Active
+            </label>
           </div>
           <div className="flex justify-end space-x-3">
             <button
               type="button"
               onClick={() => setShowModal(false)}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-700 text-white rounded-md hover:bg-blue-600"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               {editingCategory ? 'Update' : 'Create'}
             </button>

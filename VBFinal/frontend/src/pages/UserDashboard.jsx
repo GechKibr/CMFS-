@@ -56,9 +56,9 @@ const UserDashboard = () => {
         apiService.getCategories()
       ]);
       
-      setComplaints(complaintsData);
-      setInstitutions(institutionsData);
-      setCategories(categoriesData);
+      setComplaints(complaintsData.results || complaintsData || []);
+      setInstitutions(institutionsData.results || institutionsData || []);
+      setCategories(categoriesData.results || categoriesData || []);
       
       // Mock notifications
       setNotifications([
@@ -74,7 +74,7 @@ const UserDashboard = () => {
   };
 
   const applyFilters = () => {
-    let filtered = complaints;
+    let filtered = complaints || [];
     
     if (filters.status !== 'all') {
       filtered = filtered.filter(c => c.status === filters.status);
@@ -194,7 +194,7 @@ const UserDashboard = () => {
               className={`w-full border rounded-lg px-3 py-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'} ${formErrors.institution ? 'border-red-500' : ''}`}
             >
               <option value="">{t('select_institution')}</option>
-              {institutions.map(inst => (
+              {(institutions || []).map(inst => (
                 <option key={inst.id} value={inst.id}>{inst.name}</option>
               ))}
             </select>
@@ -266,7 +266,7 @@ const UserDashboard = () => {
               </tr>
             </thead>
             <tbody className={`${isDark ? 'bg-gray-800' : 'bg-white'} divide-y ${isDark ? 'divide-gray-700' : 'divide-gray-200'}`}>
-              {filteredComplaints.map((complaint) => (
+              {(filteredComplaints || []).map((complaint) => (
                 <tr key={complaint.complaint_id} className={`${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDark ? 'text-gray-300' : 'text-gray-900'}`}>
                     {complaint.complaint_id?.slice(0, 8)}...
@@ -331,7 +331,7 @@ const UserDashboard = () => {
         </button>
       </div>
       
-      {notifications.map((notification) => (
+      {(notifications || []).map((notification) => (
         <div
           key={notification.id}
           className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow border-l-4 ${

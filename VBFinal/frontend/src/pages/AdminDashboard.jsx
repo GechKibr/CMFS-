@@ -4,6 +4,8 @@ import apiService from '../services/api';
 import ApiTest from '../components/ApiTest';
 import ResolverLevelManagement from '../components/Admin/ResolverLevelManagement';
 import CategoryResolverManagement from '../components/Admin/CategoryResolverManagement';
+import InstitutionManagement from '../components/Admin/InstitutionManagement';
+import CategoryManagement from '../components/Admin/CategoryManagement';
 
 const AdminDashboard = () => {
   const { isDark, toggleTheme } = useTheme();
@@ -213,9 +215,9 @@ const AdminDashboard = () => {
       case 'overview':
         return renderOverview();
       case 'institutions':
-        return renderInstitutions();
+        return <InstitutionManagement />;
       case 'categories':
-        return renderCategories();
+        return <CategoryManagement />;
       case 'resolver-levels':
         return <ResolverLevelManagement />;
       case 'category-resolvers':
@@ -225,7 +227,7 @@ const AdminDashboard = () => {
       default:
         return (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-neutral">{tabs.find(t => t.id === activeTab)?.name}</h3>
+            <h3 className="text-lg font-semibold text-neutral">{menuItems.find(t => t.id === activeTab)?.name}</h3>
             <p className="text-neutral mt-2">Content for {activeTab} will be implemented here.</p>
           </div>
         );

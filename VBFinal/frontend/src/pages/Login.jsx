@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import authService from '../services/auth';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -21,11 +22,11 @@ const Login = () => {
 
     try {
       const userData = await login(formData.email, formData.password);
-      navigate('/dashboard');
+      // Navigate based on user role
+      const roleRoute = authService.getRoleBasedRoute();
+      navigate(roleRoute);
     } catch (error) {
-      // Show the specific error message from the backend
       setError(error.message || 'Login failed. Please check your credentials.');
-      console.error('Login error:', error);
     } finally {
       setLoading(false);
     }
@@ -40,16 +41,21 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        <div className="bg-white p-8 rounded-lg shadow-md">
+        <div className="bg-white p-8 rounded-xl shadow-lg">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-700">University Complaint System</h2>
-            <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
+            <div className="mx-auto h-12 w-12 bg-blue-600 rounded-full flex items-center justify-center mb-4">
+              <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900">Gondar University</h2>
+            <p className="mt-2 text-sm text-gray-600">Complaint Management System</p>
           </div>
           
           {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-500 text-red-700 rounded">
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
               {error}
             </div>
           )}
@@ -66,7 +72,7 @@ const Login = () => {
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-700 focus:border-blue-700"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter your email"
               />
             </div>
@@ -83,7 +89,7 @@ const Login = () => {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-700 focus:border-blue-700"
+                  className="mt-1 block w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter your password"
                 />
                 <button
@@ -113,14 +119,14 @@ const Login = () => {
                   type="checkbox"
                   checked={formData.rememberMe}
                   onChange={handleChange}
-                  className="h-4 w-4 text-blue-700 focus:ring-blue-700 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
                   Remember me
                 </label>
               </div>
               
-              <Link to="/forgot-password" className="text-sm text-blue-700 hover:text-blue-600">
+              <Link to="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500">
                 Forgot password?
               </Link>
             </div>
@@ -128,16 +134,23 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-700 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 transition duration-200 disabled:opacity-50"
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Signing In...' : 'Sign In'}
+              {loading ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Signing In...
+                </div>
+              ) : (
+                'Sign In'
+              )}
             </button>
           </form>
           
           <div className="mt-6 text-center">
             <span className="text-sm text-gray-600">
               Don't have an account?{' '}
-              <Link to="/register" className="font-medium text-blue-700 hover:text-blue-600">
+              <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
                 Sign up
               </Link>
             </span>

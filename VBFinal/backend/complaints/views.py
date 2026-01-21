@@ -3,14 +3,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 
-from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, Comment, Assignment
+from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment
 from .serializers import (
     InstitutionSerializer,
     CategorySerializer,
     ResolverLevelSerializer,
     CategoryResolverSerializer,
     ComplaintSerializer,
-    ComplaintCreateSerializer,
+    ComplaintAttachmentSerializer,
     CommentSerializer,
     AssignmentSerializer,
 )
@@ -54,11 +54,6 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     serializer_class = ComplaintSerializer
     permission_classes = [permissions.AllowAny]  # For development
 
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return ComplaintCreateSerializer
-        return ComplaintSerializer
-
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated and hasattr(user, 'can_view_all_complaints') and user.can_view_all_complaints():
@@ -70,17 +65,34 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             return Complaint.objects.all()
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        # Extract user ID from request data if provided
+        user_id = request.data.get('user')
+        if user_id:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                submitted_by = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                submitted_by = None
+        else:
+            submitted_by = request.user if request.user.is_authenticated else None
+        
+        # Create mutable copy of request data
+        data = request.data.copy()
+        if 'user' in data:
+            del data['user']  # Remove user from data as it's handled separately
+            
+        serializer = self.get_serializer(data=data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        # For development, allow creation without authenticated user
-        submitted_by = request.user if request.user.is_authenticated else None
         complaint = serializer.save(submitted_by=submitted_by)
+        
         try:
             ai_service.process_complaint(complaint)
             complaint.refresh_from_db()
         except Exception as e:
             # Continue even if AI processing fails
             pass
+            
         output_serializer = ComplaintSerializer(complaint)
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
 

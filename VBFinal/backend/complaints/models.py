@@ -202,6 +202,22 @@ class Complaint(models.Model):
         super().save(*args, **kwargs)
 
 
+class ComplaintAttachment(models.Model):
+    complaint = models.ForeignKey(
+        Complaint,
+        on_delete=models.CASCADE,
+        related_name="attachments"
+    )
+    file = models.FileField(upload_to="complaint_attachments/")
+    filename = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField()
+    content_type = models.CharField(max_length=100)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.complaint.complaint_id} - {self.filename}"
+
+
 class Assignment(models.Model):
     ASSIGNMENT_REASON = [
         ("initial", "Initial Assignment"),

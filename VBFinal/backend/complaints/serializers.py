@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, Comment, Assignment
+from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment
 
 from django.contrib.auth import get_user_model
 
@@ -21,10 +21,11 @@ class InstitutionSerializer(serializers.ModelSerializer):
 
 class CategorySerializer(serializers.ModelSerializer):
     institution_name = serializers.CharField(source='institution.name', read_only=True)
+    parent_name = serializers.CharField(source='parent.name', read_only=True)
 
     class Meta:
         model = Category
-        fields = ["category_id", "institution", "institution_name", "name", "description", "parent", "is_active", "created_at"]
+        fields = ["category_id", "institution", "institution_name", "name", "description", "parent", "parent_name", "is_active", "created_at"]
         read_only_fields = ["category_id", "created_at"]
 
 
@@ -54,11 +55,19 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
         fields = ["title", "description", "attachment"]
 
 
+class ComplaintAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ComplaintAttachment
+        fields = ["id", "file", "filename", "file_size", "content_type", "uploaded_at"]
+        read_only_fields = ["id", "uploaded_at"]
+
+
 class ComplaintSerializer(serializers.ModelSerializer):
     submitted_by = ComplaintUserSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
     assigned_officer = ComplaintUserSerializer(read_only=True)
     current_level = ResolverLevelSerializer(read_only=True)
+    attachments = ComplaintAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Complaint
@@ -70,6 +79,7 @@ class ComplaintSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "attachment",
+            "attachments",
             "created_at",
             "updated_at",
             "status",
@@ -78,7 +88,26 @@ class ComplaintSerializer(serializers.ModelSerializer):
             "current_level",
             "escalation_deadline",
         ]
-        read_only_fields = ["complaint_id", "institution", "submitted_by", "category", "status", "priority", "assigned_officer", "current_level", "escalation_deadline"]
+        read_only_fields = ["complaint_id", "created_at", "updated_at", "escalation_deadline"]
+
+    def create(self, validated_data):
+        # Handle file attachments from request.FILES
+        request = self.context.get('request')
+        complaint = Complaint.objects.create(**validated_data)
+        
+        if request and hasattr(request, 'FILES'):
+            # Handle multiple files with pattern attachment_0, attachment_1, etc.
+            for key, file in request.FILES.items():
+                if key.startswith('attachment_'):
+                    ComplaintAttachment.objects.create(
+                        complaint=complaint,
+                        file=file,
+                        filename=file.name,
+                        file_size=file.size,
+                        content_type=file.content_type
+                    )
+        
+        return complaint
 
 
 class CommentSerializer(serializers.ModelSerializer):

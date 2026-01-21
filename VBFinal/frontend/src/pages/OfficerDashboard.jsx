@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import apiService from '../services/api';
 
 const OfficerDashboard = () => {
   const { isDark, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('assigned');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showNavbarDropdown, setShowNavbarDropdown] = useState(false);
   const [complaints, setComplaints] = useState([]);
   const [filteredComplaints, setFilteredComplaints] = useState([]);
   const [filters, setFilters] = useState({
@@ -23,6 +28,18 @@ const OfficerDashboard = () => {
     urgent: 0
   });
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const getUserInitials = () => {
+    if (!user) return 'O';
+    const firstName = user.first_name || '';
+    const lastName = user.last_name || '';
+    return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'O';
+  };
+
   const menuItems = [
     { id: 'assigned', name: 'Assigned Complaints', icon: '📋' },
     { id: 'notifications', name: 'Notifications', icon: '🔔' },
@@ -32,6 +49,16 @@ const OfficerDashboard = () => {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.dropdown-container')) {
+        setShowNavbarDropdown(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -307,21 +334,19 @@ const OfficerDashboard = () => {
       {/* Sidebar */}
       <div className={`${sidebarOpen ? 'w-64' : 'w-16'} ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg transition-all duration-300 flex flex-col`}>
         {/* Header */}
-        <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-          <div className="flex items-center justify-between">
-            {sidebarOpen && (
-              <div>
-                <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>Officer Panel</h2>
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Complaint Management</p>
-              </div>
-            )}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
-            >
-              {sidebarOpen ? '◀' : '▶'}
-            </button>
-          </div>
+        <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
+          {sidebarOpen && (
+            <div className="flex-1">
+              <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>Officer Panel</h2>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Complaint Management</p>
+            </div>
+          )}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'} ${!sidebarOpen ? 'mx-auto' : ''}`}
+          >
+            {sidebarOpen ? '◀' : '▶'}
+          </button>
         </div>
 
         {/* Navigation */}
@@ -333,14 +358,14 @@ const OfficerDashboard = () => {
               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
                 activeTab === item.id
                   ? isDark 
-                    ? 'bg-blue-900 text-blue-300 border-r-2 border-blue-400'
-                    : 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
+                    ? 'bg-blue-900 text-blue-300'
+                    : 'bg-blue-50 text-blue-700'
                   : isDark
                     ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               }`}
             >
-              <span className="text-lg">{item.icon}</span>
+              <span className="text-lg flex-shrink-0">{item.icon}</span>
               {sidebarOpen && <span className="font-medium">{item.name}</span>}
             </button>
           ))}
@@ -386,8 +411,31 @@ const OfficerDashboard = () => {
               </button>
               <div className="flex items-center space-x-2">
                 <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Officer:</span>
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                  O
+                <div className="relative dropdown-container">
+                  <button
+                    onClick={() => setShowNavbarDropdown(!showNavbarDropdown)}
+                    className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold hover:bg-blue-600 transition-colors"
+                  >
+                    {getUserInitials()}
+                  </button>
+                  {showNavbarDropdown && (
+                    <div className={`absolute right-0 mt-2 w-48 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg z-50`}>
+                      <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                        <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {user?.first_name} {user?.last_name}
+                        </p>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {user?.email}
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleLogout}
+                        className={`w-full text-left px-4 py-2 text-sm ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'} transition-colors`}
+                      >
+                        🚪 Logout
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -395,7 +443,7 @@ const OfficerDashboard = () => {
         </header>
 
         {/* Content */}
-        <main className={`flex-1 overflow-y-auto p-6`}>
+        <main className={`flex-1 overflow-y-auto px-6 py-6`}>
           {loading ? (
             <div className="flex justify-center items-center h-64">
               <div className="flex items-center space-x-2">

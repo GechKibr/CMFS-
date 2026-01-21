@@ -1,362 +1,340 @@
-import { useState, useEffect } from 'react';
-import Modal from '../UI/Modal';
-import StatusBadge from '../UI/StatusBadge';
+import React, { useState, useEffect } from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
+import apiService from '../../services/api';
 
 const UserManagement = () => {
+  const { isDark } = useTheme();
   const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [formData, setFormData] = useState({
-    email: '',
-    username: '',
-    first_name: '',
-    last_name: '',
-    role: 'user',
-    college: '',
-    phone: '',
-    campus_id: '',
-    password: ''
+  const [filters, setFilters] = useState({
+    role: 'all',
+    status: 'all',
+    search: ''
+  });
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    itemsPerPage: 10,
+    totalItems: 0,
+    totalPages: 0
   });
 
   useEffect(() => {
-    fetchUsers();
+    loadUsers();
   }, []);
 
-  const fetchUsers = async () => {
+  useEffect(() => {
+    applyFilters();
+  }, [users, filters]);
+
+  useEffect(() => {
+    updatePagination();
+  }, [filteredUsers, pagination.currentPage, pagination.itemsPerPage]);
+
+  const loadUsers = async () => {
     try {
-      const response = await fetch('/api/accounts/users/', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      const data = await response.json();
-      setUsers(data.results || data);
+      const data = await apiService.getUsers();
+      const usersList = data.results || data;
+      setUsers(usersList);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Failed to load users:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const applyFilters = () => {
+    let filtered = users;
+
+    if (filters.role !== 'all') {
+      filtered = filtered.filter(user => user.role === filters.role);
+    }
+
+    if (filters.status !== 'all') {
+      filtered = filtered.filter(user => 
+        filters.status === 'active' ? user.is_active : !user.is_active
+      );
+    }
+
+    if (filters.search.trim()) {
+      const searchTerm = filters.search.toLowerCase();
+      filtered = filtered.filter(user =>
+        user.first_name?.toLowerCase().includes(searchTerm) ||
+        user.last_name?.toLowerCase().includes(searchTerm) ||
+        user.email?.toLowerCase().includes(searchTerm) ||
+        user.username?.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    setFilteredUsers(filtered);
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+  };
+
+  const updatePagination = () => {
+    const totalItems = filteredUsers.length;
+    const totalPages = Math.ceil(totalItems / pagination.itemsPerPage);
+    setPagination(prev => ({ ...prev, totalItems, totalPages }));
+  };
+
+  const getPaginatedUsers = () => {
+    const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
+    const endIndex = startIndex + pagination.itemsPerPage;
+    return filteredUsers.slice(startIndex, endIndex);
+  };
+
+  const handlePageChange = (page) => {
+    setPagination(prev => ({ ...prev, currentPage: page }));
+  };
+
+  const updateUserRole = async (userId, newRole) => {
     try {
-      const url = editingUser 
-        ? `/api/accounts/users/${editingUser.id}/`
-        : '/api/accounts/register/';
-      
-      const method = editingUser ? 'PUT' : 'POST';
-      const payload = editingUser 
-        ? { ...formData, password: undefined } // Don't send password on edit
-        : formData;
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (response.ok) {
-        fetchUsers();
-        setShowModal(false);
-        setEditingUser(null);
-        setFormData({
-          email: '', username: '', first_name: '', last_name: '',
-          role: 'user', college: '', phone: '', campus_id: '', password: ''
-        });
-      }
+      await apiService.updateUser(userId, { role: newRole });
+      setUsers(prev => 
+        prev.map(user => 
+          user.id === userId ? { ...user, role: newRole } : user
+        )
+      );
     } catch (error) {
-      console.error('Error saving user:', error);
+      console.error('Failed to update user role:', error);
+      alert('Failed to update user role');
     }
   };
 
-  const handleEdit = (user) => {
-    setEditingUser(user);
-    setFormData({
-      email: user.email,
-      username: user.username,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      role: user.role,
-      college: user.college || '',
-      phone: user.phone || '',
-      campus_id: user.campus_id || '',
-      password: ''
-    });
-    setShowModal(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this user?')) {
-      try {
-        const response = await fetch(`/api/accounts/users/${id}/`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (response.ok) {
-          fetchUsers();
-        }
-      } catch (error) {
-        console.error('Error deleting user:', error);
-      }
-    }
-  };
-
-  const handleRoleChange = async (userId, newRole) => {
+  const toggleUserStatus = async (userId, currentStatus) => {
     try {
-      const response = await fetch(`/api/accounts/users/${userId}/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ role: newRole })
-      });
-      if (response.ok) {
-        fetchUsers();
-      }
+      const newStatus = !currentStatus;
+      await apiService.updateUser(userId, { is_active: newStatus });
+      setUsers(prev => 
+        prev.map(user => 
+          user.id === userId ? { ...user, is_active: newStatus } : user
+        )
+      );
     } catch (error) {
-      console.error('Error updating role:', error);
+      console.error('Failed to update user status:', error);
+      alert('Failed to update user status');
     }
   };
 
-  const handleStatusToggle = async (userId, currentStatus) => {
-    try {
-      const response = await fetch(`/api/accounts/users/${userId}/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ is_active: !currentStatus })
-      });
-      if (response.ok) {
-        fetchUsers();
-      }
-    } catch (error) {
-      console.error('Error updating status:', error);
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="flex items-center space-x-2">
+          <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse"></div>
+          <div className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading users...</div>
+        </div>
+      </div>
+    );
+  }
 
-  const openCreateModal = () => {
-    setEditingUser(null);
-    setFormData({
-      email: '', username: '', first_name: '', last_name: '',
-      role: 'user', college: '', phone: '', campus_id: '', password: ''
-    });
-    setShowModal(true);
-  };
-
-  if (loading) return <div className="text-center py-4">Loading...</div>;
+  const paginatedUsers = getPaginatedUsers();
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-700">User Management</h3>
-        <button
-          onClick={openCreateModal}
-          className="bg-blue-700 text-white px-4 py-2 rounded-md hover:bg-blue-600"
-        >
-          Add User
-        </button>
-      </div>
-
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">College</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {users.map((user) => (
-              <tr key={user.id}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div>
-                    <div className="text-sm font-medium text-gray-900">
-                      {user.first_name} {user.last_name}
-                    </div>
-                    <div className="text-sm text-gray-500">{user.email}</div>
-                    <div className="text-xs text-gray-400">@{user.username}</div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <select
-                    value={user.role}
-                    onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-blue-700 focus:border-blue-700"
-                  >
-                    <option value="user">User</option>
-                    <option value="officer">Officer</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {user.college}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <StatusBadge status={user.is_active ? 'active' : 'inactive'} />
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <button
-                    onClick={() => handleEdit(user)}
-                    className="text-blue-700 hover:text-blue-600"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleStatusToggle(user.id, user.is_active)}
-                    className={`px-2 py-1 rounded text-xs ${
-                      user.is_active 
-                        ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                        : 'bg-green-100 text-green-700 hover:bg-green-200'
-                    }`}
-                  >
-                    {user.is_active ? 'Deactivate' : 'Activate'}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(user.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <Modal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        title={editingUser ? 'Edit User' : 'Add New User'}
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">First Name</label>
-              <input
-                type="text"
-                required
-                value={formData.first_name}
-                onChange={(e) => setFormData({...formData, first_name: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-700 focus:border-blue-700"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Last Name</label>
-              <input
-                type="text"
-                required
-                value={formData.last_name}
-                onChange={(e) => setFormData({...formData, last_name: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-700 focus:border-blue-700"
-              />
-            </div>
-          </div>
+      {/* Filters */}
+      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow`}>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
-            <input
-              type="email"
-              required
-              value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-700 focus:border-blue-700"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Username</label>
+            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+              Search
+            </label>
             <input
               type="text"
-              required
-              value={formData.username}
-              onChange={(e) => setFormData({...formData, username: e.target.value})}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-700 focus:border-blue-700"
+              value={filters.search}
+              onChange={(e) => setFilters({...filters, search: e.target.value})}
+              placeholder="Search by name, email..."
+              className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'}`}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Role</label>
-              <select
-                value={formData.role}
-                onChange={(e) => setFormData({...formData, role: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-700 focus:border-blue-700"
+          <div>
+            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+              Role
+            </label>
+            <select
+              value={filters.role}
+              onChange={(e) => setFilters({...filters, role: e.target.value})}
+              className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+            >
+              <option value="all">All Roles</option>
+              <option value="user">User</option>
+              <option value="officer">Officer</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+              Status
+            </label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({...filters, status: e.target.value})}
+              className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div>
+            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+              Items per page
+            </label>
+            <select
+              value={pagination.itemsPerPage}
+              onChange={(e) => setPagination(prev => ({...prev, itemsPerPage: parseInt(e.target.value), currentPage: 1}))}
+              className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Users Table */}
+      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow overflow-hidden`}>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+              <tr>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  User
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Role
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Status
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Joined
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className={`${isDark ? 'bg-gray-800' : 'bg-white'} divide-y divide-gray-200`}>
+              {paginatedUsers.map((user) => (
+                <tr key={user.id} className={`${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {user.first_name} {user.last_name}
+                      </div>
+                      <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {user.email}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <select
+                      value={user.role || 'user'}
+                      onChange={(e) => updateUserRole(user.id, e.target.value)}
+                      className={`text-sm rounded px-2 py-1 border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    >
+                      <option value="user">User</option>
+                      <option value="officer">Officer</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <button
+                      onClick={() => toggleUserStatus(user.id, user.is_active)}
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        user.is_active
+                          ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                          : 'bg-red-100 text-red-800 hover:bg-red-200'
+                      }`}
+                    >
+                      {user.is_active ? 'Active' : 'Inactive'}
+                    </button>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {user.date_joined ? new Date(user.date_joined).toLocaleDateString() : 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                    <button className="text-blue-600 hover:text-blue-900">
+                      Edit
+                    </button>
+                    <button className="text-red-600 hover:text-red-900">
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        <div className={`px-6 py-3 border-t ${isDark ? 'border-gray-700 bg-gray-750' : 'border-gray-200 bg-gray-50'}`}>
+          <div className="flex items-center justify-between">
+            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-700'}`}>
+              Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} to{' '}
+              {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of{' '}
+              {pagination.totalItems} results
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => handlePageChange(pagination.currentPage - 1)}
+                disabled={pagination.currentPage === 1}
+                className={`px-3 py-1 rounded text-sm ${
+                  pagination.currentPage === 1
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                }`}
               >
-                <option value="user">User</option>
-                <option value="officer">Officer</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">College</label>
-              <input
-                type="text"
-                value={formData.college}
-                onChange={(e) => setFormData({...formData, college: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-700 focus:border-blue-700"
-              />
+                Previous
+              </button>
+              
+              {[...Array(pagination.totalPages)].map((_, index) => {
+                const page = index + 1;
+                if (
+                  page === 1 ||
+                  page === pagination.totalPages ||
+                  (page >= pagination.currentPage - 1 && page <= pagination.currentPage + 1)
+                ) {
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`px-3 py-1 rounded text-sm ${
+                        page === pagination.currentPage
+                          ? 'bg-blue-500 text-white'
+                          : isDark
+                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                } else if (
+                  page === pagination.currentPage - 2 ||
+                  page === pagination.currentPage + 2
+                ) {
+                  return <span key={page} className="px-2">...</span>;
+                }
+                return null;
+              })}
+
+              <button
+                onClick={() => handlePageChange(pagination.currentPage + 1)}
+                disabled={pagination.currentPage === pagination.totalPages}
+                className={`px-3 py-1 rounded text-sm ${
+                  pagination.currentPage === pagination.totalPages
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                }`}
+              >
+                Next
+              </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Phone</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-700 focus:border-blue-700"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Campus ID</label>
-              <input
-                type="text"
-                value={formData.campus_id}
-                onChange={(e) => setFormData({...formData, campus_id: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-700 focus:border-blue-700"
-              />
-            </div>
-          </div>
-          {!editingUser && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Password</label>
-              <input
-                type="password"
-                required={!editingUser}
-                value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-700 focus:border-blue-700"
-              />
-            </div>
-          )}
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={() => setShowModal(false)}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-700 text-white rounded-md hover:bg-blue-600"
-            >
-              {editingUser ? 'Update' : 'Create'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+        </div>
+      </div>
     </div>
   );
 };

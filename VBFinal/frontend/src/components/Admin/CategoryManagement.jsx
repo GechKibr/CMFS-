@@ -12,6 +12,7 @@ const CategoryManagement = () => {
     name: '',
     description: '',
     institution: '',
+    parent: '',
     is_active: true
   });
 
@@ -47,7 +48,7 @@ const CategoryManagement = () => {
       fetchData();
       setShowModal(false);
       setEditingCategory(null);
-      setFormData({ name: '', description: '', institution: '', is_active: true });
+      setFormData({ name: '', description: '', institution: '', parent: '', is_active: true });
     } catch (error) {
       console.error('Error saving category:', error);
     }
@@ -59,6 +60,7 @@ const CategoryManagement = () => {
       name: category.name,
       description: category.description || '',
       institution: category.institution || '',
+      parent: category.parent || '',
       is_active: category.is_active
     });
     setShowModal(true);
@@ -77,7 +79,7 @@ const CategoryManagement = () => {
 
   const openCreateModal = () => {
     setEditingCategory(null);
-    setFormData({ name: '', description: '', institution: '', is_active: true });
+    setFormData({ name: '', description: '', institution: '', parent: '', is_active: true });
     setShowModal(true);
   };
 
@@ -101,6 +103,7 @@ const CategoryManagement = () => {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Institution</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -109,7 +112,7 @@ const CategoryManagement = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {categories.length === 0 ? (
               <tr>
-                <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
+                <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
                   No categories found. Click "Add Category" to create one.
                 </td>
               </tr>
@@ -121,6 +124,9 @@ const CategoryManagement = () => {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {category.description}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {category.parent_name || '-'}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {institutions.find(inst => inst.id === category.institution)?.name || 'N/A'}
@@ -181,6 +187,23 @@ const CategoryManagement = () => {
               rows={3}
               placeholder="Brief description of the category"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Parent Category</label>
+            <select
+              value={formData.parent}
+              onChange={(e) => setFormData({...formData, parent: e.target.value})}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">No Parent (Top Level Category)</option>
+              {categories
+                .filter(cat => cat.category_id !== editingCategory?.category_id) // Don't allow self as parent
+                .map((category) => (
+                <option key={category.category_id} value={category.category_id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Institution</label>

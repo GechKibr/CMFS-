@@ -11,10 +11,11 @@ class ApiService {
     localStorage.setItem('token', token);
   }
 
-  getHeaders() {
-    const headers = {
-      'Content-Type': 'application/json',
-    };
+  getHeaders(isFormData = false) {
+    const headers = {};
+    if (!isFormData) {
+      headers['Content-Type'] = 'application/json';
+    }
     // Remove auth requirement for development
     // if (this.token) {
     //   headers.Authorization = `Bearer ${this.token}`;
@@ -25,7 +26,7 @@ class ApiService {
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
-      headers: this.getHeaders(),
+      headers: this.getHeaders(options.isFormData),
       ...options,
     };
 
@@ -57,9 +58,11 @@ class ApiService {
   }
 
   async createComplaint(data) {
+    const isFormData = data instanceof FormData;
     return this.request('/complaints/', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: isFormData ? data : JSON.stringify(data),
+      isFormData: isFormData,
     });
   }
 
@@ -72,6 +75,17 @@ class ApiService {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  }
+
+  async assignComplaint(id, data) {
+    return this.request(`/complaints/${id}/assign/`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getUsers() {
+    return this.request('/accounts/');
   }
 
   // Institutions
@@ -176,12 +190,33 @@ class ApiService {
 
   // Users (assuming there's a users endpoint)
   async getUsers() {
-    return this.request('/accounts/users/');
+    return this.request('/accounts/');
+  }
+
+  async createUser(data) {
+    return this.request('/accounts/register/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateUser(id, data) {
+    return this.request(`/accounts/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteUser(id) {
+    return this.request(`/accounts/${id}/`, {
+      method: 'DELETE',
+    });
   }
 
   // Dashboard stats
   async getDashboardStats() {
-    const complaints = await this.getComplaints();
+    const complaintsData = await this.getComplaints();
+    const complaints = complaintsData.results || complaintsData;
     const stats = {
       total: complaints.length,
       pending: complaints.filter(c => c.status === 'pending').length,

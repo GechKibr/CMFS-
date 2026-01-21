@@ -28,10 +28,10 @@ const CategoryResolverManagement = () => {
         apiService.getResolverLevels(),
         apiService.getUsers()
       ]);
-      setCategoryResolvers(resolversData);
-      setCategories(categoriesData);
-      setResolverLevels(levelsData);
-      setUsers(usersData);
+      setCategoryResolvers(resolversData.results || resolversData);
+      setCategories(categoriesData.results || categoriesData);
+      setResolverLevels(levelsData.results || levelsData);
+      setUsers(usersData.results || usersData);
     } catch (error) {
       console.error('Failed to load data:', error);
     }

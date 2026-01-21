@@ -17,15 +17,33 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    initializeAuth();
+  }, []);
+
+  const initializeAuth = async () => {
     const currentUser = authService.getCurrentUser();
     const token = authService.getToken();
     
     if (currentUser && token) {
-      setUser(currentUser);
-      apiService.setToken(token);
+      // Verify token is still valid
+      const isValid = await authService.verifyToken();
+      if (isValid) {
+        setUser(currentUser);
+        apiService.setToken(token);
+      } else {
+        // Try to refresh token
+        try {
+          await authService.refreshToken();
+          setUser(currentUser);
+          apiService.setToken(authService.getToken());
+        } catch (error) {
+          console.error('Token refresh failed:', error);
+          logout();
+        }
+      }
     }
     setLoading(false);
-  }, []);
+  };
 
   const login = async (email, password) => {
     try {
@@ -80,6 +98,18 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider value={{ 
       user, 
       login, 
+      register,
+      logout,
+      getUserRole,
+      isAdmin,
+      isOfficer,
+      isUser,
+      refreshToken: authService.refreshToken.bind(authService),
+      verifyToken: authService.verifyToken.bind(authService)
+    }}>
+      {children}
+    </AuthContext.Provider>
+  ); 
       register, 
       logout, 
       getUserRole, 

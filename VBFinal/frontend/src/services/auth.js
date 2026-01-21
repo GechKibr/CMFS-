@@ -61,6 +61,58 @@ class AuthService {
     }
   }
 
+  async refreshToken() {
+    try {
+      const refreshToken = localStorage.getItem('refresh');
+      if (!refreshToken) {
+        throw new Error('No refresh token available');
+      }
+
+      const response = await fetch(`${AUTH_API_URL}/token/refresh/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Token refresh failed');
+      }
+
+      if (data.access) {
+        localStorage.setItem('token', data.access);
+        return data.access;
+      }
+
+      throw new Error('No access token received');
+    } catch (error) {
+      this.logout();
+      throw error;
+    }
+  }
+
+  async verifyToken() {
+    try {
+      const token = this.getToken();
+      if (!token) return false;
+
+      const response = await fetch(`${AUTH_API_URL}/token/verify/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token }),
+      });
+
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
+  }
+
   logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('refresh');

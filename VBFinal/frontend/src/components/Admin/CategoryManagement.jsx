@@ -4,10 +4,16 @@ import Modal from '../UI/Modal';
 
 const CategoryManagement = () => {
   const [categories, setCategories] = useState([]);
+  const [filteredCategories, setFilteredCategories] = useState([]);
   const [institutions, setInstitutions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
+  const [filters, setFilters] = useState({
+    status: 'all',
+    institution: 'all',
+    search: ''
+  });
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -20,14 +26,70 @@ const CategoryManagement = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    applyFilters();
+  }, [categories, filters]);
+
+  const applyFilters = () => {
+    let filtered = categories;
+
+    if (filters.status !== 'all') {
+      const isActive = filters.status === 'active';
+      filtered = filtered.filter(cat => cat.is_active === isActive);
+    }
+
+    if (filters.institution !== 'all') {
+      filtered = filtered.filter(cat => cat.institution === filters.institution);
+    }
+
+    if (filters.search) {
+      filtered = filtered.filter(cat => 
+        cat.name.toLowerCase().includes(filters.search.toLowerCase()) ||
+        cat.description.toLowerCase().includes(filters.search.toLowerCase())
+      );
+    }
+
+    setFilteredCategories(filtered);
+  };
+
+  const fetchAllCategories = async () => {
+    let allCategories = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        const response = await apiService.getCategories(page);
+        
+        // Handle different response formats
+        if (response.results) {
+          allCategories = [...allCategories, ...response.results];
+          hasMore = !!response.next;
+        } else if (Array.isArray(response)) {
+          allCategories = [...allCategories, ...response];
+          hasMore = false;
+        } else {
+          hasMore = false;
+        }
+        
+        page++;
+      } catch (error) {
+        console.error(`Error fetching page ${page}:`, error);
+        hasMore = false;
+      }
+    }
+
+    return allCategories;
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
       const [categoriesData, institutionsData] = await Promise.all([
-        apiService.getCategories(),
+        fetchAllCategories(),
         apiService.getInstitutions()
       ]);
-      setCategories(categoriesData.results || categoriesData);
+      setCategories(categoriesData);
       setInstitutions(institutionsData.results || institutionsData);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -97,6 +159,60 @@ const CategoryManagement = () => {
         </button>
       </div>
 
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-lg shadow">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <input
+              type="text"
+              placeholder="Search categories..."
+              value={filters.search}
+              onChange={(e) => setFilters({...filters, search: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({...filters, status: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Institution</label>
+            <select
+              value={filters.institution}
+              onChange={(e) => setFilters({...filters, institution: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Institutions</option>
+              {institutions.map(inst => (
+                <option key={inst.id} value={inst.id}>{inst.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={() => setFilters({status: 'all', institution: 'all', search: ''})}
+              className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Results Counter */}
+      <div className="text-sm text-gray-600">
+        Showing {filteredCategories.length} of {categories.length} categories
+      </div>
+
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -110,14 +226,16 @@ const CategoryManagement = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {categories.length === 0 ? (
+            {filteredCategories.length === 0 ? (
               <tr>
                 <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
-                  No categories found. Click "Add Category" to create one.
+                  {filters.search || filters.status !== 'all' || filters.institution !== 'all' 
+                    ? 'No categories match the current filters.' 
+                    : 'No categories found. Click "Add Category" to create one.'}
                 </td>
               </tr>
             ) : (
-              categories.map((category) => (
+              filteredCategories.map((category) => (
                 <tr key={category.category_id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {category.name}

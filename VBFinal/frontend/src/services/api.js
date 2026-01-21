@@ -16,11 +16,34 @@ class ApiService {
     if (!isFormData) {
       headers['Content-Type'] = 'application/json';
     }
-    // Remove auth requirement for development
-    // if (this.token) {
-    //   headers.Authorization = `Bearer ${this.token}`;
-    // }
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
     return headers;
+  }
+
+  async refreshToken() {
+    const refreshToken = localStorage.getItem('refresh');
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/accounts/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+
+    if (!response.ok) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('refresh');
+      localStorage.removeItem('user');
+      throw new Error('Token refresh failed');
+    }
+
+    const data = await response.json();
+    this.setToken(data.access);
+    return data.access;
   }
 
   async request(endpoint, options = {}) {
@@ -31,10 +54,23 @@ class ApiService {
     };
 
     console.log(`Making API request to: ${url}`);
-    console.log('Request config:', config);
 
     try {
-      const response = await fetch(url, config);
+      let response = await fetch(url, config);
+      
+      // If token expired, try to refresh and retry
+      if (response.status === 401 && this.token) {
+        try {
+          await this.refreshToken();
+          config.headers = this.getHeaders(options.isFormData);
+          response = await fetch(url, config);
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
+          window.location.href = '/login';
+          throw refreshError;
+        }
+      }
+
       console.log(`Response status: ${response.status}`);
       
       if (!response.ok) {
@@ -84,6 +120,26 @@ class ApiService {
     });
   }
 
+  // Comments and Responses
+  async addComplaintComment(complaintId, comment) {
+    return this.request(`/complaints/${complaintId}/comments/`, {
+      method: 'POST',
+      body: JSON.stringify({ comment }),
+    });
+  }
+
+  async getComplaintComments(complaintId) {
+    return this.request(`/complaints/${complaintId}/comments/`);
+  }
+
+  // Ratings
+  async addComplaintRating(complaintId, rating, feedback) {
+    return this.request(`/complaints/${complaintId}/rating/`, {
+      method: 'POST',
+      body: JSON.stringify({ rating, feedback }),
+    });
+  }
+
   async getUsers() {
     return this.request('/accounts/');
   }
@@ -114,8 +170,9 @@ class ApiService {
   }
 
   // Categories
-  async getCategories() {
-    return this.request('/categories/');
+  async getCategories(page = null) {
+    const url = page ? `/categories/?page=${page}` : '/categories/';
+    return this.request(url);
   }
 
   async createCategory(data) {

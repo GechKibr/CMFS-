@@ -69,14 +69,15 @@ const OfficerDashboard = () => {
     try {
       setLoading(true);
       const complaintsData = await apiService.getComplaints();
-      setComplaints(complaintsData);
+      const complaintsArray = complaintsData.results || complaintsData;
+      setComplaints(complaintsArray);
       
       // Calculate stats
       const stats = {
-        assigned: complaintsData.length,
-        resolved: complaintsData.filter(c => c.status === 'resolved').length,
-        pending: complaintsData.filter(c => c.status === 'pending').length,
-        urgent: complaintsData.filter(c => c.priority === 'urgent').length
+        assigned: complaintsArray.length,
+        resolved: complaintsArray.filter(c => c.status === 'resolved').length,
+        pending: complaintsArray.filter(c => c.status === 'pending').length,
+        urgent: complaintsArray.filter(c => c.priority === 'urgent').length
       };
       setStats(stats);
     } catch (error) {
@@ -87,6 +88,8 @@ const OfficerDashboard = () => {
   };
 
   const applyFilters = () => {
+    if (!Array.isArray(complaints)) return;
+    
     let filtered = complaints;
     
     if (filters.status !== 'all') {
@@ -196,7 +199,7 @@ const OfficerDashboard = () => {
               </tr>
             </thead>
             <tbody className={`${isDark ? 'bg-gray-800' : 'bg-white'} divide-y ${isDark ? 'divide-gray-700' : 'divide-gray-200'}`}>
-              {filteredComplaints.map((complaint) => (
+              {Array.isArray(filteredComplaints) && filteredComplaints.map((complaint) => (
                 <tr key={complaint.complaint_id} className={`${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDark ? 'text-gray-300' : 'text-gray-900'}`}>
                     {complaint.complaint_id?.slice(0, 8)}...
@@ -235,7 +238,7 @@ const OfficerDashboard = () => {
               ))}
             </tbody>
           </table>
-          {filteredComplaints.length === 0 && (
+          {(!Array.isArray(filteredComplaints) || filteredComplaints.length === 0) && (
             <div className={`p-6 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               No complaints found
             </div>
@@ -497,10 +500,15 @@ const ComplaintModal = ({ complaint, onClose, onUpdateStatus, onEscalate, isDark
     if (!newComment.trim()) return;
     
     try {
-      // API call to add comment
-      console.log('Adding comment:', newComment);
+      await apiService.addComplaintComment(selectedComplaint.complaint_id, newComment);
       setNewComment('');
-      // Refresh comments
+      // Add to local comments state
+      const newCommentObj = {
+        comment: newComment,
+        author: { name: user?.name || 'Officer' },
+        created_at: new Date().toISOString()
+      };
+      setComments([...comments, newCommentObj]);
     } catch (error) {
       console.error('Failed to add comment:', error);
     }

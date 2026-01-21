@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import TokenInterceptor from './components/TokenInterceptor';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import AdminDashboard from './pages/AdminDashboard';
@@ -16,9 +17,10 @@ function App() {
     <LanguageProvider>
       <ThemeProvider>
         <AuthProvider>
-          <Router>
-            <div className="App">
-              <Routes>
+          <TokenInterceptor>
+            <Router>
+              <div className="App">
+                <Routes>
                 {/* Public Routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
@@ -54,13 +56,15 @@ function App() {
                 
                 {/* Default Route */}
                 <Route path="/" element={<Navigate to="/login" replace />} />
-              </Routes>
-            </div>
-          </Router>
+                </Routes>
+              </div>
+            </Router>
+          </TokenInterceptor>
         </AuthProvider>
       </ThemeProvider>
     </LanguageProvider>
   );
+}
 }
 
 export default App;

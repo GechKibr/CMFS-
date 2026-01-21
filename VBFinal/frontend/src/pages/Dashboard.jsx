@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import Layout from '../components/Layout/Layout';
-import StatusBadge from '../components/UI/StatusBadge';
 import Modal from '../components/UI/Modal';
 import AdminSettings from '../components/Admin/AdminSettings';
 import UserManagement from '../components/Admin/UserManagement';
 import InstitutionManagement from '../components/Admin/InstitutionManagement';
 import CategoryManagement from '../components/Admin/CategoryManagement';
+import apiService from '../services/api';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [showComplaintModal, setShowComplaintModal] = useState(false);
   const [complaints, setComplaints] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [institutions, setInstitutions] = useState([]);
   const [newComplaint, setNewComplaint] = useState({
     title: '',
     description: '',
@@ -23,7 +25,52 @@ const Dashboard = () => {
   // Fetch data from backend
   useEffect(() => {
     fetchComplaints();
-  }, []);
+    if (user?.role === 'admin') {
+      fetchAdminData();
+    }
+  }, [user]);
+
+  const fetchAllCategories = async () => {
+    let allCategories = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        const response = await apiService.getCategories(page);
+        if (response.results) {
+          allCategories = [...allCategories, ...response.results];
+          hasMore = !!response.next;
+        } else if (Array.isArray(response)) {
+          allCategories = [...allCategories, ...response];
+          hasMore = false;
+        } else {
+          hasMore = false;
+        }
+        page++;
+      } catch (error) {
+        console.error(`Error fetching categories page ${page}:`, error);
+        hasMore = false;
+      }
+    }
+    return allCategories;
+  };
+
+  const fetchAdminData = async () => {
+    try {
+      const [categoriesData, usersData, institutionsData] = await Promise.all([
+        fetchAllCategories(),
+        apiService.getUsers(),
+        apiService.getInstitutions()
+      ]);
+      
+      setCategories(categoriesData);
+      setUsers(usersData.results || usersData);
+      setInstitutions(institutionsData.results || institutionsData);
+    } catch (error) {
+      console.error('Error fetching admin data:', error);
+    }
+  };
 
   const fetchComplaints = async () => {
     try {
@@ -106,6 +153,53 @@ const Dashboard = () => {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'overview':
+        if (user?.role === 'admin') {
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold text-gray-700">Total Complaints</h3>
+                <p className="text-3xl font-bold text-blue-700">{complaints.length}</p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold text-gray-700">Total Categories</h3>
+                <p className="text-3xl font-bold text-purple-700">{categories.length}</p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold text-gray-700">Total Users</h3>
+                <p className="text-3xl font-bold text-green-700">{users.length}</p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold text-gray-700">Institutions</h3>
+                <p className="text-3xl font-bold text-orange-700">{institutions.length}</p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold text-gray-700">Open Complaints</h3>
+                <p className="text-3xl font-bold text-yellow-500">
+                  {complaints.filter(c => c.status === 'open' || c.status === 'pending').length}
+                </p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold text-gray-700">Resolved</h3>
+                <p className="text-3xl font-bold text-green-500">
+                  {complaints.filter(c => c.status === 'resolved').length}
+                </p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold text-gray-700">Active Categories</h3>
+                <p className="text-3xl font-bold text-indigo-700">
+                  {categories.filter(c => c.is_active).length}
+                </p>
+              </div>
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold text-gray-700">Officers</h3>
+                <p className="text-3xl font-bold text-red-700">
+                  {users.filter(u => u.role === 'officer').length}
+                </p>
+              </div>
+            </div>
+          );
+        }
+        
         return (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-lg shadow">
@@ -244,12 +338,13 @@ const Dashboard = () => {
   };
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-700">
-            {user?.role === 'admin' ? 'Admin Dashboard' : 
-             user?.role === 'officer' ? 'Officer Dashboard' : 'User Dashboard'}
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto py-6 px-4">
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-gray-700">
+              {user?.role === 'admin' ? 'Admin Dashboard' : 
+               user?.role === 'officer' ? 'Officer Dashboard' : 'User Dashboard'}
           </h1>
           <div className="text-sm text-gray-600">
             Welcome, {user?.first_name} {user?.last_name}
@@ -275,8 +370,9 @@ const Dashboard = () => {
         </div>
 
         {renderTabContent()}
+        </div>
       </div>
-    </Layout>
+    </div>
   );
 };
 

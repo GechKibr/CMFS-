@@ -17,6 +17,10 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [comments, setComments] = useState([]);
+  const [rating, setRating] = useState(0);
+  const [feedback, setFeedback] = useState('');
+  const [showRatingForm, setShowRatingForm] = useState(false);
 
   useEffect(() => {
     loadComplaints();
@@ -73,6 +77,31 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
     const resolved = complaints.filter(c => c.status === 'resolved').length;
     
     return { total, pending, inProgress, resolved };
+  };
+
+  const loadComments = async (complaintId) => {
+    try {
+      const data = await apiService.getComplaintComments(complaintId);
+      setComments(data.results || data);
+    } catch (error) {
+      console.error('Failed to load comments:', error);
+      setComments([]);
+    }
+  };
+
+  const submitRating = async () => {
+    if (!rating || !selectedComplaint) return;
+    
+    try {
+      await apiService.addComplaintRating(selectedComplaint.complaint_id, rating, feedback);
+      setShowRatingForm(false);
+      setRating(0);
+      setFeedback('');
+      alert('Rating submitted successfully!');
+    } catch (error) {
+      console.error('Failed to submit rating:', error);
+      alert('Failed to submit rating');
+    }
   };
 
   const stats = getStats();
@@ -214,6 +243,7 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
                     onClick={() => {
                       setSelectedComplaint(complaint);
                       setShowModal(true);
+                      loadComments(complaint.complaint_id);
                     }}
                     className="ml-4 px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
                   >
@@ -303,6 +333,89 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Officer Responses */}
+                {comments.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-3`}>
+                      Officer Responses:
+                    </h4>
+                    <div className="space-y-3">
+                      {comments.map((comment, index) => (
+                        <div key={index} className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                          <div className="flex justify-between items-start mb-2">
+                            <span className={`text-sm font-medium ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                              {comment.author?.name || 'Officer'}
+                            </span>
+                            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {new Date(comment.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {comment.comment}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Rating Section */}
+                {selectedComplaint.status === 'resolved' && (
+                  <div className="mt-6">
+                    {!showRatingForm ? (
+                      <button
+                        onClick={() => setShowRatingForm(true)}
+                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                      >
+                        Rate This Resolution
+                      </button>
+                    ) : (
+                      <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        <h4 className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-3`}>
+                          Rate the Resolution:
+                        </h4>
+                        <div className="flex items-center space-x-2 mb-3">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              onClick={() => setRating(star)}
+                              className={`text-2xl ${star <= rating ? 'text-yellow-400' : 'text-gray-300'} hover:text-yellow-400 transition-colors`}
+                            >
+                              ⭐
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          value={feedback}
+                          onChange={(e) => setFeedback(e.target.value)}
+                          placeholder="Optional feedback..."
+                          className={`w-full p-2 rounded border ${isDark ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} mb-3`}
+                          rows="3"
+                        />
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={submitRating}
+                            disabled={!rating}
+                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                          >
+                            Submit Rating
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowRatingForm(false);
+                              setRating(0);
+                              setFeedback('');
+                            }}
+                            className={`px-4 py-2 rounded transition-colors ${isDark ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

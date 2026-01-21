@@ -5,6 +5,7 @@ import AdminSettings from '../components/Admin/AdminSettings';
 import UserManagement from '../components/Admin/UserManagement';
 import InstitutionManagement from '../components/Admin/InstitutionManagement';
 import CategoryManagement from '../components/Admin/CategoryManagement';
+import CategoryResolverManagement from '../components/Admin/CategoryResolverManagement';
 import apiService from '../services/api';
 
 const Dashboard = () => {
@@ -134,6 +135,7 @@ const Dashboard = () => {
         ...baseTabs,
         { id: 'institutions', name: 'Institutions' },
         { id: 'categories', name: 'Categories' },
+        { id: 'category-resolvers', name: 'Category Resolvers' },
         { id: 'users', name: 'Users' },
         { id: 'settings', name: 'AI Settings' }
       ];
@@ -332,6 +334,12 @@ const Dashboard = () => {
         }
         if (activeTab === 'categories') {
           return <CategoryManagement />;
+        }
+        if (activeTab === 'category-resolvers') {
+          return <CategoryResolverManagement />;
+        }
+        if (activeTab === 'users') {
+          return <UserManagement />;
         }
         return <div className="bg-white rounded-lg shadow p-6">Feature coming soon...</div>;
     }

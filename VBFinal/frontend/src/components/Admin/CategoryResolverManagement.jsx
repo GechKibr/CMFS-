@@ -4,11 +4,17 @@ import Modal from '../UI/Modal';
 
 const CategoryResolverManagement = () => {
   const [categoryResolvers, setCategoryResolvers] = useState([]);
+  const [filteredResolvers, setFilteredResolvers] = useState([]);
   const [categories, setCategories] = useState([]);
   const [resolverLevels, setResolverLevels] = useState([]);
   const [users, setUsers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingResolver, setEditingResolver] = useState(null);
+  const [filters, setFilters] = useState({
+    category: 'all',
+    status: 'all',
+    search: ''
+  });
   const [formData, setFormData] = useState({
     category: '',
     level: '',
@@ -19,6 +25,32 @@ const CategoryResolverManagement = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [categoryResolvers, filters]);
+
+  const applyFilters = () => {
+    let filtered = categoryResolvers;
+
+    if (filters.category !== 'all') {
+      filtered = filtered.filter(r => r.category === filters.category);
+    }
+
+    if (filters.status !== 'all') {
+      const isActive = filters.status === 'active';
+      filtered = filtered.filter(r => r.active === isActive);
+    }
+
+    if (filters.search) {
+      filtered = filtered.filter(r => 
+        r.category_name?.toLowerCase().includes(filters.search.toLowerCase()) ||
+        r.officer_name?.toLowerCase().includes(filters.search.toLowerCase())
+      );
+    }
+
+    setFilteredResolvers(filtered);
+  };
 
   const loadData = async () => {
     try {
@@ -77,20 +109,67 @@ const CategoryResolverManagement = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="p-6 border-b">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-neutral">Category Resolver Assignments</h3>
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-primary text-white px-4 py-2 rounded hover:bg-blue-800"
-          >
-            Add Assignment
-          </button>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold text-gray-700">Category Resolver Assignments</h3>
+        <button
+          onClick={() => setShowModal(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Add Assignment
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-lg shadow">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <input
+              type="text"
+              placeholder="Search category or officer..."
+              value={filters.search}
+              onChange={(e) => setFilters({...filters, search: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <select
+              value={filters.category}
+              onChange={(e) => setFilters({...filters, category: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Categories</option>
+              {categories.map(cat => (
+                <option key={cat.category_id} value={cat.category_id}>{cat.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({...filters, status: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={() => setFilters({category: 'all', status: 'all', search: ''})}
+              className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+            >
+              Clear Filters
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
@@ -102,7 +181,16 @@ const CategoryResolverManagement = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {categoryResolvers.map((resolver) => (
+            {filteredResolvers.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
+                  {filters.search || filters.category !== 'all' || filters.status !== 'all' 
+                    ? 'No assignments match the current filters.' 
+                    : 'No category resolver assignments found.'}
+                </td>
+              </tr>
+            ) : (
+              filteredResolvers.map((resolver) => (
               <tr key={resolver.id}>
                 <td className="px-6 py-4 text-sm text-neutral">{resolver.category_name}</td>
                 <td className="px-6 py-4 text-sm text-neutral">{resolver.level_name}</td>
@@ -129,15 +217,12 @@ const CategoryResolverManagement = () => {
                   </button>
                 </td>
               </tr>
-            ))}
+              ))
+            )}
           </tbody>
         </table>
-        {categoryResolvers.length === 0 && (
-          <div className="p-6 text-center text-gray-500">
-            No category resolver assignments found
-          </div>
-        )}
       </div>
+    </div>
 
       <Modal
         isOpen={showModal}

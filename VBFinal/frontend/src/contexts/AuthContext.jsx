@@ -104,19 +104,9 @@ export const AuthProvider = ({ children }) => {
       isAdmin,
       isOfficer,
       isUser,
+      isAuthenticated: !!user,
       refreshToken: authService.refreshToken.bind(authService),
       verifyToken: authService.verifyToken.bind(authService)
-    }}>
-      {children}
-    </AuthContext.Provider>
-  ); 
-      register, 
-      logout, 
-      getUserRole, 
-      isAdmin, 
-      isOfficer, 
-      isUser,
-      isAuthenticated: !!user 
     }}>
       {children}
     </AuthContext.Provider>

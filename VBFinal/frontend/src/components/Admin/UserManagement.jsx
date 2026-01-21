@@ -1,12 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import apiService from '../../services/api';
+import Modal from '../UI/Modal';
 
 const UserManagement = () => {
   const { isDark } = useTheme();
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    college: '',
+    role: 'user',
+    is_active: true
+  });
   const [filters, setFilters] = useState({
     role: 'all',
     status: 'all',
@@ -18,6 +30,20 @@ const UserManagement = () => {
     totalItems: 0,
     totalPages: 0
   });
+
+  const colleges = [
+    { value: 'CMHS', label: 'College of Medicine and Health Sciences' },
+    { value: 'CNCS', label: 'College of Natural and Computational Sciences' },
+    { value: 'CBE', label: 'College of Business and Economics' },
+    { value: 'CSSH', label: 'College of Social Sciences and Humanities' },
+    { value: 'CVMAS', label: 'College of Veterinary Medicine and Animal Sciences' },
+    { value: 'CAES', label: 'College of Agriculture and Environmental Sciences' },
+    { value: 'COI', label: 'College of Informatics' },
+    { value: 'COE', label: 'College of Education' },
+    { value: 'IOT', label: 'Institute of Technology' },
+    { value: 'IOB', label: 'Institute of Biotechnology' },
+    { value: 'SOL', label: 'School of Law' },
+  ];
 
   useEffect(() => {
     loadUsers();
@@ -113,6 +139,46 @@ const UserManagement = () => {
       console.error('Failed to update user status:', error);
       alert('Failed to update user status');
     }
+  };
+
+  const handleEdit = (user) => {
+    setEditingUser(user);
+    setFormData({
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      college: user.college || '',
+      role: user.role || 'user',
+      is_active: user.is_active
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    try {
+      await apiService.updateUser(editingUser.id, formData);
+      setUsers(prev => 
+        prev.map(user => 
+          user.id === editingUser.id ? { ...user, ...formData } : user
+        )
+      );
+      setShowEditModal(false);
+      setEditingUser(null);
+      alert('User updated successfully');
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      alert('Failed to update user. Please try again.');
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
   };
 
   if (loading) {
@@ -229,15 +295,13 @@ const UserManagement = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <select
-                      value={user.role || 'user'}
-                      onChange={(e) => updateUserRole(user.id, e.target.value)}
-                      className={`text-sm rounded px-2 py-1 border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                    >
-                      <option value="user">User</option>
-                      <option value="officer">Officer</option>
-                      <option value="admin">Admin</option>
-                    </select>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                      user.role === 'officer' ? 'bg-blue-100 text-blue-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {user.role?.charAt(0).toUpperCase() + user.role?.slice(1) || 'User'}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button
@@ -254,12 +318,12 @@ const UserManagement = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {user.date_joined ? new Date(user.date_joined).toLocaleDateString() : 'N/A'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                    <button className="text-blue-600 hover:text-blue-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <button 
+                      onClick={() => handleEdit(user)}
+                      className="text-blue-600 hover:text-blue-900"
+                    >
                       Edit
-                    </button>
-                    <button className="text-red-600 hover:text-red-900">
-                      Delete
                     </button>
                   </td>
                 </tr>
@@ -335,6 +399,141 @@ const UserManagement = () => {
           </div>
         </div>
       </div>
+
+      {/* Edit User Modal */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditingUser(null);
+        }}
+        title="Edit User"
+      >
+        <form onSubmit={handleSaveEdit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                First Name
+              </label>
+              <input
+                type="text"
+                name="first_name"
+                value={formData.first_name}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Last Name
+              </label>
+              <input
+                type="text"
+                name="last_name"
+                value={formData.last_name}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Phone
+              </label>
+              <input
+                type="text"
+                name="phone"
+                value={formData.phone}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                College
+              </label>
+              <select
+                name="college"
+                value={formData.college}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select College</option>
+                {colleges.map(college => (
+                  <option key={college.value} value={college.value}>
+                    {college.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Role
+              </label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="user">User</option>
+                <option value="officer">Officer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div className="flex items-center pt-6">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="is_active"
+                  checked={formData.is_active}
+                  onChange={handleInputChange}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium text-gray-700">Active User</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowEditModal(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

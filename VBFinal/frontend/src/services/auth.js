@@ -84,6 +84,10 @@ class AuthService {
 
       if (data.access) {
         localStorage.setItem('token', data.access);
+        // If rotation is enabled, update refresh token too
+        if (data.refresh) {
+          localStorage.setItem('refresh', data.refresh);
+        }
         return data.access;
       }
 

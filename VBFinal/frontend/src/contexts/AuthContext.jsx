@@ -25,22 +25,21 @@ export const AuthProvider = ({ children }) => {
     const token = authService.getToken();
     
     if (currentUser && token) {
-      // Verify token is still valid
-      const isValid = await authService.verifyToken();
-      if (isValid) {
-        setUser(currentUser);
-        apiService.setToken(token);
-      } else {
-        // Try to refresh token
-        try {
-          await authService.refreshToken();
-          setUser(currentUser);
-          apiService.setToken(authService.getToken());
-        } catch (error) {
-          console.error('Token refresh failed:', error);
-          logout();
+      setUser(currentUser);
+      apiService.setToken(token);
+      
+      // Verify token in background, don't block UI
+      authService.verifyToken().then(isValid => {
+        if (!isValid) {
+          // Try to refresh token silently
+          authService.refreshToken().catch(() => {
+            // Only logout if refresh also fails
+            logout();
+          });
         }
-      }
+      }).catch(() => {
+        // Ignore verification errors on page load
+      });
     }
     setLoading(false);
   };

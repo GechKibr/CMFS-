@@ -54,18 +54,46 @@ const CategoryResolverManagement = () => {
 
   const loadData = async () => {
     try {
-      const [resolversData, categoriesData, levelsData, usersData] = await Promise.all([
+      const [resolversData, levelsData, usersData] = await Promise.all([
         apiService.getCategoryResolvers(),
-        apiService.getCategories(),
         apiService.getResolverLevels(),
         apiService.getUsers()
       ]);
       setCategoryResolvers(resolversData.results || resolversData);
-      setCategories(categoriesData.results || categoriesData);
       setResolverLevels(levelsData.results || levelsData);
       setUsers(usersData.results || usersData);
+      
+      // Load all categories separately
+      await loadAllCategories();
     } catch (error) {
       console.error('Failed to load data:', error);
+    }
+  };
+
+  const loadAllCategories = async () => {
+    try {
+      let allCategories = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await apiService.getCategories(page);
+        if (response.results) {
+          allCategories = [...allCategories, ...response.results];
+          hasMore = !!response.next;
+        } else if (Array.isArray(response)) {
+          allCategories = response;
+          hasMore = false;
+        } else {
+          hasMore = false;
+        }
+        page++;
+      }
+      
+      console.log('All categories loaded:', allCategories);
+      setCategories(allCategories);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
     }
   };
 
@@ -109,6 +137,7 @@ const CategoryResolverManagement = () => {
   };
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-gray-700">Category Resolver Assignments</h3>
@@ -142,7 +171,7 @@ const CategoryResolverManagement = () => {
             >
               <option value="all">All Categories</option>
               {categories.map(cat => (
-                <option key={cat.category_id} value={cat.category_id}>{cat.name}</option>
+                <option key={cat.id || cat.category_id} value={cat.id || cat.category_id}>{cat.name}</option>
               ))}
             </select>
           </div>
@@ -244,7 +273,7 @@ const CategoryResolverManagement = () => {
             >
               <option value="">Select Category</option>
               {categories.map((cat) => (
-                <option key={cat.category_id} value={cat.category_id}>{cat.name}</option>
+                <option key={cat.id || cat.category_id} value={cat.id || cat.category_id}>{cat.name}</option>
               ))}
             </select>
           </div>
@@ -312,7 +341,7 @@ const CategoryResolverManagement = () => {
           </div>
         </form>
       </Modal>
-    </div>
+    </>
   );
 };
 

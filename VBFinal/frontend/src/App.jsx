@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -11,6 +11,26 @@ import AdminDashboard from './pages/AdminDashboard';
 import OfficerDashboard from './pages/OfficerDashboard';
 import UserDashboard from './pages/UserDashboard';
 import EndpointTester from './components/EndpointTester';
+
+// Component to handle root redirect based on auth status
+const RootRedirect = () => {
+  const { user, getUserRole } = useAuth();
+  
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  const role = getUserRole();
+  switch (role) {
+    case 'admin':
+      return <Navigate to="/admin" replace />;
+    case 'officer':
+      return <Navigate to="/officer" replace />;
+    case 'user':
+    default:
+      return <Navigate to="/user" replace />;
+  }
+};
 
 function App() {
   return (
@@ -55,7 +75,7 @@ function App() {
                 <Route path="/test" element={<EndpointTester />} />
                 
                 {/* Default Route */}
-                <Route path="/" element={<Navigate to="/login" replace />} />
+                <Route path="/" element={<RootRedirect />} />
                 </Routes>
               </div>
             </Router>

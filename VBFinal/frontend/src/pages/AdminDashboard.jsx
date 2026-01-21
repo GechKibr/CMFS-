@@ -3,7 +3,6 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../services/api';
-import ApiTest from '../components/ApiTest';
 import ResolverLevelManagement from '../components/Admin/ResolverLevelManagement';
 import CategoryResolverManagement from '../components/Admin/CategoryResolverManagement';
 import InstitutionManagement from '../components/Admin/InstitutionManagement';
@@ -50,17 +49,35 @@ const AdminDashboard = () => {
 
   const loadSystemStats = async () => {
     try {
-      const [complaintsData, usersData, institutionsData, categoriesData] = await Promise.all([
+      // Fetch all categories (handle pagination)
+      let allCategories = [];
+      let page = 1;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const categoriesData = await apiService.getCategories(page);
+        if (categoriesData.results) {
+          allCategories = [...allCategories, ...categoriesData.results];
+          hasMore = !!categoriesData.next;
+          page++;
+        } else if (Array.isArray(categoriesData)) {
+          allCategories = [...allCategories, ...categoriesData];
+          hasMore = false;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const [complaintsData, usersData, institutionsData] = await Promise.all([
         apiService.getComplaints(),
         apiService.getUsers?.() || Promise.resolve([]),
-        apiService.getInstitutions(),
-        apiService.getCategories()
+        apiService.getInstitutions()
       ]);
 
       const complaints = complaintsData.results || complaintsData;
       const users = usersData.results || usersData;
       const institutions = institutionsData.results || institutionsData;
-      const categories = categoriesData.results || categoriesData;
+      const categories = allCategories;
 
       // Calculate resolution time
       const resolvedComplaints = complaints.filter(c => c.status === 'resolved');

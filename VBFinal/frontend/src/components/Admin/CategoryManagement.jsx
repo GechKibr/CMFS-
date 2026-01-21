@@ -9,6 +9,12 @@ const CategoryManagement = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10
+  });
   const [filters, setFilters] = useState({
     status: 'all',
     institution: 'all',
@@ -24,78 +30,46 @@ const CategoryManagement = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [pagination.currentPage, pagination.itemsPerPage]);
 
   useEffect(() => {
     applyFilters();
   }, [categories, filters]);
 
   const applyFilters = () => {
-    let filtered = categories;
-
-    if (filters.status !== 'all') {
-      const isActive = filters.status === 'active';
-      filtered = filtered.filter(cat => cat.is_active === isActive);
-    }
-
-    if (filters.institution !== 'all') {
-      filtered = filtered.filter(cat => cat.institution === filters.institution);
-    }
-
-    if (filters.search) {
-      filtered = filtered.filter(cat => 
-        cat.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-        cat.description.toLowerCase().includes(filters.search.toLowerCase())
-      );
-    }
-
-    setFilteredCategories(filtered);
-  };
-
-  const fetchAllCategories = async () => {
-    let allCategories = [];
-    let page = 1;
-    let hasMore = true;
-
-    while (hasMore) {
-      try {
-        const response = await apiService.getCategories(page);
-        
-        // Handle different response formats
-        if (response.results) {
-          allCategories = [...allCategories, ...response.results];
-          hasMore = !!response.next;
-        } else if (Array.isArray(response)) {
-          allCategories = [...allCategories, ...response];
-          hasMore = false;
-        } else {
-          hasMore = false;
-        }
-        
-        page++;
-      } catch (error) {
-        console.error(`Error fetching page ${page}:`, error);
-        hasMore = false;
-      }
-    }
-
-    return allCategories;
+    setFilteredCategories(categories); // Since we're using server-side pagination, just display current page
   };
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [categoriesData, institutionsData] = await Promise.all([
-        fetchAllCategories(),
+      const [categoriesResponse, institutionsData] = await Promise.all([
+        apiService.getCategories(pagination.currentPage),
         apiService.getInstitutions()
       ]);
-      setCategories(categoriesData);
+      
+      // Handle paginated response
+      if (categoriesResponse.results) {
+        setCategories(categoriesResponse.results);
+        setPagination(prev => ({
+          ...prev,
+          totalItems: categoriesResponse.count || 0,
+          totalPages: Math.ceil((categoriesResponse.count || 0) / prev.itemsPerPage)
+        }));
+      } else {
+        setCategories(categoriesResponse);
+      }
+      
       setInstitutions(institutionsData.results || institutionsData);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (page) => {
+    setPagination(prev => ({ ...prev, currentPage: page }));
   };
 
   const handleSubmit = async (e) => {
@@ -277,6 +251,71 @@ const CategoryManagement = () => {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Pagination */}
+      <div className="bg-white px-6 py-3 border-t border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} to{' '}
+            {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of{' '}
+            {pagination.totalItems} results
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => handlePageChange(pagination.currentPage - 1)}
+              disabled={pagination.currentPage === 1}
+              className={`px-3 py-1 rounded text-sm ${
+                pagination.currentPage === 1
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+              }`}
+            >
+              Previous
+            </button>
+            
+            {[...Array(pagination.totalPages)].map((_, index) => {
+              const page = index + 1;
+              if (
+                page === 1 ||
+                page === pagination.totalPages ||
+                (page >= pagination.currentPage - 1 && page <= pagination.currentPage + 1)
+              ) {
+                return (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    className={`px-3 py-1 rounded text-sm ${
+                      page === pagination.currentPage
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                );
+              } else if (
+                page === pagination.currentPage - 2 ||
+                page === pagination.currentPage + 2
+              ) {
+                return <span key={page} className="px-2">...</span>;
+              }
+              return null;
+            })}
+
+            <button
+              onClick={() => handlePageChange(pagination.currentPage + 1)}
+              disabled={pagination.currentPage === pagination.totalPages}
+              className={`px-3 py-1 rounded text-sm ${
+                pagination.currentPage === pagination.totalPages
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+              }`}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
 
       <Modal

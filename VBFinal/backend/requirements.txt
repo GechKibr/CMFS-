@@ -58,3 +58,4 @@ triton==3.5.1
 typing_extensions==4.15.0
 uritemplate==4.2.0
 urllib3==2.6.3
+psutil==7.1.3

@@ -18,9 +18,12 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [comments, setComments] = useState([]);
+  const [responses, setResponses] = useState([]);
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [showRatingForm, setShowRatingForm] = useState(false);
+  const [editingComment, setEditingComment] = useState(null);
+  const [newComment, setNewComment] = useState('');
 
   useEffect(() => {
     loadComplaints();
@@ -79,28 +82,88 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
     return { total, pending, inProgress, resolved };
   };
 
+  const loadResponses = async (complaintId) => {
+    try {
+      const data = await apiService.getComplaintResponses(complaintId);
+      setResponses(data.results || data || []);
+    } catch (error) {
+      console.error('Failed to load responses:', error);
+      setResponses([]);
+    }
+  };
+
   const loadComments = async (complaintId) => {
     try {
       const data = await apiService.getComplaintComments(complaintId);
-      setComments(data.results || data);
+      // Filter to show only user's own comments and ratings
+      const userComments = (data.results || data || []).filter(
+        comment => comment.author?.id === user?.id
+      );
+      setComments(userComments);
     } catch (error) {
       console.error('Failed to load comments:', error);
       setComments([]);
     }
   };
 
+  const editComment = async (commentId, newMessage) => {
+    try {
+      await apiService.updateComment(commentId, { message: newMessage });
+      setEditingComment(null);
+      await loadComments(selectedComplaint.complaint_id);
+    } catch (error) {
+      console.error('Failed to update comment:', error);
+      alert('Failed to update comment.');
+    }
+  };
+
+  const deleteComment = async (commentId) => {
+    if (!confirm('Are you sure you want to delete this comment?')) return;
+    
+    try {
+      await apiService.deleteComment(commentId);
+      await loadComments(selectedComplaint.complaint_id);
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+      alert('Failed to delete comment.');
+    }
+  };
+
+  const addComment = async () => {
+    if (!newComment.trim()) {
+      alert('Please enter a comment.');
+      return;
+    }
+    
+    try {
+      await apiService.createComment({
+        complaint: selectedComplaint.complaint_id,
+        message: newComment,
+        comment_type: 'comment'
+      });
+      setNewComment('');
+      await loadComments(selectedComplaint.complaint_id);
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+      alert('Failed to add comment.');
+    }
+  };
+
   const submitRating = async () => {
-    if (!rating || !selectedComplaint) return;
+    if (!rating || !selectedComplaint) {
+      alert('Please select a rating before submitting.');
+      return;
+    }
     
     try {
       await apiService.addComplaintRating(selectedComplaint.complaint_id, rating, feedback);
       setShowRatingForm(false);
       setRating(0);
       setFeedback('');
-      alert('Rating submitted successfully!');
+      alert(`Thank you! You rated this resolution ${rating}/5 stars.`);
     } catch (error) {
       console.error('Failed to submit rating:', error);
-      alert('Failed to submit rating');
+      alert('Failed to submit rating. Please try again.');
     }
   };
 
@@ -243,6 +306,7 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
                     onClick={() => {
                       setSelectedComplaint(complaint);
                       setShowModal(true);
+                      loadResponses(complaint.complaint_id);
                       loadComments(complaint.complaint_id);
                     }}
                     className="ml-4 px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
@@ -337,27 +401,66 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
                 )}
 
                 {/* Officer Responses */}
-                {comments.length > 0 && (
+                {responses.length > 0 && (
                   <div className="mt-6">
                     <h4 className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-3`}>
                       Officer Responses:
                     </h4>
-                    <div className="space-y-3">
-                      {comments.map((comment, index) => (
-                        <div key={index} className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                    <div className="space-y-4">
+                      {responses.map((response, index) => (
+                        <div key={index} className={`p-4 rounded-lg border-l-4 ${
+                          response.response_type === 'resolution' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
+                          response.response_type === 'escalation' ? 'border-red-500 bg-red-50 dark:bg-red-900/20' :
+                          response.response_type === 'initial' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' :
+                          'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
+                        }`}>
                           <div className="flex justify-between items-start mb-2">
-                            <span className={`text-sm font-medium ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
-                              {comment.author?.name || 'Officer'}
-                            </span>
+                            <div>
+                              <h5 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {response.title}
+                              </h5>
+                              <span className={`text-xs px-2 py-1 rounded mt-1 inline-block ${
+                                response.response_type === 'resolution' ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' :
+                                response.response_type === 'escalation' ? 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100' :
+                                response.response_type === 'initial' ? 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100' :
+                                'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'
+                              }`}>
+                                {response.response_type.replace('_', ' ').toUpperCase()}
+                              </span>
+                            </div>
                             <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {new Date(comment.created_at).toLocaleString()}
+                              {new Date(response.created_at).toLocaleString()}
                             </span>
                           </div>
-                          <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                            {comment.comment}
+                          <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                            {response.message}
                           </p>
+                          <div className="flex justify-between items-center">
+                            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              By {response.responder?.first_name || 'Officer'} {response.responder?.last_name || ''}
+                              {response.responder?.role === 'admin' && (
+                                <span className="ml-1 px-1 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100 rounded text-xs">ADMIN</span>
+                              )}
+                            </span>
+                            {response.attachment && (
+                              <span className={`text-xs ${isDark ? 'text-blue-400' : 'text-blue-600'} flex items-center`}>
+                                📎 Attachment
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {responses.length === 0 && (
+                  <div className="mt-6">
+                    <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'} text-center`}>
+                      <div className="text-2xl mb-2">⏳</div>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        No responses yet. Our officers will respond to your complaint soon.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -377,31 +480,41 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
                         <h4 className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-3`}>
                           Rate the Resolution:
                         </h4>
-                        <div className="flex items-center space-x-2 mb-3">
+                        <div className="flex items-center space-x-1 mb-3">
                           {[1, 2, 3, 4, 5].map((star) => (
                             <button
                               key={star}
                               onClick={() => setRating(star)}
-                              className={`text-2xl ${star <= rating ? 'text-yellow-400' : 'text-gray-300'} hover:text-yellow-400 transition-colors`}
+                              onMouseEnter={() => setRating(star)}
+                              className={`text-3xl transition-all duration-200 hover:scale-110 ${
+                                star <= rating 
+                                  ? 'text-yellow-400 drop-shadow-lg' 
+                                  : isDark 
+                                    ? 'text-gray-600 hover:text-yellow-300' 
+                                    : 'text-gray-300 hover:text-yellow-400'
+                              }`}
                             >
-                              ⭐
+                              ★
                             </button>
                           ))}
+                          <span className={`ml-3 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {rating > 0 && `${rating}/5 stars`}
+                          </span>
                         </div>
                         <textarea
                           value={feedback}
                           onChange={(e) => setFeedback(e.target.value)}
-                          placeholder="Optional feedback..."
-                          className={`w-full p-2 rounded border ${isDark ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} mb-3`}
+                          placeholder="Optional feedback about the resolution..."
+                          className={`w-full p-3 rounded border ${isDark ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'} mb-3`}
                           rows="3"
                         />
                         <div className="flex space-x-2">
                           <button
                             onClick={submitRating}
                             disabled={!rating}
-                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
-                            Submit Rating
+                            Submit Rating ({rating}/5)
                           </button>
                           <button
                             onClick={() => {
@@ -418,6 +531,93 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
                     )}
                   </div>
                 )}
+
+                {/* Comments Section */}
+                <div className="mt-6">
+                  <h4 className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-3`}>
+                    Your Comments:
+                  </h4>
+                  
+                  {/* Add Comment */}
+                  <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'} mb-4`}>
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Add a comment about this complaint..."
+                      className={`w-full p-3 rounded border ${isDark ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'} mb-3`}
+                      rows="3"
+                    />
+                    <button
+                      onClick={addComment}
+                      disabled={!newComment.trim()}
+                      className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Add Comment
+                    </button>
+                  </div>
+
+                  {/* Existing Comments */}
+                  <div className="space-y-3">
+                    {comments.length === 0 ? (
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        No comments yet. Add your first comment above.
+                      </p>
+                    ) : (
+                      comments.map((comment, index) => (
+                        <div key={index} className={`p-3 rounded border ${isDark ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1">
+                              {editingComment === comment.id ? (
+                                <textarea
+                                  defaultValue={comment.message}
+                                  onBlur={(e) => editComment(comment.id, e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      editComment(comment.id, e.target.value);
+                                    }
+                                    if (e.key === 'Escape') {
+                                      setEditingComment(null);
+                                    }
+                                  }}
+                                  className={`w-full p-2 rounded border ${isDark ? 'bg-gray-700 border-gray-500 text-white' : 'bg-white border-gray-300'}`}
+                                  rows="2"
+                                  autoFocus
+                                />
+                              ) : (
+                                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                  {comment.message}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2 ml-3">
+                              {comment.comment_type === 'rating' && comment.rating && (
+                                <span className="text-yellow-400 text-sm">
+                                  {'★'.repeat(comment.rating)}
+                                </span>
+                              )}
+                              <button
+                                onClick={() => setEditingComment(editingComment === comment.id ? null : comment.id)}
+                                className="text-blue-600 hover:text-blue-800 text-xs"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => deleteComment(comment.id)}
+                                className="text-red-600 hover:text-red-800 text-xs"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                          <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {new Date(comment.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
 import apiService from '../../services/api';
 import Modal from '../UI/Modal';
 
 const InstitutionManagement = () => {
+  const { isDark } = useTheme();
   const [institutions, setInstitutions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -149,7 +151,7 @@ const InstitutionManagement = () => {
               required
               value={formData.name}
               onChange={(e) => setFormData({...formData, name: e.target.value})}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`mt-1 block w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
               placeholder="e.g., Gondar University"
             />
           </div>
@@ -160,7 +162,7 @@ const InstitutionManagement = () => {
               required
               value={formData.domain}
               onChange={(e) => setFormData({...formData, domain: e.target.value})}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`mt-1 block w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
               placeholder="e.g., uog.edu.et"
             />
           </div>
@@ -168,7 +170,7 @@ const InstitutionManagement = () => {
             <button
               type="button"
               onClick={() => setShowModal(false)}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className={`px-4 py-2 border rounded-lg transition-colors ${isDark ? "border-gray-600 text-gray-300 hover:bg-gray-700" : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}
             >
               Cancel
             </button>

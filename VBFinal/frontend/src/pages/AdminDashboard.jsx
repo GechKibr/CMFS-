@@ -70,7 +70,7 @@ const AdminDashboard = () => {
 
       const [complaintsData, usersData, institutionsData] = await Promise.all([
         apiService.getComplaints(),
-        apiService.getUsers?.() || Promise.resolve([]),
+        apiService.getAllUsers(),
         apiService.getInstitutions()
       ]);
 

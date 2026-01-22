@@ -70,14 +70,30 @@ const OfficerDashboard = () => {
       setLoading(true);
       const complaintsData = await apiService.getComplaints();
       const complaintsArray = complaintsData.results || complaintsData;
-      setComplaints(complaintsArray);
+      
+      // Filter complaints for current officer
+      const assignedComplaints = complaintsArray.filter(complaint => {
+        // Direct assignment to this officer
+        const directlyAssigned = complaint.assigned_officer?.id === user?.id || 
+                                complaint.assigned_officer === user?.id;
+        
+        // Previously handled by this officer (escalated complaints they worked on)
+        const previouslyHandled = complaint.status === 'escalated' && 
+                                 complaint.assignments?.some(assignment => 
+                                   assignment.officer?.id === user?.id || assignment.officer === user?.id
+                                 );
+        
+        return directlyAssigned || previouslyHandled;
+      });
+      
+      setComplaints(assignedComplaints);
       
       // Calculate stats
       const stats = {
-        assigned: complaintsArray.length,
-        resolved: complaintsArray.filter(c => c.status === 'resolved').length,
-        pending: complaintsArray.filter(c => c.status === 'pending').length,
-        urgent: complaintsArray.filter(c => c.priority === 'urgent').length
+        assigned: assignedComplaints.length,
+        resolved: assignedComplaints.filter(c => c.status === 'resolved').length,
+        pending: assignedComplaints.filter(c => c.status === 'pending' || c.status === 'escalated').length,
+        urgent: assignedComplaints.filter(c => c.priority === 'urgent').length
       };
       setStats(stats);
     } catch (error) {
@@ -138,12 +154,13 @@ const OfficerDashboard = () => {
 
   const escalateComplaint = async (complaintId) => {
     try {
-      // API call to escalate complaint
-      console.log('Escalating complaint:', complaintId);
-      await loadData();
+      const result = await apiService.escalateComplaint(complaintId);
+      alert('Complaint escalated successfully to the next level.');
+      await loadData(); // Reload complaints to update the list
       setShowModal(false);
     } catch (error) {
       console.error('Failed to escalate:', error);
+      alert('Failed to escalate complaint. It may already be at the highest level.');
     }
   };
 
@@ -211,9 +228,16 @@ const OfficerDashboard = () => {
                     {complaint.category?.name || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(complaint.status)}`}>
-                      {complaint.status}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(complaint.status)}`}>
+                        {complaint.status}
+                      </span>
+                      {complaint.status === 'escalated' && (
+                        <span className="text-orange-500 text-xs" title="Escalated complaint">
+                          ⬆️
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 text-xs font-medium rounded ${getPriorityBadge(complaint.priority)}`}>
@@ -476,8 +500,40 @@ const OfficerDashboard = () => {
 
 // Complaint Modal Component
 const ComplaintModal = ({ complaint, onClose, onUpdateStatus, onEscalate, isDark }) => {
-  const [newComment, setNewComment] = useState('');
+  const { user } = useAuth();
+  const [newResponse, setNewResponse] = useState('');
+  const [responseTitle, setResponseTitle] = useState('');
+  const [responseType, setResponseType] = useState('update');
   const [comments, setComments] = useState([]);
+  const [responses, setResponses] = useState([]);
+  const [editingResponse, setEditingResponse] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editMessage, setEditMessage] = useState('');
+
+  useEffect(() => {
+    loadComments();
+    loadResponses(complaint?.complaint_id);
+  }, [complaint?.complaint_id]);
+
+  const loadComments = async () => {
+    try {
+      const commentsData = await apiService.getComplaintComments(complaint.complaint_id);
+      setComments(commentsData.results || commentsData || []);
+    } catch (error) {
+      console.error('Failed to load comments:', error);
+      setComments([]);
+    }
+  };
+
+  const loadResponses = async (complaintId) => {
+    try {
+      const responsesData = await apiService.getComplaintResponses(complaintId || complaint?.complaint_id);
+      setResponses(responsesData.results || responsesData || []);
+    } catch (error) {
+      console.error('Failed to load responses:', error);
+      setResponses([]);
+    }
+  };
 
   const getPriorityBadge = (priority) => {
     const badges = {
@@ -496,21 +552,60 @@ const ComplaintModal = ({ complaint, onClose, onUpdateStatus, onEscalate, isDark
     { value: 'escalated', label: 'Escalated' }
   ];
 
-  const addComment = async () => {
-    if (!newComment.trim()) return;
+  const responseTypeOptions = [
+    { value: 'initial', label: 'Initial Response' },
+    { value: 'update', label: 'Status Update' },
+    { value: 'resolution', label: 'Final Resolution' },
+    { value: 'escalation', label: 'Escalation Response' }
+  ];
+
+  const addResponse = async () => {
+    if (!newResponse.trim() || !responseTitle.trim()) {
+      alert('Please fill in both title and message');
+      return;
+    }
     
     try {
-      await apiService.addComplaintComment(selectedComplaint.complaint_id, newComment);
-      setNewComment('');
-      // Add to local comments state
-      const newCommentObj = {
-        comment: newComment,
-        author: { name: user?.name || 'Officer' },
-        created_at: new Date().toISOString()
-      };
-      setComments([...comments, newCommentObj]);
+      await apiService.createResponse({
+        complaint: complaint.complaint_id,
+        title: responseTitle,
+        message: newResponse,
+        response_type: responseType,
+        is_public: true
+      });
+      setNewResponse('');
+      setResponseTitle('');
+      setResponseType('update');
+      await loadResponses(complaint.complaint_id);
     } catch (error) {
-      console.error('Failed to add comment:', error);
+      console.error('Failed to add response:', error);
+      alert('Failed to add response. Please try again.');
+    }
+  };
+
+  const editResponse = async (responseId, newTitle, newMessage) => {
+    try {
+      await apiService.updateResponse(responseId, {
+        title: newTitle,
+        message: newMessage
+      });
+      setEditingResponse(null);
+      await loadResponses(complaint.complaint_id);
+    } catch (error) {
+      console.error('Failed to update response:', error);
+      alert('Failed to update response.');
+    }
+  };
+
+  const deleteResponse = async (responseId) => {
+    if (!confirm('Are you sure you want to delete this response?')) return;
+    
+    try {
+      await apiService.deleteResponse(responseId);
+      await loadResponses(complaint.complaint_id);
+    } catch (error) {
+      console.error('Failed to delete response:', error);
+      alert('Failed to delete response.');
     }
   };
 
@@ -610,53 +705,185 @@ const ComplaintModal = ({ complaint, onClose, onUpdateStatus, onEscalate, isDark
             <div className="flex items-end">
               <button
                 onClick={() => onEscalate(complaint.complaint_id)}
-                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded transition-colors"
+                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded transition-colors flex items-center space-x-2"
+                title="Escalate to next level officer"
               >
-                Escalate
+                <span>⬆️</span>
+                <span>Escalate to Higher Level</span>
               </button>
+            </div>
+          </div>
+
+          {/* Response Section */}
+          <div>
+            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+              Add Response
+            </label>
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <select
+                    value={responseType}
+                    onChange={(e) => setResponseType(e.target.value)}
+                    className={`w-full border rounded px-3 py-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    {responseTypeOptions.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    value={responseTitle}
+                    onChange={(e) => setResponseTitle(e.target.value)}
+                    placeholder="Response title..."
+                    className={`w-full border rounded px-3 py-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'}`}
+                  />
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                <textarea
+                  value={newResponse}
+                  onChange={(e) => setNewResponse(e.target.value)}
+                  placeholder="Write your response..."
+                  className={`flex-1 border rounded px-3 py-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'}`}
+                  rows="3"
+                />
+                <button
+                  onClick={addResponse}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors"
+                >
+                  Add Response
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Existing Responses */}
+          <div>
+            <h4 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+              Responses
+            </h4>
+            <div className="space-y-3">
+              {responses.length === 0 ? (
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  No responses yet
+                </p>
+              ) : (
+                responses.map((response, index) => (
+                  <div key={index} className={`p-4 rounded border-l-4 ${
+                    response.response_type === 'resolution' ? 'border-green-500' :
+                    response.response_type === 'escalation' ? 'border-red-500' :
+                    response.response_type === 'initial' ? 'border-blue-500' :
+                    'border-yellow-500'
+                  } ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                    <div className="flex justify-between items-start mb-2">
+                      <h5 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {editingResponse === response.id ? (
+                          <input
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            className={`w-full border rounded px-2 py-1 ${isDark ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'}`}
+                          />
+                        ) : (
+                          response.title
+                        )}
+                      </h5>
+                      <div className="flex items-center space-x-2">
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          response.response_type === 'resolution' ? 'bg-green-100 text-green-800' :
+                          response.response_type === 'escalation' ? 'bg-red-100 text-red-800' :
+                          response.response_type === 'initial' ? 'bg-blue-100 text-blue-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {response.response_type}
+                        </span>
+                        {response.responder?.id === user?.id && (
+                          <div className="flex space-x-1">
+                            {editingResponse === response.id ? (
+                              <>
+                                <button
+                                  onClick={() => editResponse(response.id, editTitle, editMessage)}
+                                  className="text-green-600 hover:text-green-800 text-xs"
+                                >
+                                  ✓
+                                </button>
+                                <button
+                                  onClick={() => setEditingResponse(null)}
+                                  className="text-gray-600 hover:text-gray-800 text-xs"
+                                >
+                                  ✕
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setEditingResponse(response.id);
+                                    setEditTitle(response.title);
+                                    setEditMessage(response.message);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 text-xs"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  onClick={() => deleteResponse(response.id)}
+                                  className="text-red-600 hover:text-red-800 text-xs"
+                                >
+                                  🗑️
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mb-2">
+                      {editingResponse === response.id ? (
+                        <textarea
+                          value={editMessage}
+                          onChange={(e) => setEditMessage(e.target.value)}
+                          className={`w-full border rounded px-2 py-1 ${isDark ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'}`}
+                          rows="3"
+                        />
+                      ) : (
+                        <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {response.message}
+                        </p>
+                      )}
+                    </div>
+                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      By {response.responder?.first_name || 'Officer'} - {new Date(response.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
           {/* Comments Section */}
           <div>
             <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              Add Comment
+              Internal Comments
             </label>
-            <div className="flex space-x-2">
-              <textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Add a comment..."
-                className={`flex-1 border rounded px-3 py-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300'}`}
-                rows="3"
-              />
-              <button
-                onClick={addComment}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-
-          {/* Existing Comments */}
-          <div>
-            <h4 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              Comments
-            </h4>
             <div className="space-y-2">
               {comments.length === 0 ? (
                 <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  No comments yet
+                  No internal comments yet
                 </p>
               ) : (
                 comments.map((comment, index) => (
                   <div key={index} className={`p-3 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                     <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {comment.message}
+                      {comment.message || comment.comment}
                     </p>
                     <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
-                      By {comment.author} - {comment.date}
+                      By {comment.author?.first_name || comment.author?.name || 'Officer'} - {new Date(comment.created_at).toLocaleDateString()}
                     </p>
                   </div>
                 ))

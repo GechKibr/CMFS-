@@ -55,8 +55,7 @@ const SubmitComplaint = ({ institutions, setSubmitSuccess }) => {
       formData.append('title', complaintForm.title);
       formData.append('description', complaintForm.description);
       formData.append('institution', complaintForm.institution);
-      formData.append('status', 'pending');
-      if (user?.id) formData.append('user', user.id);
+      formData.append('priority', 'medium');
       
       // Add files to form data
       files.forEach((file, index) => {

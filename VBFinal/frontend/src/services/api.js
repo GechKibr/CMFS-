@@ -124,7 +124,7 @@ class ApiService {
   async addComplaintComment(complaintId, comment) {
     return this.request(`/complaints/${complaintId}/comments/`, {
       method: 'POST',
-      body: JSON.stringify({ comment }),
+      body: JSON.stringify({ message: comment }),
     });
   }
 
@@ -132,16 +132,127 @@ class ApiService {
     return this.request(`/complaints/${complaintId}/comments/`);
   }
 
-  // Ratings
-  async addComplaintRating(complaintId, rating, feedback) {
-    return this.request(`/complaints/${complaintId}/rating/`, {
+  // Responses
+  async addComplaintResponse(complaintId, responseData) {
+    return this.request('/responses/', {
       method: 'POST',
-      body: JSON.stringify({ rating, feedback }),
+      body: JSON.stringify({
+        complaint: complaintId,
+        ...responseData
+      }),
     });
   }
 
-  async getUsers() {
-    return this.request('/accounts/');
+  async escalateComplaint(complaintId) {
+    return this.request(`/complaints/${complaintId}/escalate/`, {
+      method: 'POST',
+    });
+  }
+
+  async createResponse(data) {
+    return this.request('/responses/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getComplaintResponses(complaintId) {
+    return this.request(`/complaints/${complaintId}/responses/`);
+  }
+
+  async getComplaintComments(complaintId) {
+    return this.request(`/complaints/${complaintId}/comments/`);
+  }
+
+  async updateResponse(responseId, data) {
+    return this.request(`/responses/${responseId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteResponse(responseId) {
+    return this.request(`/responses/${responseId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateComment(commentId, data) {
+    return this.request(`/comments/${commentId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createComment(data) {
+    return this.request('/comments/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteComment(commentId) {
+    return this.request(`/comments/${commentId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deleteComment(commentId) {
+    return this.request(`/comments/${commentId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Ratings
+  async addComplaintRating(complaintId, rating, feedback) {
+    return this.request('/comments/', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        complaint: complaintId,
+        comment_type: 'rating',
+        message: feedback || 'No feedback provided',
+        rating: rating
+      }),
+    });
+  }
+
+  async getUsers(page = null, pageSize = null) {
+    let url = '/accounts/';
+    const params = new URLSearchParams();
+    
+    if (page) params.append('page', page);
+    if (pageSize) params.append('page_size', pageSize);
+    
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    
+    return this.request(url);
+  }
+
+  async getAllUsers() {
+    // Fetch all users by getting first page and then all subsequent pages
+    let allUsers = [];
+    let page = 1;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const response = await this.getUsers(page, 50); // Use larger page size
+      const users = response.results || response;
+      
+      if (Array.isArray(users)) {
+        allUsers = allUsers.concat(users);
+      } else {
+        // If response is not paginated, return as is
+        return response;
+      }
+      
+      // Check if there are more pages
+      hasMore = response.next !== null;
+      page++;
+    }
+    
+    return { results: allUsers, count: allUsers.length };
   }
 
   // Institutions
@@ -221,8 +332,40 @@ class ApiService {
   }
 
   // Category Resolvers
-  async getCategoryResolvers() {
-    return this.request('/resolver-assignments/');
+  async getCategoryResolvers(page = null, pageSize = null) {
+    let url = '/resolver-assignments/';
+    const params = new URLSearchParams();
+    
+    if (page) params.append('page', page);
+    if (pageSize) params.append('page_size', pageSize);
+    
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    
+    return this.request(url);
+  }
+
+  async getAllCategoryResolvers() {
+    let allResolvers = [];
+    let page = 1;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const response = await this.getCategoryResolvers(page, 50);
+      const resolvers = response.results || response;
+      
+      if (Array.isArray(resolvers)) {
+        allResolvers = allResolvers.concat(resolvers);
+      } else {
+        return response;
+      }
+      
+      hasMore = response.next !== null;
+      page++;
+    }
+    
+    return { results: allResolvers, count: allResolvers.length };
   }
 
   async createCategoryResolver(data) {
@@ -245,10 +388,7 @@ class ApiService {
     });
   }
 
-  // Users (assuming there's a users endpoint)
-  async getUsers() {
-    return this.request('/accounts/');
-  }
+  // Users
 
   async createUser(data) {
     return this.request('/accounts/register/', {

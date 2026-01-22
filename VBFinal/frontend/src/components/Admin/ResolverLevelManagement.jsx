@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
 import apiService from '../../services/api';
 import Modal from '../UI/Modal';
 
 const ResolverLevelManagement = () => {
+  const { isDark } = useTheme();
   const [resolverLevels, setResolverLevels] = useState([]);
   const [institutions, setInstitutions] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -195,7 +197,7 @@ const ResolverLevelManagement = () => {
             <button
               type="button"
               onClick={() => setShowModal(false)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              className={`px-4 py-2 border rounded-lg transition-colors ${isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
             >
               Cancel
             </button>

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
 import apiService from '../../services/api';
 import Modal from '../UI/Modal';
 
 const CategoryResolverManagement = () => {
+  const { isDark } = useTheme();
   const [categoryResolvers, setCategoryResolvers] = useState([]);
   const [filteredResolvers, setFilteredResolvers] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -55,9 +57,9 @@ const CategoryResolverManagement = () => {
   const loadData = async () => {
     try {
       const [resolversData, levelsData, usersData] = await Promise.all([
-        apiService.getCategoryResolvers(),
+        apiService.getAllCategoryResolvers(),
         apiService.getResolverLevels(),
-        apiService.getUsers()
+        apiService.getAllUsers()
       ]);
       setCategoryResolvers(resolversData.results || resolversData);
       setResolverLevels(levelsData.results || levelsData);
@@ -153,21 +155,21 @@ const CategoryResolverManagement = () => {
       <div className="bg-white p-4 rounded-lg shadow">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <label className={`block text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"} mb-1`}>Search</label>
             <input
               type="text"
               placeholder="Search category or officer..."
               value={filters.search}
               onChange={(e) => setFilters({...filters, search: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <label className={`block text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"} mb-1`}>Category</label>
             <select
               value={filters.category}
               onChange={(e) => setFilters({...filters, category: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
             >
               <option value="all">All Categories</option>
               {categories.map(cat => (
@@ -176,11 +178,11 @@ const CategoryResolverManagement = () => {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <label className={`block text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"} mb-1`}>Status</label>
             <select
               value={filters.status}
               onChange={(e) => setFilters({...filters, status: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -264,11 +266,11 @@ const CategoryResolverManagement = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Category</label>
+            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Category</label>
             <select
               value={formData.category}
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
               required
             >
               <option value="">Select Category</option>
@@ -279,11 +281,11 @@ const CategoryResolverManagement = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Resolver Level</label>
+            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Resolver Level</label>
             <select
               value={formData.level}
               onChange={(e) => setFormData({ ...formData, level: e.target.value })}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
               required
             >
               <option value="">Select Level</option>
@@ -296,11 +298,11 @@ const CategoryResolverManagement = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Officer</label>
+            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Officer</label>
             <select
               value={formData.officer}
               onChange={(e) => setFormData({ ...formData, officer: e.target.value })}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+              className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
               required
             >
               <option value="">Select Officer</option>
@@ -320,7 +322,7 @@ const CategoryResolverManagement = () => {
                 onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
                 className="mr-2"
               />
-              <span className="text-sm font-medium text-gray-700">Active</span>
+              <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Active</span>
             </label>
           </div>
 
@@ -328,7 +330,7 @@ const CategoryResolverManagement = () => {
             <button
               type="button"
               onClick={() => setShowModal(false)}
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              className={`px-4 py-2 border rounded-md transition-colors ${isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
             >
               Cancel
             </button>

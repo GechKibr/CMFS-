@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 import apiService from '../../services/api';
 
 const AdminComplaints = () => {
   const { isDark } = useTheme();
+  const { user } = useAuth();
   const [complaints, setComplaints] = useState([]);
   const [filteredComplaints, setFilteredComplaints] = useState([]);
   const [categories, setCategories] = useState([]);
   const [institutions, setInstitutions] = useState([]);
+  const [responses, setResponses] = useState([]);
+  const [newResponse, setNewResponse] = useState('');
+  const [responseTitle, setResponseTitle] = useState('');
+  const [responseType, setResponseType] = useState('update');
   const [filters, setFilters] = useState({
     status: 'all',
     priority: 'all',
@@ -87,6 +93,39 @@ const AdminComplaints = () => {
     } catch (error) {
       console.error('Failed to assign complaint:', error);
       alert('Failed to assign complaint');
+    }
+  };
+
+  const loadResponses = async (complaintId) => {
+    try {
+      const data = await apiService.getComplaintResponses(complaintId);
+      setResponses(data.results || data || []);
+    } catch (error) {
+      console.error('Failed to load responses:', error);
+      setResponses([]);
+    }
+  };
+
+  const addResponse = async () => {
+    if (!newResponse.trim() || !responseTitle.trim()) {
+      alert('Please fill in both title and message');
+      return;
+    }
+    
+    try {
+      await apiService.addComplaintResponse(selectedComplaint.complaint_id, {
+        title: responseTitle,
+        message: newResponse,
+        response_type: responseType,
+        is_public: true
+      });
+      setNewResponse('');
+      setResponseTitle('');
+      setResponseType('update');
+      await loadResponses(selectedComplaint.complaint_id);
+    } catch (error) {
+      console.error('Failed to add response:', error);
+      alert('Failed to add response. Please try again.');
     }
   };
 
@@ -311,6 +350,7 @@ const AdminComplaints = () => {
                         onClick={() => {
                           setSelectedComplaint(complaint);
                           setShowModal(true);
+                          loadResponses(complaint.complaint_id);
                         }}
                         className="text-blue-600 hover:text-blue-900"
                       >
@@ -399,6 +439,102 @@ const AdminComplaints = () => {
                           <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                             {attachment.filename}
                           </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Admin Response Section */}
+                <div className="mt-6">
+                  <h4 className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-3`}>
+                    Add Admin Response
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <select
+                          value={responseType}
+                          onChange={(e) => setResponseType(e.target.value)}
+                          className={`w-full border rounded px-3 py-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                        >
+                          <option value="initial">Initial Response</option>
+                          <option value="update">Status Update</option>
+                          <option value="resolution">Final Resolution</option>
+                          <option value="escalation">Escalation Response</option>
+                        </select>
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          value={responseTitle}
+                          onChange={(e) => setResponseTitle(e.target.value)}
+                          placeholder="Response title..."
+                          className={`w-full border rounded px-3 py-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'}`}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <textarea
+                        value={newResponse}
+                        onChange={(e) => setNewResponse(e.target.value)}
+                        placeholder="Write your admin response..."
+                        className={`flex-1 border rounded px-3 py-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'}`}
+                        rows="3"
+                      />
+                      <button
+                        onClick={addResponse}
+                        className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded transition-colors"
+                      >
+                        Add Admin Response
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Existing Responses */}
+                {responses.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-3`}>
+                      All Responses
+                    </h4>
+                    <div className="space-y-3">
+                      {responses.map((response, index) => (
+                        <div key={index} className={`p-4 rounded border-l-4 ${
+                          response.response_type === 'resolution' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' :
+                          response.response_type === 'escalation' ? 'border-red-500 bg-red-50 dark:bg-red-900/20' :
+                          response.response_type === 'initial' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' :
+                          'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
+                        }`}>
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h5 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {response.title}
+                              </h5>
+                              <span className={`text-xs px-2 py-1 rounded mt-1 inline-block ${
+                                response.response_type === 'resolution' ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' :
+                                response.response_type === 'escalation' ? 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100' :
+                                response.response_type === 'initial' ? 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100' :
+                                'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'
+                              }`}>
+                                {response.response_type.replace('_', ' ').toUpperCase()}
+                              </span>
+                            </div>
+                            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {new Date(response.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                            {response.message}
+                          </p>
+                          <div className="flex justify-between items-center">
+                            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              By {response.responder?.first_name || 'Admin'} {response.responder?.last_name || ''}
+                              {response.responder?.role === 'admin' && (
+                                <span className="ml-1 px-1 py-0.5 bg-purple-100 text-purple-800 rounded text-xs">ADMIN</span>
+                              )}
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>

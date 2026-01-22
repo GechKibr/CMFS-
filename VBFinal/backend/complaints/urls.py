@@ -9,6 +9,7 @@ from .views import (
     ComplaintViewSet,
     CommentViewSet,
     AssignmentViewSet,
+    ResponseViewSet,
 )
 
 
@@ -21,5 +22,6 @@ router.register(r'resolver-assignments', CategoryResolverViewSet, basename='reso
 router.register(r'complaints', ComplaintViewSet, basename='complaint')
 router.register(r'comments', CommentViewSet, basename='comment')
 router.register(r'assignments', AssignmentViewSet, basename='assignment')
+router.register(r'responses', ResponseViewSet, basename='response')
 
 urlpatterns = router.urls

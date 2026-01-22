@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class ComplaintAIService:
-    """AI service for complaint categorization and priority prediction"""
+   
     
     def __init__(self):
         self.model = None

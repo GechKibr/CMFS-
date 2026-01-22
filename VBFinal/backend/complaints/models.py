@@ -201,6 +201,47 @@ class Complaint(models.Model):
             self.set_escalation_deadline()
         super().save(*args, **kwargs)
 
+    def escalate_to_next_level(self):
+        """Escalate complaint to the next resolver level"""
+        if not self.category or not self.current_level:
+            return False
+        
+        # Find the next level for this category
+        next_level = ResolverLevel.objects.filter(
+            institution=self.current_level.institution,
+            level_order__gt=self.current_level.level_order
+        ).order_by('level_order').first()
+        
+        if not next_level:
+            return False  # No higher level available
+        
+        # Find an officer at the next level for this category
+        next_resolver = CategoryResolver.objects.filter(
+            category=self.category,
+            level=next_level,
+            active=True
+        ).first()
+        
+        if next_resolver:
+            # Create assignment record for the escalation
+            Assignment.objects.create(
+                complaint=self,
+                officer=next_resolver.officer,
+                level=next_level,
+                reason='escalation'
+            )
+            
+            # Update complaint
+            self.current_level = next_level
+            self.assigned_officer = next_resolver.officer
+            self.status = 'escalated'
+            self.set_escalation_deadline()
+            self.save()
+            
+            return True
+        
+        return False
+
 
 class ComplaintAttachment(models.Model):
     complaint = models.ForeignKey(
@@ -257,18 +298,95 @@ class Assignment(models.Model):
 
 
 class Comment(models.Model):
+    COMMENT_TYPE_CHOICES = [
+        ('comment', 'Comment'),
+        ('rating', 'Rating'),
+    ]
+
     complaint = models.ForeignKey(Complaint,on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE
     )
+    comment_type = models.CharField(
+        max_length=20,
+        choices=COMMENT_TYPE_CHOICES,
+        default='comment'
+    )
     message = models.TextField()
-
+    
+    # Rating fields
+    rating = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Rating from 1 to 5 stars"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=['complaint', 'comment_type']),
+            models.Index(fields=['author', 'created_at']),
+        ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.comment_type == 'rating':
+            if not self.rating or self.rating < 1 or self.rating > 5:
+                raise ValidationError("Rating must be between 1 and 5")
+        
+    def __str__(self):
+        if self.comment_type == 'rating':
+            return f"Rating ({self.rating}/5) by {self.author} on {self.complaint.complaint_id}"
+        return f"Comment by {self.author} on {self.complaint.complaint_id}"
+
+
+class Response(models.Model):
+    RESPONSE_TYPE_CHOICES = [
+        ('initial', 'Initial Response'),
+        ('update', 'Status Update'),
+        ('resolution', 'Final Resolution'),
+        ('escalation', 'Escalation Response'),
+    ]
+
+    complaint = models.ForeignKey(
+        Complaint,
+        on_delete=models.CASCADE,
+        related_name="responses"
+    )
+    responder = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="complaint_responses"
+    )
+    response_type = models.CharField(
+        max_length=20,
+        choices=RESPONSE_TYPE_CHOICES,
+        default='update'
+    )
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    attachment = models.FileField(
+        upload_to="response_attachments/",
+        null=True,
+        blank=True
+    )
+    is_public = models.BooleanField(
+        default=True,
+        help_text="Whether this response is visible to the complainant"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=['complaint', 'response_type']),
+            models.Index(fields=['responder', 'created_at']),
+        ]
 
     def __str__(self):
-        return f"Comment by {self.author} on {self.complaint.complaint_id}"
+        return f"{self.response_type.title()} response by {self.responder} on {self.complaint.complaint_id}"

@@ -1,18 +1,20 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
-from rest_framework.response import Response
+from rest_framework.response import Response as DRFResponse
 from django.utils import timezone
 
-from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment
+from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment, Response
 from .serializers import (
     InstitutionSerializer,
     CategorySerializer,
     ResolverLevelSerializer,
     CategoryResolverSerializer,
     ComplaintSerializer,
+    ComplaintCreateSerializer,
     ComplaintAttachmentSerializer,
     CommentSerializer,
     AssignmentSerializer,
+    ResponseSerializer,
 )
 from .ai_service import ai_service
 
@@ -34,7 +36,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
         category = self.get_object()
         officer_id = request.data.get("officer_id")
         category.officers.add(officer_id)
-        return Response({"detail": "Officer added successfully"}, status=status.HTTP_200_OK)
+        return DRFResponse({"detail": "Officer added successfully"}, status=status.HTTP_200_OK)
 
 
 class ResolverLevelViewSet(viewsets.ModelViewSet):
@@ -51,7 +53,10 @@ class CategoryResolverViewSet(viewsets.ModelViewSet):
 
 class ComplaintViewSet(viewsets.ModelViewSet):
     queryset = Complaint.objects.all()
-    serializer_class = ComplaintSerializer
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return ComplaintCreateSerializer
+        return ComplaintSerializer
     permission_classes = [permissions.AllowAny]  # For development
 
     def get_queryset(self):
@@ -94,7 +99,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             pass
             
         output_serializer = ComplaintSerializer(complaint)
-        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+        return DRFResponse(output_serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"], url_path="assign")
     def assign(self, request, pk=None):
@@ -114,7 +119,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         complaint.set_escalation_deadline()
         complaint.save()
         
-        return Response({"detail": "Complaint assigned successfully"}, status=status.HTTP_200_OK)
+        return DRFResponse({"detail": "Complaint assigned successfully"}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="change-status")
     def change_status(self, request, pk=None):
@@ -122,17 +127,17 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         complaint = self.get_object()
         new_status = request.data.get("status")
         if new_status not in dict(Complaint.STATUS_CHOICES):
-            return Response({"error": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
+            return DRFResponse({"error": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
         complaint.status = new_status
         complaint.save()
-        return Response({"detail": f"Status updated to {new_status}"}, status=status.HTTP_200_OK)
+        return DRFResponse({"detail": f"Status updated to {new_status}"}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="escalate")
     def escalate(self, request, pk=None):
         """Escalate complaint to next resolver level"""
         complaint = self.get_object()
         if not complaint.current_level:
-            return Response({"error": "No current level set"}, status=status.HTTP_400_BAD_REQUEST)
+            return DRFResponse({"error": "No current level set"}, status=status.HTTP_400_BAD_REQUEST)
         
         next_level = ResolverLevel.objects.filter(
             institution=complaint.institution,
@@ -140,7 +145,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         ).first()
         
         if not next_level:
-            return Response({"error": "No higher level available"}, status=status.HTTP_400_BAD_REQUEST)
+            return DRFResponse({"error": "No higher level available"}, status=status.HTTP_400_BAD_REQUEST)
         
         # Find officer at next level for this category
         category_resolver = CategoryResolver.objects.filter(
@@ -164,12 +169,28 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             complaint.status = "escalated"
             complaint.save()
             
-            return Response({
+            return DRFResponse({
                 "detail": f"Escalated to {next_level.name}",
                 "assigned_to": category_resolver.officer.email
             }, status=status.HTTP_200_OK)
         
-        return Response({"error": "No resolver found at next level"}, status=status.HTTP_400_BAD_REQUEST)
+        return DRFResponse({"error": "No resolver found at next level"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=["get"], url_path="responses")
+    def get_responses(self, request, pk=None):
+        """Get all responses for a complaint"""
+        complaint = self.get_object()
+        responses = Response.objects.filter(complaint=complaint).order_by('-created_at')
+        serializer = ResponseSerializer(responses, many=True)
+        return DRFResponse(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=["get"], url_path="comments")
+    def get_comments(self, request, pk=None):
+        """Get all comments for a complaint"""
+        complaint = self.get_object()
+        comments = Comment.objects.filter(complaint=complaint).order_by('-created_at')
+        serializer = CommentSerializer(comments, many=True)
+        return DRFResponse(serializer.data, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=["post"], url_path="ai-categorize")
     def ai_categorize(self, request, pk=None):
@@ -178,13 +199,13 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         result = ai_service.process_complaint(complaint)
         
         if result:
-            return Response({
+            return DRFResponse({
                 "category": result['category'].name if result['category'] else None,
                 "priority": result['priority'],
                 "assigned_officer": result['assigned_officer'].email if result['assigned_officer'] else None
             }, status=status.HTTP_200_OK)
         
-        return Response({"error": "AI processing failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return DRFResponse({"error": "AI processing failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class CommentViewSet(viewsets.ModelViewSet):
@@ -196,6 +217,59 @@ class CommentViewSet(viewsets.ModelViewSet):
         # For development, use a default user if not authenticated
         user = self.request.user if self.request.user.is_authenticated else None
         serializer.save(author=user)
+
+    def get_queryset(self):
+        queryset = Comment.objects.all()
+        complaint_id = self.request.query_params.get('complaint', None)
+        if complaint_id:
+            queryset = queryset.filter(complaint=complaint_id)
+        return queryset.order_by('-created_at')
+
+    def destroy(self, request, *args, **kwargs):
+        comment = self.get_object()
+        # Only allow author to delete their own comments
+        if request.user != comment.author:
+            return DRFResponse({"error": "You can only delete your own comments"}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        comment = self.get_object()
+        # Only allow author to edit their own comments
+        if request.user != comment.author:
+            return DRFResponse({"error": "You can only edit your own comments"}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+
+class ResponseViewSet(viewsets.ModelViewSet):
+    queryset = Response.objects.all()
+    serializer_class = ResponseSerializer
+    permission_classes = [permissions.AllowAny]  # For development
+
+    def perform_create(self, serializer):
+        # Set the responder to the current user
+        user = self.request.user if self.request.user.is_authenticated else None
+        serializer.save(responder=user)
+
+    def get_queryset(self):
+        queryset = Response.objects.all()
+        complaint_id = self.request.query_params.get('complaint', None)
+        if complaint_id:
+            queryset = queryset.filter(complaint=complaint_id)
+        return queryset.order_by('-created_at')
+
+    def destroy(self, request, *args, **kwargs):
+        response = self.get_object()
+        # Only allow responder to delete their own responses
+        if request.user != response.responder:
+            return DRFResponse({"error": "You can only delete your own responses"}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        response = self.get_object()
+        # Only allow responder to edit their own responses
+        if request.user != response.responder:
+            return DRFResponse({"error": "You can only edit your own responses"}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
 
 
 class AssignmentViewSet(viewsets.ModelViewSet):

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment
+from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment, Response
 
 from django.contrib.auth import get_user_model
 
@@ -52,7 +52,7 @@ class CategoryResolverSerializer(serializers.ModelSerializer):
 class ComplaintCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Complaint
-        fields = ["title", "description", "attachment"]
+        fields = ["title", "description", "institution", "attachment", "priority"]
 
 
 class ComplaintAttachmentSerializer(serializers.ModelSerializer):
@@ -115,7 +115,15 @@ class CommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Comment
-        fields = ["id", "complaint", "author", "message", "created_at", "updated_at"]
+        fields = ["id", "complaint", "author", "comment_type", "message", "rating", "created_at", "updated_at"]
+
+
+class ResponseSerializer(serializers.ModelSerializer):
+    responder = ComplaintUserSerializer(read_only=True)
+
+    class Meta:
+        model = Response
+        fields = ["id", "complaint", "responder", "response_type", "title", "message", "attachment", "is_public", "created_at", "updated_at"]
 
 
 class AssignmentSerializer(serializers.ModelSerializer):

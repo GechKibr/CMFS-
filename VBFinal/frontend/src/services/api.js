@@ -197,12 +197,6 @@ class ApiService {
     });
   }
 
-  async deleteComment(commentId) {
-    return this.request(`/comments/${commentId}/`, {
-      method: 'DELETE',
-    });
-  }
-
   // Ratings
   async addComplaintRating(complaintId, rating, feedback) {
     return this.request('/comments/', {

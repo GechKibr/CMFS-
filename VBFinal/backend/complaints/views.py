@@ -218,6 +218,24 @@ class CommentViewSet(viewsets.ModelViewSet):
         user = self.request.user if self.request.user.is_authenticated else None
         serializer.save(author=user)
 
+    def update(self, request, *args, **kwargs):
+        comment = self.get_object()
+        # Check if user owns the comment
+        if request.user.is_authenticated and comment.author != request.user:
+            return DRFResponse({"error": "You can only edit your own comments"}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Allow partial updates
+        kwargs['partial'] = True
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        comment = self.get_object()
+        # Check if user owns the comment
+        if request.user.is_authenticated and comment.author != request.user:
+            return DRFResponse({"error": "You can only delete your own comments"}, status=status.HTTP_403_FORBIDDEN)
+        
+        return super().destroy(request, *args, **kwargs)
+
     def get_queryset(self):
         queryset = Comment.objects.all()
         complaint_id = self.request.query_params.get('complaint', None)

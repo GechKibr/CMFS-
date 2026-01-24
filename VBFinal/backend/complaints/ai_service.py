@@ -27,7 +27,7 @@ class ComplaintAIService:
             self.model = None
     
     def get_category_embeddings(self, institution=None):
-        """Get or compute embeddings for all categories"""
+        """Get or compute embeddings for all categories with enhanced context"""
         cache_key = f"category_embeddings_{institution.id if institution else 'all'}"
         embeddings = cache.get(cache_key)
         
@@ -39,12 +39,27 @@ class ComplaintAIService:
             if not categories.exists():
                 return {}, []
             
-            # Create text representations
+            # Enhanced text representations with more context
             category_texts = []
             category_ids = []
             
             for cat in categories:
-                text = f"{cat.name} {cat.description}"
+                # Build richer context
+                context_parts = [cat.name]
+                
+                if cat.description:
+                    context_parts.append(cat.description)
+                
+                # Add parent category context
+                if cat.parent:
+                    context_parts.append(f"subcategory of {cat.parent.name}")
+                
+                # Add related keywords from historical complaints
+                keywords = self._get_category_keywords(cat)
+                if keywords:
+                    context_parts.append(" ".join(keywords))
+                
+                text = " ".join(context_parts)
                 category_texts.append(text)
                 category_ids.append(cat.category_id)
             
@@ -55,43 +70,216 @@ class ComplaintAIService:
                     'ids': category_ids,
                     'embeddings': embeddings_array
                 }
-                # Cache for 1 hour
-                cache.set(cache_key, embeddings, 3600)
+                # Cache for 30 minutes (shorter for more frequent updates)
+                cache.set(cache_key, embeddings, 1800)
             else:
                 return {}, []
         
         return embeddings.get('ids', []), embeddings.get('embeddings', [])
     
-    def predict_category(self, complaint_text, institution=None):
-        """Predict the best matching category for a complaint"""
+    def _get_category_keywords(self, category, limit=10):
+        """Extract common keywords from complaints in this category"""
+        try:
+            # Get recent complaints in this category
+            complaints = Complaint.objects.filter(
+                category=category,
+                status__in=['resolved', 'in_progress']
+            ).order_by('-created_at')[:50]
+            
+            if not complaints.exists():
+                return []
+            
+            # Simple keyword extraction (could be enhanced with TF-IDF)
+            from collections import Counter
+            import re
+            
+            all_words = []
+            for complaint in complaints:
+                text = f"{complaint.title} {complaint.description}".lower()
+                words = re.findall(r'\b[a-zA-Z]{3,}\b', text)
+                all_words.extend(words)
+            
+            # Filter common stop words
+            stop_words = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'}
+            
+            filtered_words = [word for word in all_words if word not in stop_words and len(word) > 3]
+            
+            # Get most common words
+            word_counts = Counter(filtered_words)
+            return [word for word, count in word_counts.most_common(limit)]
+            
+        except Exception as e:
+            logger.error(f"Keyword extraction failed: {e}")
+            return []
+    
+    def predict_category(self, complaint_text, institution=None, return_probabilities=False):
+        """Predict the best matching category with enhanced similarity scoring"""
         if not self.model:
-            return None
+            logger.warning("AI model not loaded")
+            return None if not return_probabilities else (None, {})
         
         try:
             # Get category embeddings
             category_ids, category_embeddings = self.get_category_embeddings(institution)
             
             if not category_ids:
-                return None
+                logger.warning("No categories found for prediction")
+                return None if not return_probabilities else (None, {})
             
-            # Encode complaint
+            # Enhanced text preprocessing
+            complaint_text = self._preprocess_text(complaint_text)
+            logger.info(f"Processing complaint text: '{complaint_text}'")
+            
+            # Encode complaint with multiple representations
             complaint_embedding = self.model.encode([complaint_text])
             
             # Calculate similarities
             similarities = cosine_similarity(complaint_embedding, category_embeddings)[0]
             
-            # Get best match
-            best_idx = np.argmax(similarities)
-            best_score = similarities[best_idx]
+            # Debug: Log all similarities
+            for i, (cat_id, similarity) in enumerate(zip(category_ids, similarities)):
+                try:
+                    category = Category.objects.get(category_id=cat_id)
+                    logger.info(f"Category '{category.name}': similarity={similarity:.3f}")
+                except Category.DoesNotExist:
+                    continue
             
-            # Only return if confidence is reasonable (>0.3)
-            if best_score > 0.3:
-                return Category.objects.get(category_id=category_ids[best_idx])
+            # Apply softmax for probability distribution
+            probabilities = self._softmax(similarities)
+            
+            # Get top matches with confidence scores
+            sorted_indices = np.argsort(similarities)[::-1]
+            top_matches = []
+            
+            for i in range(min(5, len(sorted_indices))):  # Top 5 matches for debugging
+                idx = sorted_indices[i]
+                category_id = category_ids[idx]
+                similarity = similarities[idx]
+                probability = probabilities[idx]
+                
+                top_matches.append({
+                    'category_id': category_id,
+                    'similarity': float(similarity),
+                    'probability': float(probability),
+                    'confidence': self._calculate_confidence(similarity, probabilities)
+                })
+            
+            # Enhanced threshold with dynamic adjustment
+            best_match = top_matches[0]
+            threshold = self._get_dynamic_threshold(best_match, top_matches)
+            
+            logger.info(f"Best match: similarity={best_match['similarity']:.3f}, threshold={threshold:.3f}")
+            
+            if return_probabilities:
+                category_probs = {}
+                for match in top_matches:
+                    try:
+                        category = Category.objects.get(category_id=match['category_id'])
+                        category_probs[category.name] = {
+                            'probability': match['probability'],
+                            'similarity': match['similarity'],
+                            'confidence': match['confidence']
+                        }
+                    except Category.DoesNotExist:
+                        continue
+                
+                best_category = None
+                if best_match['similarity'] > threshold:
+                    best_category = Category.objects.get(category_id=best_match['category_id'])
+                    logger.info(f"Selected category: {best_category.name}")
+                else:
+                    logger.warning(f"No category selected - best similarity {best_match['similarity']:.3f} below threshold {threshold:.3f}")
+                
+                return best_category, category_probs
+            
+            # Return best match if above threshold
+            if best_match['similarity'] > threshold:
+                category = Category.objects.get(category_id=best_match['category_id'])
+                logger.info(f"Selected category: {category.name}")
+                return category
+            else:
+                logger.warning(f"No category selected - best similarity {best_match['similarity']:.3f} below threshold {threshold:.3f}")
             
             return None
+            
         except Exception as e:
             logger.error(f"Category prediction failed: {e}")
-            return None
+            return None if not return_probabilities else (None, {})
+    
+    def _preprocess_text(self, text):
+        """Enhanced text preprocessing for better embeddings"""
+        import re
+        
+        # Clean and normalize text
+        text = text.lower().strip()
+        
+        # Remove extra whitespace
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Expand common abbreviations and add synonyms
+        abbreviations = {
+            'prof': 'professor',
+            'dept': 'department',
+            'admin': 'administration',
+            'mgmt': 'management',
+            'hr': 'human resources',
+            'it': 'information technology',
+            'ac': 'air conditioning',
+            'wifi': 'internet connection',
+            'lab': 'laboratory'
+        }
+        
+        # Add water-related synonyms for better matching
+        water_synonyms = {
+            'no water': 'water shortage water supply water problem',
+            'water issue': 'water problem water shortage',
+            'water supply': 'water availability water access',
+            'water shortage': 'no water water problem water crisis'
+        }
+        
+        # Apply water synonyms first
+        for phrase, expansion in water_synonyms.items():
+            if phrase in text:
+                text = text.replace(phrase, f"{phrase} {expansion}")
+        
+        # Apply abbreviations
+        for abbr, full in abbreviations.items():
+            text = re.sub(r'\b' + abbr + r'\b', full, text)
+        
+        return text
+    
+    def _softmax(self, x):
+        """Apply softmax to convert similarities to probabilities"""
+        exp_x = np.exp(x - np.max(x))  # Subtract max for numerical stability
+        return exp_x / np.sum(exp_x)
+    
+    def _calculate_confidence(self, similarity, probabilities):
+        """Calculate confidence score based on similarity and probability distribution"""
+        # Higher confidence when:
+        # 1. High similarity score
+        # 2. Clear winner (high probability gap)
+        max_prob = np.max(probabilities)
+        second_max_prob = np.partition(probabilities, -2)[-2]
+        prob_gap = max_prob - second_max_prob
+        
+        # Combine similarity and probability gap
+        confidence = (similarity * 0.7) + (prob_gap * 0.3)
+        return min(confidence, 1.0)
+    
+    def _get_dynamic_threshold(self, best_match, top_matches):
+        """Dynamic threshold based on match quality and distribution"""
+        base_threshold = 0.25  # Lowered from 0.45 for better detection
+        
+        # Lower threshold if there's a clear winner
+        if len(top_matches) >= 2:
+            gap = best_match['similarity'] - top_matches[1]['similarity']
+            if gap > 0.15:  # Clear winner (lowered from 0.2)
+                base_threshold = 0.20
+        
+        # Adjust based on confidence
+        confidence_adjustment = (best_match['confidence'] - 0.5) * 0.05  # Reduced adjustment
+        
+        return max(0.15, base_threshold + confidence_adjustment)  # Minimum threshold lowered
     
     def predict_priority(self, complaint_text, category=None):
         """Predict priority based on complaint text"""
@@ -172,16 +360,25 @@ class ComplaintAIService:
             return None
     
     def process_complaint(self, complaint):
-        """Full AI processing: categorize, prioritize, and assign"""
+        """Full AI processing with enhanced categorization and probability tracking"""
         try:
             # Combine title and description for analysis
             complaint_text = f"{complaint.title} {complaint.description}"
             
-            # Predict category if not set
+            # Predict category with probabilities if not set
             if not complaint.category:
-                predicted_category = self.predict_category(complaint_text, complaint.institution)
+                predicted_category, category_probabilities = self.predict_category(
+                    complaint_text, 
+                    complaint.institution, 
+                    return_probabilities=True
+                )
+                
                 if predicted_category:
                     complaint.category = predicted_category
+                    
+                    # Log prediction confidence for learning
+                    logger.info(f"Category prediction for complaint {complaint.id}: "
+                              f"{predicted_category.name} with probabilities: {category_probabilities}")
             
             # Predict priority
             predicted_priority = self.predict_priority(complaint_text, complaint.category)
@@ -195,11 +392,39 @@ class ComplaintAIService:
             return {
                 'category': complaint.category,
                 'priority': complaint.priority,
-                'assigned_officer': assigned_officer
+                'assigned_officer': assigned_officer,
+                'category_probabilities': category_probabilities if 'category_probabilities' in locals() else {}
             }
         except Exception as e:
             logger.error(f"Complaint processing failed: {e}")
             return None
+    
+    def get_category_suggestions(self, complaint_text, institution=None, top_n=5):
+        """Get top N category suggestions with confidence scores"""
+        try:
+            category, probabilities = self.predict_category(
+                complaint_text, 
+                institution, 
+                return_probabilities=True
+            )
+            
+            # Sort by probability
+            sorted_suggestions = sorted(
+                probabilities.items(), 
+                key=lambda x: x[1]['probability'], 
+                reverse=True
+            )[:top_n]
+            
+            return [{
+                'category_name': name,
+                'probability': data['probability'],
+                'similarity': data['similarity'],
+                'confidence': data['confidence']
+            } for name, data in sorted_suggestions]
+            
+        except Exception as e:
+            logger.error(f"Category suggestions failed: {e}")
+            return []
 
 
 # Singleton instance

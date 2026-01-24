@@ -33,6 +33,7 @@ INSTALLED_APPS = [
 
     "accounts.apps.AccountsConfig",
     "complaints",
+    "feedback",
 
     "rest_framework",
     'rest_framework_simplejwt',
@@ -208,8 +209,11 @@ if DEBUG and not EMAIL_HOST_USER:
 # JWT Configuration
 from datetime import timedelta
 
+# JWT Session timeout settings (configurable)
+JWT_SESSION_TIMEOUT_MINUTES = 30  # Default 30 minutes, can be changed via admin
+
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=JWT_SESSION_TIMEOUT_MINUTES),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,

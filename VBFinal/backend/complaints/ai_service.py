@@ -377,7 +377,7 @@ class ComplaintAIService:
                     complaint.category = predicted_category
                     
                     # Log prediction confidence for learning
-                    logger.info(f"Category prediction for complaint {complaint.id}: "
+                    logger.info(f"Category prediction for complaint {complaint.complaint_id}: "
                               f"{predicted_category.name} with probabilities: {category_probabilities}")
             
             # Predict priority

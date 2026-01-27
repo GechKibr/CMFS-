@@ -17,6 +17,15 @@ const OfficerDashboard = () => {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [complaints, setComplaints] = useState([]);
+  const [complaintsLoading, setComplaintsLoading] = useState(false);
+  const [selectedComplaint, setSelectedComplaint] = useState(null);
+  const [showComplaintModal, setShowComplaintModal] = useState(false);
+  const [newStatus, setNewStatus] = useState('');
+  const [responseText, setResponseText] = useState('');
+  const [responses, setResponses] = useState([]);
+  const [comments, setComments] = useState([]);
+  const [editingResponse, setEditingResponse] = useState(null);
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: '📊' },
@@ -31,6 +40,9 @@ const OfficerDashboard = () => {
   useEffect(() => {
     if (activeTab === 'feedback-dashboard' || activeTab === 'manage-templates') {
       fetchTemplates();
+    }
+    if (activeTab === 'complaints') {
+      fetchComplaints();
     }
   }, [activeTab]);
 
@@ -69,6 +81,176 @@ const OfficerDashboard = () => {
       setTemplates([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchComplaints = async () => {
+    setComplaintsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No access token found - user may need to login');
+        setComplaints([]);
+        return;
+      }
+
+      const response = await fetch('/api/complaints/', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        console.error('Authentication failed - token may be expired');
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        // Filter complaints assigned to current user only
+        const assignedComplaints = (Array.isArray(data) ? data : data.results || [])
+          .filter(complaint => complaint.assigned_officer?.id === user?.id);
+        setComplaints(assignedComplaints);
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error fetching complaints:', error);
+      setComplaints([]);
+    } finally {
+      setComplaintsLoading(false);
+    }
+  };
+
+  const handleUpdateStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/complaints/${selectedComplaint.complaint_id}/change-status/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (response.ok) {
+        fetchComplaints();
+        setNewStatus('');
+        alert('Status updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+    }
+  };
+
+  const handleAddResponse = async () => {
+    if (!responseText.trim()) {
+      alert('Please enter a response message');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/responses/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          complaint: selectedComplaint.complaint_id,
+          title: 'Officer Response',
+          message: responseText,
+          response_type: 'update'
+        })
+      });
+
+      if (response.ok) {
+        setResponseText('');
+        fetchResponses();
+        alert('Response added successfully');
+      } else {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        alert('Failed to add response');
+      }
+    } catch (error) {
+      console.error('Error adding response:', error);
+      alert('Failed to add response');
+    }
+  };
+
+  const fetchResponses = async () => {
+    if (!selectedComplaint) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/complaints/${selectedComplaint.complaint_id}/responses/`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setResponses(data);
+      }
+    } catch (error) {
+      console.error('Error fetching responses:', error);
+    }
+  };
+
+  const fetchComments = async () => {
+    if (!selectedComplaint) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/complaints/${selectedComplaint.complaint_id}/comments/`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setComments(data);
+      }
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    }
+  };
+
+  const handleDeleteResponse = async (responseId) => {
+    if (!confirm('Are you sure you want to delete this response?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/responses/${responseId}/`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        fetchResponses();
+        alert('Response deleted successfully');
+      }
+    } catch (error) {
+      console.error('Error deleting response:', error);
+    }
+  };
+
+  const handleEditResponse = async (responseId, newMessage) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/responses/${responseId}/`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: newMessage })
+      });
+      if (response.ok) {
+        setEditingResponse(null);
+        fetchResponses();
+        alert('Response updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating response:', error);
     }
   };
 
@@ -248,11 +430,77 @@ const OfficerDashboard = () => {
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Manage Complaints</h2>
             <div className="bg-white rounded-lg shadow p-6">
-              <div className="text-center py-16 text-gray-600">
-                <div className="text-6xl mb-4">📋</div>
-                <p className="text-xl mb-2">Complaint Management</p>
-                <p>This section will show assigned complaints for resolution</p>
-              </div>
+              {complaintsLoading ? (
+                <div className="text-center py-8 text-gray-600">Loading complaints...</div>
+              ) : complaints.length === 0 ? (
+                <div className="text-center py-16 text-gray-600">
+                  <div className="text-6xl mb-4">📋</div>
+                  <p className="text-xl mb-2">No Complaints Assigned</p>
+                  <p>You don't have any complaints assigned to you yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Assigned Complaints ({complaints.length})</h3>
+                    <select 
+                      value={statusFilter} 
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-md"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="pending">Pending</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="escalated">Escalated</option>
+                      <option value="resolved">Resolved</option>
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {complaints
+                      .filter(complaint => statusFilter === 'all' || complaint.status === statusFilter)
+                      .map(complaint => (
+                        <div key={complaint.complaint_id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-semibold text-lg">{complaint.title}</h4>
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              complaint.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              complaint.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                              complaint.status === 'escalated' ? 'bg-red-100 text-red-800' :
+                              complaint.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {complaint.status.replace('_', ' ').toUpperCase()}
+                            </span>
+                          </div>
+                          
+                          <p className="text-gray-600 mb-3">{complaint.description}</p>
+                          
+                          <div className="flex justify-between items-center text-sm text-gray-500">
+                            <div className="space-x-4">
+                              <span>ID: {complaint.complaint_id.slice(0, 8)}...</span>
+                              <span>Category: {complaint.category?.name || 'Uncategorized'}</span>
+                              <span>Priority: {complaint.priority}</span>
+                            </div>
+                            <span>Created: {new Date(complaint.created_at).toLocaleDateString()}</span>
+                          </div>
+                          
+                          <div className="mt-3">
+                            <button 
+                              onClick={() => {
+                                setSelectedComplaint(complaint);
+                                setNewStatus(complaint.status);
+                                setShowComplaintModal(true);
+                              }}
+                              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                            >
+                              View & Manage
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -660,6 +908,94 @@ const OfficerDashboard = () => {
           {renderTabContent()}
         </main>
       </div>
+
+      {/* Comprehensive Complaint Management Modal */}
+      {showComplaintModal && selectedComplaint && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-4/5 max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-semibold">Complaint Management</h3>
+              <button 
+                onClick={() => setShowComplaintModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Complaint Details Section */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <h4 className="font-semibold mb-3">Complaint Details</h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <p><strong>ID:</strong> {selectedComplaint.complaint_id}</p>
+                <p><strong>Status:</strong> <span className={`px-2 py-1 rounded text-xs ${
+                  selectedComplaint.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                  selectedComplaint.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                  selectedComplaint.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>{selectedComplaint.status}</span></p>
+                <p><strong>Priority:</strong> {selectedComplaint.priority}</p>
+                <p><strong>Category:</strong> {selectedComplaint.category?.name || 'Uncategorized'}</p>
+                <p><strong>Created:</strong> {new Date(selectedComplaint.created_at).toLocaleString()}</p>
+              </div>
+              <div className="mt-3">
+                <p><strong>Title:</strong> {selectedComplaint.title}</p>
+                <p><strong>Description:</strong> {selectedComplaint.description}</p>
+              </div>
+            </div>
+
+            {/* Status Update Section */}
+            <div className="mb-6 p-4 border rounded-lg">
+              <h4 className="font-semibold mb-3">Update Status</h4>
+              <div className="flex items-center space-x-3">
+                <select 
+                  value={newStatus} 
+                  onChange={(e) => setNewStatus(e.target.value)}
+                  className="p-2 border border-gray-300 rounded"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <button 
+                  onClick={handleUpdateStatus}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  Update Status
+                </button>
+              </div>
+            </div>
+
+            {/* Add Response Section */}
+            <div className="mb-6 p-4 border rounded-lg">
+              <h4 className="font-semibold mb-3">Add Response</h4>
+              <textarea 
+                value={responseText}
+                onChange={(e) => setResponseText(e.target.value)}
+                placeholder="Enter your response to this complaint..."
+                className="w-full p-3 border border-gray-300 rounded mb-3 h-24"
+              />
+              <button 
+                onClick={handleAddResponse}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Send Response
+              </button>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={() => setShowComplaintModal(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -19,8 +19,8 @@ class ComplaintAIService:
     def _load_model(self):
         """Load sentence transformer model"""
         try:
-            # Use lightweight model for better performance
-            self.model = SentenceTransformer('all-MiniLM-L6-v2')
+            # Use multilingual model for Amharic and English support
+            self.model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
             logger.info("AI model loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load AI model: {e}")
@@ -47,8 +47,16 @@ class ComplaintAIService:
                 # Build richer context
                 context_parts = [cat.name]
                 
+                # Add Amharic name if available
+                if hasattr(cat, 'name_amharic') and cat.name_amharic:
+                    context_parts.append(cat.name_amharic)
+                
                 if cat.description:
                     context_parts.append(cat.description)
+                
+                # Add Amharic description if available
+                if hasattr(cat, 'description_amharic') and cat.description_amharic:
+                    context_parts.append(cat.description_amharic)
                 
                 # Add parent category context
                 if cat.parent:

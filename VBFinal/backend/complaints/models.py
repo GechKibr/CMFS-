@@ -27,7 +27,9 @@ class Category(models.Model):
     )
 
     name = models.CharField(max_length=100)
+    name_amharic = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True)
+    description_amharic = models.TextField(blank=True)
 
     parent = models.ForeignKey(
         "self",

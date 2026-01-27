@@ -30,6 +30,24 @@ class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
     permission_classes = [permissions.AllowAny]  # For development
 
+    @action(detail=False, methods=["get"], url_path="by-language")
+    def by_language(self, request):
+        """Get categories with language-specific names"""
+        language = request.query_params.get('lang', 'en')
+        categories = self.get_queryset()
+        
+        data = []
+        for cat in categories:
+            category_data = {
+                'category_id': cat.category_id,
+                'name': cat.name_amharic if language == 'am' and cat.name_amharic else cat.name,
+                'description': cat.description_amharic if language == 'am' and cat.description_amharic else cat.description,
+                'is_active': cat.is_active
+            }
+            data.append(category_data)
+        
+        return DRFResponse(data)
+
     @action(detail=True, methods=["post"], url_path="add-officer")
     def add_officer(self, request, pk=None):
         """Assign an officer to a category"""

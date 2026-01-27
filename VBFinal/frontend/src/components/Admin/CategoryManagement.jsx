@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import apiService from '../../services/api';
 import Modal from '../UI/Modal';
 
 const CategoryManagement = () => {
   const { isDark } = useTheme();
+  const { language, t } = useLanguage();
   const [categories, setCategories] = useState([]);
   const [filteredCategories, setFilteredCategories] = useState([]);
   const [institutions, setInstitutions] = useState([]);
@@ -24,7 +26,9 @@ const CategoryManagement = () => {
   });
   const [formData, setFormData] = useState({
     name: '',
+    name_amharic: '',
     description: '',
+    description_amharic: '',
     institution: '',
     parent: '',
     is_active: true
@@ -113,7 +117,7 @@ const CategoryManagement = () => {
       fetchData();
       setShowModal(false);
       setEditingCategory(null);
-      setFormData({ name: '', description: '', institution: '', parent: '', is_active: true });
+      setFormData({ name: '', name_amharic: '', description: '', description_amharic: '', institution: '', parent: '', is_active: true });
     } catch (error) {
       console.error('Error saving category:', error);
     }
@@ -123,7 +127,9 @@ const CategoryManagement = () => {
     setEditingCategory(category);
     setFormData({
       name: category.name,
+      name_amharic: category.name_amharic || '',
       description: category.description || '',
+      description_amharic: category.description_amharic || '',
       institution: category.institution || '',
       parent: category.parent || '',
       is_active: category.is_active
@@ -144,7 +150,7 @@ const CategoryManagement = () => {
 
   const openCreateModal = () => {
     setEditingCategory(null);
-    setFormData({ name: '', description: '', institution: '', parent: '', is_active: true });
+    setFormData({ name: '', name_amharic: '', description: '', description_amharic: '', institution: '', parent: '', is_active: true });
     setShowModal(true);
   };
 
@@ -244,10 +250,20 @@ const CategoryManagement = () => {
               filteredCategories.map((category) => (
                 <tr key={category.category_id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {category.name}
+                    <div>
+                      <div className="font-medium">{category.name}</div>
+                      {category.name_amharic && (
+                        <div className="text-gray-500 text-xs mt-1">{category.name_amharic}</div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {category.description}
+                    <div>
+                      <div>{category.description}</div>
+                      {category.description_amharic && (
+                        <div className="text-gray-400 text-xs mt-1">{category.description_amharic}</div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {category.parent_name || '-'}
@@ -354,10 +370,11 @@ const CategoryManagement = () => {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         title={editingCategory ? 'Edit Category' : 'Add Category'}
+        size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Name *</label>
+            <label className="block text-sm font-medium text-gray-700">Name (English) *</label>
             <input
               type="text"
               required
@@ -367,14 +384,37 @@ const CategoryManagement = () => {
               placeholder="e.g., Academic Issues"
             />
           </div>
+          
           <div>
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Description</label>
+            <label className="block text-sm font-medium text-gray-700">Name (Amharic)</label>
+            <input
+              type="text"
+              value={formData.name_amharic}
+              onChange={(e) => setFormData({...formData, name_amharic: e.target.value})}
+              className={`mt-1 block w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
+              placeholder="e.g., የትምህርት ጉዳዮች"
+            />
+          </div>
+          
+          <div>
+            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Description (English)</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({...formData, description: e.target.value})}
               className={`mt-1 block w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
               rows={3}
               placeholder="Brief description of the category"
+            />
+          </div>
+          
+          <div>
+            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Description (Amharic)</label>
+            <textarea
+              value={formData.description_amharic}
+              onChange={(e) => setFormData({...formData, description_amharic: e.target.value})}
+              className={`mt-1 block w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
+              rows={3}
+              placeholder="የዘርፉ አጭር መግለጫ"
             />
           </div>
           <div>

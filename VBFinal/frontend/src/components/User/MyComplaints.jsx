@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import apiService from '../../services/api';
 
 const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
   const { isDark } = useTheme();
+  const { language, t } = useLanguage();
   const { user } = useAuth();
   const [complaints, setComplaints] = useState([]);
   const [filteredComplaints, setFilteredComplaints] = useState([]);

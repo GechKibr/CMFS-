@@ -317,6 +317,10 @@ class ApiService {
     return this.request(url);
   }
 
+  async getCategoriesByLanguage(language = 'en') {
+    return this.request(`/categories/by-language/?lang=${language}`);
+  }
+
   async createCategory(data) {
     return this.request('/categories/', {
       method: 'POST',

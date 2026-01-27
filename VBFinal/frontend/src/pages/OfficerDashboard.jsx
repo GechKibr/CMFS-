@@ -26,11 +26,16 @@ const OfficerDashboard = () => {
   const [responses, setResponses] = useState([]);
   const [comments, setComments] = useState([]);
   const [editingResponse, setEditingResponse] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState({
+    assignedComplaints: 0,
+    resolvedComplaints: 0,
+    pendingComplaints: 0,
+    totalTemplates: 0
+  });
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: '📊' },
     { id: 'complaints', name: 'Manage Complaints', icon: '📋' },
-    { id: 'feedback-dashboard', name: 'Feedback Dashboard', icon: '💬' },
     { id: 'create-template', name: 'Create Template', icon: '➕' },
     { id: 'manage-templates', name: 'Manage Templates', icon: '📝' },
     { id: 'analytics', name: 'Analytics', icon: '📈' },
@@ -38,13 +43,48 @@ const OfficerDashboard = () => {
   ];
 
   useEffect(() => {
-    if (activeTab === 'feedback-dashboard' || activeTab === 'manage-templates') {
+    if (activeTab === 'manage-templates') {
       fetchTemplates();
     }
     if (activeTab === 'complaints') {
       fetchComplaints();
     }
+    if (activeTab === 'dashboard') {
+      fetchDashboardStats();
+      fetchTemplates();
+    }
   }, [activeTab]);
+
+  const fetchDashboardStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      // Fetch complaints to calculate stats
+      const complaintsResponse = await fetch('/api/complaints/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (complaintsResponse.ok) {
+        const complaintsData = await complaintsResponse.json();
+        const allComplaints = complaintsData.results || complaintsData;
+        
+        // Calculate stats
+        const assignedComplaints = allComplaints.filter(c => c.assigned_to?.id === user?.id).length;
+        const resolvedComplaints = allComplaints.filter(c => c.assigned_to?.id === user?.id && c.status === 'resolved').length;
+        const pendingComplaints = allComplaints.filter(c => c.assigned_to?.id === user?.id && c.status === 'pending').length;
+        
+        setDashboardStats({
+          assignedComplaints,
+          resolvedComplaints,
+          pendingComplaints,
+          totalTemplates: Array.isArray(templates) ? templates.length : 0
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    }
+  };
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -362,18 +402,26 @@ const OfficerDashboard = () => {
           <div>
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-4">Officer Dashboard</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
                 <div className="bg-blue-50 p-6 rounded-lg">
                   <h3 className="text-lg font-semibold text-blue-800">Assigned Complaints</h3>
-                  <p className="text-3xl font-bold text-blue-600">0</p>
-                  <p className="text-sm text-blue-600">Pending resolution</p>
+                  <p className="text-3xl font-bold text-blue-600">{dashboardStats.assignedComplaints}</p>
+                  <p className="text-sm text-blue-600">Total assigned</p>
+                </div>
+                <div className="bg-yellow-50 p-6 rounded-lg">
+                  <h3 className="text-lg font-semibold text-yellow-800">Pending</h3>
+                  <p className="text-3xl font-bold text-yellow-600">{dashboardStats.pendingComplaints}</p>
+                  <p className="text-sm text-yellow-600">Awaiting action</p>
                 </div>
                 <div className="bg-green-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold text-green-800">Feedback Templates</h3>
-                  <p className="text-3xl font-bold text-green-600">
-                    {Array.isArray(templates) ? templates.length : 0}
-                  </p>
-                  <p className="text-sm text-green-600">Total created</p>
+                  <h3 className="text-lg font-semibold text-green-800">Resolved</h3>
+                  <p className="text-3xl font-bold text-green-600">{dashboardStats.resolvedComplaints}</p>
+                  <p className="text-sm text-green-600">Successfully resolved</p>
+                </div>
+                <div className="bg-purple-50 p-6 rounded-lg">
+                  <h3 className="text-lg font-semibold text-purple-800">Templates</h3>
+                  <p className="text-3xl font-bold text-purple-600">{dashboardStats.totalTemplates}</p>
+                  <p className="text-sm text-purple-600">Feedback templates</p>
                 </div>
               </div>
             </div>
@@ -381,35 +429,67 @@ const OfficerDashboard = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-xl font-semibold mb-4">Recent Complaints</h3>
-                <div className="text-center py-8 text-gray-600">
-                  <p className="mb-4">No recent complaints</p>
+                {complaints.filter(c => c.assigned_to?.id === user?.id).slice(0, 5).length > 0 ? (
+                  <div className="space-y-3">
+                    {complaints.filter(c => c.assigned_to?.id === user?.id).slice(0, 5).map((complaint) => (
+                      <div key={complaint.complaint_id} className="p-3 border rounded-lg">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-medium text-sm">{complaint.title}</h4>
+                            <p className="text-xs text-gray-600">{complaint.category?.name}</p>
+                          </div>
+                          <span className={`px-2 py-1 text-xs rounded ${
+                            complaint.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            complaint.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                            complaint.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {complaint.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-600">
+                    <p className="mb-4">No assigned complaints</p>
+                  </div>
+                )}
+                <div className="mt-4">
                   <button 
                     onClick={() => setActiveTab('complaints')}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                   >
-                    Manage Complaints
+                    Manage All Complaints
                   </button>
                 </div>
               </div>
 
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-xl font-semibold mb-4">Recent Templates</h3>
-                {!Array.isArray(templates) || templates.length === 0 ? (
+                {loading ? (
+                  <div className="text-center py-8 text-gray-600">Loading...</div>
+                ) : !Array.isArray(templates) || templates.length === 0 ? (
                   <div className="text-center py-8 text-gray-600">
                     <p className="mb-4">No templates created yet</p>
                     <button 
                       onClick={() => setActiveTab('create-template')}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
                     >
                       Create Template
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {templates.slice(0, 3).map(template => (
-                      <div key={template.id} className="flex justify-between items-center p-3 border border-gray-200 rounded">
-                        <span className="font-medium">{template.title}</span>
-                        <span className={`px-2 py-1 rounded text-xs ${
+                    {templates.slice(0, 5).map(template => (
+                      <div key={template.id} className="flex justify-between items-center p-3 border rounded-lg">
+                        <div>
+                          <h4 className="font-medium text-sm">{template.title}</h4>
+                          <p className="text-xs text-gray-600">
+                            Created: {new Date(template.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
                           template.status === 'active' ? 'bg-green-100 text-green-800' :
                           template.status === 'draft' ? 'bg-gray-100 text-gray-600' :
                           'bg-red-100 text-red-800'
@@ -420,6 +500,14 @@ const OfficerDashboard = () => {
                     ))}
                   </div>
                 )}
+                <div className="mt-4">
+                  <button 
+                    onClick={() => setActiveTab('manage-templates')}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
+                  >
+                    Manage All Templates
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -490,6 +578,8 @@ const OfficerDashboard = () => {
                                 setSelectedComplaint(complaint);
                                 setNewStatus(complaint.status);
                                 setShowComplaintModal(true);
+                                fetchResponses();
+                                fetchComments();
                               }}
                               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                             >
@@ -504,70 +594,6 @@ const OfficerDashboard = () => {
             </div>
           </div>
         );
-      case 'feedback-dashboard':
-        return (
-          <div>
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Dashboard Overview</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div className="bg-blue-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold text-blue-800">Total Templates</h3>
-                  <p className="text-3xl font-bold text-blue-600">{Array.isArray(templates) ? templates.length : 0}</p>
-                </div>
-                <div className="bg-green-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold text-green-800">Active Forms</h3>
-                  <p className="text-3xl font-bold text-green-600">
-                    {Array.isArray(templates) ? templates.filter(t => t.status === 'active').length : 0}
-                  </p>
-                </div>
-                <div className="bg-purple-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold text-purple-800">Draft Forms</h3>
-                  <p className="text-3xl font-bold text-purple-600">
-                    {Array.isArray(templates) ? templates.filter(t => t.status === 'draft').length : 0}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-xl font-semibold mb-4">Recent Templates</h3>
-              {loading ? (
-                <div className="text-center py-8 text-gray-600">Loading...</div>
-              ) : !Array.isArray(templates) || templates.length === 0 ? (
-                <div className="text-center py-8 text-gray-600">
-                  <p className="mb-4">No templates created yet</p>
-                  <button 
-                    onClick={() => setActiveTab('create-template')}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Create Your First Template
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {templates.slice(0, 5).map(template => (
-                    <div key={template.id} className="flex justify-between items-center p-4 border border-gray-200 rounded-lg">
-                      <div>
-                        <h4 className="font-semibold">{template.title}</h4>
-                        <p className="text-sm text-gray-600">
-                          Created: {new Date(template.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        template.status === 'active' ? 'bg-green-100 text-green-800' :
-                        template.status === 'draft' ? 'bg-gray-100 text-gray-600' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {template.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-
       case 'create-template':
         return (
           <div>
@@ -982,6 +1008,108 @@ const OfficerDashboard = () => {
               >
                 Send Response
               </button>
+            </div>
+
+            {/* Existing Responses Section */}
+            <div className="mb-6 p-4 border rounded-lg">
+              <h4 className="font-semibold mb-3">Officer Responses</h4>
+              {responses.length > 0 ? (
+                <div className="space-y-3">
+                  {responses.map((response) => (
+                    <div key={response.id} className="p-3 bg-gray-50 rounded border">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="text-sm text-gray-600">
+                          <strong>{response.officer?.first_name} {response.officer?.last_name}</strong>
+                          <span className="ml-2">{new Date(response.created_at).toLocaleString()}</span>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => setEditingResponse(response.id)}
+                            className="text-blue-600 hover:text-blue-800 text-sm"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteResponse(response.id)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                      {editingResponse === response.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            defaultValue={response.message}
+                            className="w-full p-2 border rounded text-sm"
+                            rows={3}
+                            id={`edit-response-${response.id}`}
+                          />
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => {
+                                const newMessage = document.getElementById(`edit-response-${response.id}`).value;
+                                handleEditResponse(response.id, newMessage);
+                              }}
+                              className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingResponse(null)}
+                              className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-gray-800">{response.message}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No responses yet.</p>
+              )}
+            </div>
+
+            {/* Client Comments and Rating Section */}
+            <div className="mb-6 p-4 border rounded-lg">
+              <h4 className="font-semibold mb-3">Client Comments & Rating</h4>
+              {comments.length > 0 ? (
+                <div className="space-y-3">
+                  {comments.map((comment) => (
+                    <div key={comment.id} className="p-3 bg-blue-50 rounded border">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="text-sm text-gray-600">
+                          <strong>{comment.user?.first_name} {comment.user?.last_name}</strong>
+                          <span className="ml-2">{new Date(comment.created_at).toLocaleString()}</span>
+                        </div>
+                        {comment.rating && (
+                          <div className="flex items-center">
+                            <span className="text-sm text-gray-600 mr-1">Rating:</span>
+                            <div className="flex">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <span
+                                  key={star}
+                                  className={`text-lg ${star <= comment.rating ? 'text-yellow-400' : 'text-gray-300'}`}
+                                >
+                                  ⭐
+                                </span>
+                              ))}
+                            </div>
+                            <span className="ml-1 text-sm text-gray-600">({comment.rating}/5)</span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-gray-800">{comment.message}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No client comments yet.</p>
+              )}
             </div>
 
             {/* Action Buttons */}

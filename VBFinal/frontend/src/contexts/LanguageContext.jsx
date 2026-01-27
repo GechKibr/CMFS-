@@ -184,7 +184,9 @@ const translations = {
     'add_your_comment': 'Add your comment...',
     'no_comments': 'No comments yet',
     'no_complaints': 'No complaints found',
-    'no_notifications': 'No notifications found'
+    'no_notifications': 'No notifications found',
+    'logout': 'Logout',
+    'feedback': 'Feedback'
   },
   am: {
     // Navigation & General
@@ -358,7 +360,9 @@ const translations = {
     'add_your_comment': 'አስተያየትዎን እዚህ ይጻፉ...',
     'no_comments': 'እስካሁን ምንም አስተያየት የለም',
     'no_complaints': 'ምንም ቅሬታ አልተገኘም',
-    'no_notifications': 'ምንም ማሳወቂያ የለም'
+    'no_notifications': 'ምንም ማሳወቂያ የለም',
+    'logout': 'ውጣ',
+    'feedback': 'ግብረመልስ'
   }
 };
 

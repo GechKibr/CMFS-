@@ -37,6 +37,10 @@ const OfficerDashboard = () => {
   const [templateContent, setTemplateContent] = useState('');
   const [templateCategory, setTemplateCategory] = useState('general');
   const [templateType, setTemplateType] = useState('feedback');
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [reassignOfficerId, setReassignOfficerId] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
+  const [officers, setOfficers] = useState([]);
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: '📊' },
@@ -212,6 +216,54 @@ const OfficerDashboard = () => {
       setComplaints([]);
     } finally {
       setComplaintsLoading(false);
+    }
+  };
+
+  const fetchOfficers = async () => {
+    try {
+      const usersData = await apiService.getAllUsers();
+      const allUsers = usersData.results || usersData || [];
+      const officerUsers = allUsers.filter(u => u.role === 'officer' || u.is_staff);
+      setOfficers(officerUsers);
+    } catch (error) {
+      console.error('Error fetching officers:', error);
+      setOfficers([]);
+    }
+  };
+
+  const handleReassign = async () => {
+    if (!reassignOfficerId) {
+      alert('Please select an officer to reassign to');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/complaints/${selectedComplaint.complaint_id}/reassign/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          officer_id: reassignOfficerId,
+          reason: reassignReason || 'Reassigned by officer'
+        })
+      });
+
+      if (response.ok) {
+        alert('Complaint reassigned successfully');
+        setShowReassignModal(false);
+        setReassignOfficerId('');
+        setReassignReason('');
+        fetchComplaints();
+      } else {
+        const error = await response.json();
+        alert('Failed to reassign: ' + (error.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error reassigning complaint:', error);
+      alert('Failed to reassign complaint');
     }
   };
 
@@ -622,7 +674,7 @@ const OfficerDashboard = () => {
                             <span>Created: {new Date(complaint.created_at).toLocaleDateString()}</span>
                           </div>
                           
-                          <div className="mt-3">
+                          <div className="mt-3 flex flex-wrap gap-2">
                             <button 
                               onClick={() => {
                                 setSelectedComplaint(complaint);
@@ -634,6 +686,17 @@ const OfficerDashboard = () => {
                               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                             >
                               View & Manage
+                            </button>
+                            <button 
+                              onClick={() => {
+                                setSelectedComplaint(complaint);
+                                setShowReassignModal(true);
+                                fetchOfficers();
+                              }}
+                              className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
+                              title="Reassign this complaint"
+                            >
+                              🔄 Reassign
                             </button>
                           </div>
                         </div>
@@ -1192,6 +1255,16 @@ const OfficerDashboard = () => {
                 >
                   Update Status
                 </button>
+                <button 
+                  onClick={() => {
+                    setShowReassignModal(true);
+                    fetchOfficers();
+                  }}
+                  className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
+                  title="Reassign this complaint to another officer"
+                >
+                  🔄 Reassign
+                </button>
               </div>
             </div>
 
@@ -1321,6 +1394,70 @@ const OfficerDashboard = () => {
                 className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reassign Modal */}
+      {showReassignModal && selectedComplaint && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-xl font-semibold mb-4">Reassign Complaint</h3>
+            <p className="text-gray-600 mb-4">
+              Reassigning: <strong>{selectedComplaint.title}</strong>
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Officer *
+              </label>
+              <select
+                value={reassignOfficerId}
+                onChange={(e) => setReassignOfficerId(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded"
+              >
+                <option value="">Select an officer...</option>
+                {officers
+                  .filter(officer => officer.id !== user?.id)
+                  .map(officer => (
+                    <option key={officer.id} value={officer.id}>
+                      {officer.first_name} {officer.last_name} ({officer.email})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reason (Optional)
+              </label>
+              <textarea
+                value={reassignReason}
+                onChange={(e) => setReassignReason(e.target.value)}
+                placeholder="Enter reason for reassignment..."
+                className="w-full p-2 border border-gray-300 rounded h-20"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowReassignModal(false);
+                  setReassignOfficerId('');
+                  setReassignReason('');
+                }}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReassign}
+                disabled={!reassignOfficerId}
+                className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Reassign Complaint
               </button>
             </div>
           </div>

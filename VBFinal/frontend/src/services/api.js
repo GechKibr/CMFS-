@@ -98,31 +98,37 @@ class ApiService {
 
   // Feedback Template Management
   async getFeedbackTemplates() {
-    return this.request('/feedback-templates/');
+    return this.request('/feedback/templates/');
   }
 
   async createFeedbackTemplate(templateData) {
-    return this.request('/feedback-templates/', {
+    return this.request('/feedback/templates/', {
       method: 'POST',
       body: JSON.stringify(templateData)
     });
   }
 
   async approveFeedbackTemplate(templateId) {
-    return this.request(`/feedback-templates/${templateId}/approve/`, {
-      method: 'PATCH'
+    return this.request(`/feedback/templates/${templateId}/approve/`, {
+      method: 'POST'
     });
   }
 
   async rejectFeedbackTemplate(templateId) {
-    return this.request(`/feedback-templates/${templateId}/reject/`, {
-      method: 'PATCH'
+    return this.request(`/feedback/templates/${templateId}/reject/`, {
+      method: 'POST'
     });
   }
 
   async deactivateFeedbackTemplate(templateId) {
-    return this.request(`/feedback-templates/${templateId}/deactivate/`, {
-      method: 'PATCH'
+    return this.request(`/feedback/templates/${templateId}/deactivate/`, {
+      method: 'POST'
+    });
+  }
+
+  async activateFeedbackTemplate(templateId) {
+    return this.request(`/feedback/templates/${templateId}/activate/`, {
+      method: 'POST'
     });
   }
 
@@ -186,6 +192,13 @@ class ApiService {
 
   async assignComplaint(id, data) {
     return this.request(`/complaints/${id}/assign/`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async reassignComplaint(id, data) {
+    return this.request(`/complaints/${id}/reassign/`, {
       method: 'POST',
       body: JSON.stringify(data),
     });

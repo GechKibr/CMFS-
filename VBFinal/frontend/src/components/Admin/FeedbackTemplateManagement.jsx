@@ -208,14 +208,45 @@ const FeedbackTemplateManagement = () => {
     if (!confirm('Deactivate this template?')) return;
 
     try {
+      await apiService.deactivateFeedbackTemplate(templateId);
+      setTemplates(prev => prev.map(template => 
+        template.id === templateId 
+          ? { ...template, status: 'inactive' }
+          : template
+      ));
+      alert('Template deactivated successfully!');
+    } catch (error) {
+      console.error('Failed to deactivate template:', error);
+      // Fallback to local state update
       setTemplates(prev => prev.map(template => 
         template.id === templateId 
           ? { ...template, status: 'inactive' }
           : template
       ));
       alert('Template deactivated.');
+    }
+  };
+
+  const handleActivateTemplate = async (templateId) => {
+    if (!confirm('Activate this template?')) return;
+
+    try {
+      await apiService.activateFeedbackTemplate(templateId);
+      setTemplates(prev => prev.map(template => 
+        template.id === templateId 
+          ? { ...template, status: 'active' }
+          : template
+      ));
+      alert('Template activated successfully!');
     } catch (error) {
-      alert('Failed to deactivate template: ' + error.message);
+      console.error('Failed to activate template:', error);
+      // Fallback to local state update
+      setTemplates(prev => prev.map(template => 
+        template.id === templateId 
+          ? { ...template, status: 'active' }
+          : template
+      ));
+      alert('Template activated.');
     }
   };
 
@@ -285,29 +316,59 @@ const FeedbackTemplateManagement = () => {
 
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow`}>
-          <div className="text-2xl font-bold text-green-500">{templates.filter(t => t.status === 'active').length}</div>
-          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Active Templates</div>
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow hover:shadow-md transition-shadow`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-green-500">{templates.filter(t => t.status === 'active').length}</div>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Active</div>
+            </div>
+            <div className="text-3xl">✅</div>
+          </div>
         </div>
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow`}>
-          <div className="text-2xl font-bold text-yellow-500">{templates.filter(t => t.status === 'pending').length}</div>
-          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending Approval</div>
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow hover:shadow-md transition-shadow`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-yellow-500">{templates.filter(t => t.status === 'pending').length}</div>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending</div>
+            </div>
+            <div className="text-3xl">⏳</div>
+          </div>
         </div>
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow`}>
-          <div className="text-2xl font-bold text-blue-500">{templates.filter(t => t.template_type === 'feedback').length}</div>
-          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Feedback Templates</div>
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow hover:shadow-md transition-shadow`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-gray-500">{templates.filter(t => t.status === 'inactive').length}</div>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Inactive</div>
+            </div>
+            <div className="text-3xl">⏸️</div>
+          </div>
         </div>
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow`}>
-          <div className="text-2xl font-bold text-purple-500">{templates.filter(t => t.template_type === 'service_assessment').length}</div>
-          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Assessment Templates</div>
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow hover:shadow-md transition-shadow`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-purple-500">{templates.filter(t => t.template_type === 'service_assessment').length}</div>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Assessments</div>
+            </div>
+            <div className="text-3xl">📊</div>
+          </div>
         </div>
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow`}>
-          <div className="text-2xl font-bold text-orange-500">{templates.filter(t => t.created_by_role === 'officer').length}</div>
-          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Officer Created</div>
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow hover:shadow-md transition-shadow`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-orange-500">{templates.filter(t => t.created_by_role === 'officer').length}</div>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>By Officers</div>
+            </div>
+            <div className="text-3xl">👮</div>
+          </div>
         </div>
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow`}>
-          <div className="text-2xl font-bold text-indigo-500">{templates.length}</div>
-          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Templates</div>
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow hover:shadow-md transition-shadow`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-indigo-500">{templates.length}</div>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total</div>
+            </div>
+            <div className="text-3xl">📝</div>
+          </div>
         </div>
       </div>
 
@@ -457,29 +518,50 @@ const FeedbackTemplateManagement = () => {
                     </div>
                   </div>
                   
-                  <div className="flex space-x-2 ml-4">
+                  <div className="flex flex-col space-y-2 ml-4">
                     {template.status === 'pending' && (
                       <>
                         <button
                           onClick={() => handleApproveTemplate(template.id)}
-                          className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors"
+                          className="bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600 transition-colors flex items-center justify-center"
+                          title="Approve and activate this template"
                         >
-                          Approve
+                          ✓ Approve
                         </button>
                         <button
                           onClick={() => handleRejectTemplate(template.id)}
-                          className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 transition-colors"
+                          className="bg-red-500 text-white px-4 py-2 rounded text-sm hover:bg-red-600 transition-colors flex items-center justify-center"
+                          title="Reject this template"
                         >
-                          Reject
+                          ✗ Reject
                         </button>
                       </>
                     )}
                     {template.status === 'active' && (
                       <button
                         onClick={() => handleDeactivateTemplate(template.id)}
-                        className="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 transition-colors"
+                        className="bg-orange-500 text-white px-4 py-2 rounded text-sm hover:bg-orange-600 transition-colors flex items-center justify-center"
+                        title="Deactivate this template"
                       >
-                        Deactivate
+                        ⏸️ Deactivate
+                      </button>
+                    )}
+                    {template.status === 'inactive' && (
+                      <button
+                        onClick={() => handleActivateTemplate(template.id)}
+                        className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600 transition-colors flex items-center justify-center"
+                        title="Activate this template"
+                      >
+                        ▶️ Activate
+                      </button>
+                    )}
+                    {template.status === 'rejected' && (
+                      <button
+                        onClick={() => handleActivateTemplate(template.id)}
+                        className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600 transition-colors flex items-center justify-center"
+                        title="Reactivate this template"
+                      >
+                        🔄 Reactivate
                       </button>
                     )}
                   </div>

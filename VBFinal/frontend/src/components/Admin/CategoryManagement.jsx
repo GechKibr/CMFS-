@@ -482,4 +482,48 @@ const CategoryManagement = () => {
   );
 };
 
-export default CategoryManagement;
+import CategoryResolverManagement from './CategoryResolverManagement';
+
+const CategoryManagementWithAssignments = () => {
+  const { isDark } = useTheme();
+  const [activeSubTab, setActiveSubTab] = useState('categories');
+
+  const subTabs = [
+    { id: 'categories', name: 'Categories', icon: '📂' },
+    { id: 'assignments', name: 'Assignments', icon: '👥' }
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Horizontal Tabs */}
+      <div className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+        <nav className="flex space-x-8" aria-label="Tabs">
+          {subTabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSubTab(tab.id)}
+              className={`
+                whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+                ${activeSubTab === tab.id
+                  ? `${isDark ? 'border-blue-500 text-blue-500' : 'border-blue-600 text-blue-600'}`
+                  : `${isDark ? 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`
+                }
+              `}
+            >
+              <span className="mr-2">{tab.icon}</span>
+              {tab.name}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      <div>
+        {activeSubTab === 'categories' && <CategoryManagement />}
+        {activeSubTab === 'assignments' && <CategoryResolverManagement />}
+      </div>
+    </div>
+  );
+};
+
+export default CategoryManagementWithAssignments;

@@ -4,9 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../services/api';
 import InstitutionManagement from '../components/Admin/InstitutionManagement';
-import CategoryManagement from '../components/Admin/CategoryManagement';
+import CategoryManagementWithAssignments from '../components/Admin/CategoryManagement';
 import UserManagement from '../components/Admin/UserManagement';
-import CategoryResolverManagement from '../components/Admin/CategoryResolverManagement';
 import SystemManagement from '../components/Admin/SystemManagement';
 import FeedbackTemplateManagement from '../components/Admin/FeedbackTemplateManagement';
 import AdminComplaints from '../components/Admin/AdminComplaints';
@@ -142,7 +141,6 @@ const AdminDashboard = () => {
     { id: 'complaints', name: 'Complaints', icon: '📝' },
     { id: 'institutions', name: 'Institutions', icon: '🏛️' },
     { id: 'categories', name: 'Categories', icon: '📂' },
-    { id: 'category-resolvers', name: 'Assignments', icon: '👥' },
     { id: 'users', name: 'Users', icon: '👤' },
     { id: 'feedback-templates', name: 'Feedback Templates', icon: '📋' },
     { id: 'system', name: 'System', icon: '⚙️' }
@@ -356,9 +354,7 @@ const AdminDashboard = () => {
       case 'institutions':
         return <InstitutionManagement />;
       case 'categories':
-        return <CategoryManagement />;
-      case 'category-resolvers':
-        return <CategoryResolverManagement />;
+        return <CategoryManagementWithAssignments />;
       case 'users':
         return <UserManagement />;
       case 'feedback-templates':

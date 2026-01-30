@@ -24,6 +24,13 @@ const AdminComplaints = () => {
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [reassignOfficerId, setReassignOfficerId] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
+  const [categoryResolvers, setCategoryResolvers] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedLevel, setSelectedLevel] = useState('');
+  const [levels, setLevels] = useState([]);
 
   useEffect(() => {
     loadData();
@@ -182,6 +189,86 @@ const AdminComplaints = () => {
     } catch (error) {
       console.error('Failed to assign officer:', error);
       alert('Failed to assign officer');
+    }
+  };
+
+  const loadReassignmentData = async () => {
+    try {
+      const [resolversData, levelsData] = await Promise.all([
+        apiService.getAllCategoryResolvers(),
+        apiService.getResolverLevels()
+      ]);
+      
+      setCategoryResolvers(resolversData.results || resolversData);
+      setLevels(levelsData.results || levelsData);
+      
+      // Pre-select the complaint's category if available
+      if (selectedComplaint?.category?.category_id) {
+        setSelectedCategory(selectedComplaint.category.category_id);
+      }
+    } catch (error) {
+      console.error('Failed to load reassignment data:', error);
+    }
+  };
+
+  const getRecommendedOfficers = () => {
+    if (!selectedCategory) return officers;
+    
+    // Get officers assigned to the selected category
+    const categoryOfficers = categoryResolvers
+      .filter(resolver => 
+        resolver.category === selectedCategory && 
+        resolver.active &&
+        (!selectedLevel || resolver.level === selectedLevel)
+      )
+      .map(resolver => resolver.officer);
+    
+    // Get unique officer IDs
+    const categoryOfficerIds = [...new Set(categoryOfficers)];
+    
+    // Return officers assigned to this category, then all other officers
+    const recommended = officers.filter(officer => 
+      categoryOfficerIds.includes(officer.id)
+    );
+    const others = officers.filter(officer => 
+      !categoryOfficerIds.includes(officer.id)
+    );
+    
+    return [...recommended, ...others];
+  };
+
+  const handleReassign = async () => {
+    if (!reassignOfficerId) {
+      alert('Please select an officer to reassign to');
+      return;
+    }
+
+    try {
+      await apiService.reassignComplaint(selectedComplaint.complaint_id, {
+        officer_id: reassignOfficerId,
+        reason: reassignReason || 'Reassigned by admin'
+      });
+      
+      // Update UI
+      const updatedOfficer = officers.find(off => off.id === parseInt(reassignOfficerId));
+      setSelectedComplaint(prev => ({ ...prev, assigned_officer: updatedOfficer }));
+      setComplaints(prev => 
+        prev.map(c => 
+          c.complaint_id === selectedComplaint.complaint_id 
+            ? { ...c, assigned_officer: updatedOfficer }
+            : c
+        )
+      );
+      
+      alert('Complaint reassigned successfully');
+      setShowReassignModal(false);
+      setReassignOfficerId('');
+      setReassignReason('');
+      setSelectedCategory('');
+      setSelectedLevel('');
+    } catch (error) {
+      console.error('Failed to reassign complaint:', error);
+      alert('Failed to reassign: ' + (error.message || 'Unknown error'));
     }
   };
 
@@ -513,18 +600,30 @@ const AdminComplaints = () => {
                   </div>
                   <div>
                     <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Assigned to:</span>
-                    <select
-                      value={selectedComplaint.assigned_to?.id || ''}
-                      onChange={(e) => assignOfficer(selectedComplaint.complaint_id, e.target.value)}
-                      className={`ml-2 text-sm rounded px-2 py-1 border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                    >
-                      <option value="">Unassigned</option>
-                      {officers.map(officer => (
-                        <option key={officer.id} value={officer.id}>
-                          {officer.first_name} {officer.last_name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="ml-2 inline-flex items-center space-x-2">
+                      <select
+                        value={selectedComplaint.assigned_to?.id || ''}
+                        onChange={(e) => assignOfficer(selectedComplaint.complaint_id, e.target.value)}
+                        className={`text-sm rounded px-2 py-1 border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                      >
+                        <option value="">Unassigned</option>
+                        {officers.map(officer => (
+                          <option key={officer.id} value={officer.id}>
+                            {officer.first_name} {officer.last_name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => {
+                          setShowReassignModal(true);
+                          loadReassignmentData();
+                        }}
+                        className="text-xs px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
+                        title="Reassign with reason"
+                      >
+                        🔄 Reassign
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Created:</span>
@@ -654,6 +753,151 @@ const AdminComplaints = () => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reassignment Modal */}
+      {showReassignModal && selectedComplaint && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto`}>
+            <h3 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              🔄 Reassign Complaint
+            </h3>
+            
+            {/* Complaint Info */}
+            <div className={`mb-4 p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-blue-50'}`}>
+              <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {selectedComplaint.title}
+              </p>
+              <div className="flex items-center space-x-4 mt-2 text-sm">
+                <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
+                  Current Category: <strong>{selectedComplaint.category?.name || 'None'}</strong>
+                </span>
+                <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
+                  Priority: <strong className="text-orange-600">{selectedComplaint.priority?.toUpperCase()}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Category Filter */}
+            <div className="mb-4">
+              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Filter by Category
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  setReassignOfficerId(''); // Reset officer selection
+                }}
+                className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+              >
+                <option value="">All Categories</option>
+                {categories.map(category => (
+                  <option key={category.category_id} value={category.category_id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Filter officers by category assignment
+              </p>
+            </div>
+
+            {/* Level Filter */}
+            {selectedCategory && levels.length > 0 && (
+              <div className="mb-4">
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Filter by Level (Optional)
+                </label>
+                <select
+                  value={selectedLevel}
+                  onChange={(e) => {
+                    setSelectedLevel(e.target.value);
+                    setReassignOfficerId(''); // Reset officer selection
+                  }}
+                  className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                >
+                  <option value="">All Levels</option>
+                  {levels.map(level => (
+                    <option key={level.id} value={level.id}>
+                      {level.name} (Level {level.level_order})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Officer Selection */}
+            <div className="mb-4">
+              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Select Officer * {selectedCategory && '(Recommended officers shown first)'}
+              </label>
+              <select
+                value={reassignOfficerId}
+                onChange={(e) => setReassignOfficerId(e.target.value)}
+                className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+              >
+                <option value="">Select an officer...</option>
+                {getRecommendedOfficers().map((officer, index) => {
+                  const isRecommended = selectedCategory && categoryResolvers.some(
+                    resolver => resolver.officer === officer.id && 
+                    resolver.category === selectedCategory &&
+                    resolver.active &&
+                    (!selectedLevel || resolver.level === selectedLevel)
+                  );
+                  return (
+                    <option key={officer.id} value={officer.id}>
+                      {isRecommended ? '⭐ ' : ''}{officer.first_name} {officer.last_name} ({officer.email})
+                      {isRecommended ? ' - Assigned to this category' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+              {selectedCategory && (
+                <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  ⭐ Officers marked with a star are assigned to handle the selected category
+                </p>
+              )}
+            </div>
+
+            {/* Reason */}
+            <div className="mb-4">
+              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Reason (Optional)
+              </label>
+              <textarea
+                value={reassignReason}
+                onChange={(e) => setReassignReason(e.target.value)}
+                placeholder="Enter reason for reassignment (e.g., expertise, workload balancing, escalation)..."
+                className={`w-full p-2 border rounded h-20 ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'}`}
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowReassignModal(false);
+                  setReassignOfficerId('');
+                  setReassignReason('');
+                  setSelectedCategory('');
+                  setSelectedLevel('');
+                }}
+                className={`px-4 py-2 rounded ${isDark ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-300 hover:bg-gray-400 text-gray-700'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReassign}
+                disabled={!reassignOfficerId}
+                className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                <span>🔄</span>
+                <span>Reassign Complaint</span>
+              </button>
             </div>
           </div>
         </div>

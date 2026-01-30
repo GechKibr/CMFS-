@@ -463,3 +463,50 @@ class Notification(models.Model):
             user=user,
             notification_type__in=escalation_types
         )
+
+
+class AISettingsConfig(models.Model):
+    STRATEGY_ROUND_ROBIN = 'round_robin'
+    STRATEGY_WORKLOAD = 'workload_based'
+    STRATEGY_EXPERTISE = 'expertise_based'
+    STRATEGY_RANDOM = 'random'
+
+    STRATEGY_CHOICES = [
+        (STRATEGY_ROUND_ROBIN, 'Round Robin'),
+        (STRATEGY_WORKLOAD, 'Workload Based'),
+        (STRATEGY_EXPERTISE, 'Expertise Based'),
+        (STRATEGY_RANDOM, 'Random'),
+    ]
+
+    auto_category = models.BooleanField(default=True)
+    auto_assignment = models.BooleanField(default=False)
+    auto_priority = models.BooleanField(default=True)
+    smart_routing = models.BooleanField(default=True)
+    assignment_strategy = models.CharField(max_length=30, choices=STRATEGY_CHOICES, default=STRATEGY_WORKLOAD)
+    confidence_threshold = models.PositiveIntegerField(default=85)
+    max_retries = models.PositiveIntegerField(default=3)
+    learning_mode = models.BooleanField(default=True)
+    last_trained = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return "AI Settings"
+
+
+class AIPriorityKeyword(models.Model):
+    PRIORITY_CHOICES = [
+        ('urgent', 'Urgent'),
+        ('high', 'High'),
+        ('medium', 'Medium'),
+        ('low', 'Low'),
+    ]
+
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES)
+    word = models.CharField(max_length=100)
+
+    class Meta:
+        unique_together = ('priority', 'word')
+        ordering = ['priority', 'word']
+
+    def __str__(self):
+        return f"{self.priority}: {self.word}"

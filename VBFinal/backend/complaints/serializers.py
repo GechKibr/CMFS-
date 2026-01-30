@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment, Response, Notification
+from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment, Response, Notification, AISettingsConfig, AIPriorityKeyword
 
 from django.contrib.auth import get_user_model
 
@@ -149,3 +149,28 @@ class NotificationSerializer(serializers.ModelSerializer):
             "read_at", "created_at"
         ]
         read_only_fields = ["id", "user", "created_at"]
+
+
+class AISettingsConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AISettingsConfig
+        fields = [
+            "auto_category",
+            "auto_assignment",
+            "auto_priority",
+            "smart_routing",
+            "assignment_strategy",
+            "confidence_threshold",
+            "max_retries",
+            "learning_mode",
+            "last_trained",
+            "updated_at",
+        ]
+        read_only_fields = ["last_trained", "updated_at"]
+
+
+class AIPriorityKeywordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIPriorityKeyword
+        fields = ["id", "priority", "word"]
+        read_only_fields = ["id"]

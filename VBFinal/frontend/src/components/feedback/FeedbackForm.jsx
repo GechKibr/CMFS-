@@ -14,7 +14,7 @@ const FeedbackForm = ({ templateId, onSubmit }) => {
     try {
       const response = await fetch(`/api/feedback/templates/${templateId}/`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
       const data = await response.json();
@@ -66,7 +66,7 @@ const FeedbackForm = ({ templateId, onSubmit }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
           template: templateId,

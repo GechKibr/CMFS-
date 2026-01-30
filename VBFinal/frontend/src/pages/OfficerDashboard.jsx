@@ -4,6 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { FeedbackFormBuilder, FeedbackAnalytics } from '../components/feedback';
+import MaintenanceNotification from '../components/UI/MaintenanceNotification';
 
 const OfficerDashboard = () => {
   const { isDark, toggleTheme } = useTheme();
@@ -32,6 +33,10 @@ const OfficerDashboard = () => {
     pendingComplaints: 0,
     totalTemplates: 0
   });
+  const [templateTitle, setTemplateTitle] = useState('');
+  const [templateContent, setTemplateContent] = useState('');
+  const [templateCategory, setTemplateCategory] = useState('general');
+  const [templateType, setTemplateType] = useState('feedback');
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: '📊' },
@@ -121,6 +126,51 @@ const OfficerDashboard = () => {
       setTemplates([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateTemplate = async () => {
+    if (!templateTitle || !templateContent) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const templateData = {
+        title: templateTitle,
+        content: templateContent,
+        category: templateCategory,
+        template_type: templateType,
+        created_by_role: 'officer'
+      };
+
+      // Save to localStorage for admin to see
+      const existingTemplates = JSON.parse(localStorage.getItem('feedback_templates') || '[]');
+      const newTemplate = {
+        ...templateData,
+        id: Date.now(),
+        status: 'pending',
+        created_by: user?.first_name + ' ' + user?.last_name || 'Current Officer',
+        created_at: new Date().toISOString().split('T')[0],
+        approved_by: null,
+        approved_at: null
+      };
+      
+      const allTemplates = [newTemplate, ...existingTemplates];
+      localStorage.setItem('feedback_templates', JSON.stringify(allTemplates));
+
+      // Clear form
+      setTemplateTitle('');
+      setTemplateContent('');
+      setTemplateCategory('general');
+      setTemplateType('feedback');
+      
+      alert('Template submitted for admin approval!');
+      setActiveTab('manage-templates');
+      fetchTemplates();
+    } catch (error) {
+      console.error('Failed to create template:', error);
+      alert('Failed to create template: ' + error.message);
     }
   };
 
@@ -393,7 +443,7 @@ const OfficerDashboard = () => {
 
   const filteredTemplates = Array.isArray(templates) ? templates.filter(template => 
     statusFilter === 'all' || template.status === statusFilter
-  ) : [];
+  ).reverse() : [];
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -481,7 +531,7 @@ const OfficerDashboard = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {templates.slice(0, 5).map(template => (
+                    {templates.slice().reverse().slice(0, 5).map(template => (
                       <div key={template.id} className="flex justify-between items-center p-3 border rounded-lg">
                         <div>
                           <h4 className="font-medium text-sm">{template.title}</h4>
@@ -597,11 +647,162 @@ const OfficerDashboard = () => {
       case 'create-template':
         return (
           <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Create New Feedback Template</h2>
-            <FeedbackFormBuilder onSave={() => {
-              setActiveTab('feedback-dashboard');
-              fetchTemplates();
-            }} />
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Create New Template</h2>
+            
+            {/* Template Type Selector */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Template Type
+                </label>
+                <select
+                  value={templateType}
+                  onChange={(e) => setTemplateType(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="feedback">Feedback Form Template</option>
+                  <option value="service_assessment">Service Assessment Template</option>
+                  <option value="simple">Simple Text Template</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Render appropriate template creator */}
+            {templateType === 'feedback' ? (
+              <FeedbackFormBuilder onSave={() => {
+                setActiveTab('manage-templates');
+                fetchTemplates();
+              }} />
+            ) : templateType === 'service_assessment' ? (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-4">Service Assessment Template</h3>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Template Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={templateTitle}
+                    onChange={(e) => setTemplateTitle(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter assessment template title"
+                  />
+                </div>
+                
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Assessment Content *
+                  </label>
+                  <textarea
+                    value={templateContent}
+                    onChange={(e) => setTemplateContent(e.target.value)}
+                    rows="6"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter service assessment questions or content"
+                  />
+                </div>
+                
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={templateCategory}
+                    onChange={(e) => setTemplateCategory(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="assessment">Service Assessment</option>
+                    <option value="performance">Performance Evaluation</option>
+                    <option value="satisfaction">Satisfaction Survey</option>
+                  </select>
+                </div>
+                
+                <div className="flex space-x-4">
+                  <button
+                    onClick={handleCreateTemplate}
+                    disabled={!templateTitle || !templateContent}
+                    className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Create Assessment Template
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTemplateTitle('');
+                      setTemplateContent('');
+                      setTemplateCategory('assessment');
+                    }}
+                    className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-4">Simple Text Template</h3>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Template Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={templateTitle}
+                    onChange={(e) => setTemplateTitle(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter template title"
+                  />
+                </div>
+                
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Template Content *
+                  </label>
+                  <textarea
+                    value={templateContent}
+                    onChange={(e) => setTemplateContent(e.target.value)}
+                    rows="6"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter template content"
+                  />
+                </div>
+                
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={templateCategory}
+                    onChange={(e) => setTemplateCategory(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="general">General</option>
+                    <option value="acknowledgment">Acknowledgment</option>
+                    <option value="progress">Progress Update</option>
+                    <option value="resolution">Resolution</option>
+                  </select>
+                </div>
+                
+                <div className="flex space-x-4">
+                  <button
+                    onClick={handleCreateTemplate}
+                    disabled={!templateTitle || !templateContent}
+                    className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Create Template
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTemplateTitle('');
+                      setTemplateContent('');
+                      setTemplateCategory('general');
+                    }}
+                    className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         );
 
@@ -931,6 +1132,7 @@ const OfficerDashboard = () => {
         </header>
 
         <main className={`flex-1 overflow-auto p-6 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+          <MaintenanceNotification />
           {renderTabContent()}
         </main>
       </div>

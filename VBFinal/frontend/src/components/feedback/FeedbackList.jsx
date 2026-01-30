@@ -12,7 +12,7 @@ const FeedbackList = ({ userRole, onSelectTemplate }) => {
     try {
       const response = await fetch('/api/feedback/templates/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
       const data = await response.json();
@@ -30,7 +30,7 @@ const FeedbackList = ({ userRole, onSelectTemplate }) => {
       await fetch(`/api/feedback/templates/${templateId}/${action}/`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
       fetchTemplates();
@@ -40,6 +40,11 @@ const FeedbackList = ({ userRole, onSelectTemplate }) => {
   };
 
   if (loading) return <div className="text-center py-10 text-lg text-gray-600">Loading templates...</div>;
+
+  // Filter templates based on user role - users only see active templates
+  const filteredTemplates = userRole === 'user' 
+    ? templates.filter(template => template.status === 'active')
+    : templates;
 
   return (
     <div className="max-w-6xl mx-auto p-5">
@@ -56,7 +61,7 @@ const FeedbackList = ({ userRole, onSelectTemplate }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {templates.map(template => (
+        {filteredTemplates.map(template => (
           <div key={template.id} className="bg-white border border-gray-300 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-lg font-semibold text-gray-800 m-0">{template.title}</h3>
@@ -124,7 +129,7 @@ const FeedbackList = ({ userRole, onSelectTemplate }) => {
         ))}
       </div>
 
-      {templates.length === 0 && (
+      {filteredTemplates.length === 0 && (
         <div className="text-center py-16 text-gray-600">
           <p className="text-lg mb-5">No feedback forms available</p>
           {userRole === 'officer' && (

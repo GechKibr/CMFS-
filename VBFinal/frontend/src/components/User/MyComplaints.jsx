@@ -30,6 +30,13 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
   useEffect(() => {
     loadComplaints();
     loadCategories();
+    
+    // Set up periodic refresh to catch admin updates
+    const interval = setInterval(() => {
+      loadComplaints();
+    }, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -226,6 +233,18 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
 
       {/* Filters */}
       <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow`}>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            Filter Complaints
+          </h3>
+          <button
+            onClick={() => loadComplaints()}
+            className={`px-3 py-1 rounded text-sm transition-colors ${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            title="Refresh to see latest updates"
+          >
+            🔄 Refresh
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>

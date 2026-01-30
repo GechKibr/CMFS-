@@ -3,6 +3,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useMaintenanceMode } from '../../contexts/MaintenanceContext';
 import apiService from '../../services/api';
 import systemLogger from '../../services/systemLogger';
+import AISettings from './AISettings';
 
 const SystemManagement = () => {
   const { isDark } = useTheme();
@@ -67,6 +68,7 @@ const SystemManagement = () => {
 
   const systemTabs = [
     { id: 'overview', name: 'System Overview', icon: '📊' },
+    { id: 'ai-settings', name: 'AI Settings', icon: '🤖' },
     { id: 'maintenance', name: 'Maintenance', icon: '🔧' },
     { id: 'backup', name: 'Backup & Restore', icon: '💾' },
     { id: 'logs', name: 'System Logs', icon: '📋' },
@@ -427,6 +429,8 @@ const SystemManagement = () => {
       if (confirm('Are you sure you want to disable maintenance mode? Users will be able to access the system.')) {
         disableMaintenanceMode();
         setMaintenanceMode(false);
+        // Clear scheduled maintenance notification
+        localStorage.removeItem('scheduled_maintenance');
         systemLogger.info('Maintenance mode disabled by admin', 'MAINTENANCE');
         alert('Maintenance mode disabled. System is now accessible to all users.');
       }
@@ -454,8 +458,17 @@ const SystemManagement = () => {
       return;
     }
     
+    // Save to localStorage for user notifications
+    const maintenanceData = {
+      scheduled_time: scheduledTime.toISOString(),
+      message: maintenanceMessage,
+      scheduled_by: 'Admin',
+      scheduled_at: now.toISOString()
+    };
+    localStorage.setItem('scheduled_maintenance', JSON.stringify(maintenanceData));
+    
     scheduleMaintenanceMode(scheduledTime.toISOString(), `Scheduled maintenance at ${scheduledTime.toLocaleString()}`);
-    alert(`Maintenance scheduled for ${scheduledTime.toLocaleString()}. Users will be notified on the login page.`);
+    alert(`Maintenance scheduled for ${scheduledTime.toLocaleString()}. Users will be notified.`);
     setScheduledMaintenanceTime('');
   };
 
@@ -1713,6 +1726,8 @@ const SystemManagement = () => {
     switch (activeSystemTab) {
       case 'overview':
         return renderSystemOverview();
+      case 'ai-settings':
+        return <AISettings />;
       case 'maintenance':
         return renderMaintenance();
       case 'backup':

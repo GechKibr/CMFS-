@@ -8,6 +8,7 @@ import SubmitComplaint from '../components/User/SubmitComplaint';
 import MyComplaints from '../components/User/MyComplaints';
 import Notifications from '../components/User/Notifications';
 import UserProfile from '../components/User/UserProfile';
+import MaintenanceNotification from '../components/UI/MaintenanceNotification';
 import UserFeedback from '../components/User/UserFeedback';
 import LanguageToggle from '../components/UI/LanguageToggle';
 
@@ -299,6 +300,7 @@ const UserDashboard = () => {
           <div className="flex-1 lg:ml-0">
             <main className="py-6">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <MaintenanceNotification />
                 {renderTabContent()}
               </div>
             </main>

@@ -96,6 +96,40 @@ class ApiService {
     }
   }
 
+  // Feedback Template Management
+  async getFeedbackTemplates() {
+    return this.request('/feedback-templates/');
+  }
+
+  async createFeedbackTemplate(templateData) {
+    return this.request('/feedback-templates/', {
+      method: 'POST',
+      body: JSON.stringify(templateData)
+    });
+  }
+
+  async approveFeedbackTemplate(templateId) {
+    return this.request(`/feedback-templates/${templateId}/approve/`, {
+      method: 'PATCH'
+    });
+  }
+
+  async rejectFeedbackTemplate(templateId) {
+    return this.request(`/feedback-templates/${templateId}/reject/`, {
+      method: 'PATCH'
+    });
+  }
+
+  async deactivateFeedbackTemplate(templateId) {
+    return this.request(`/feedback-templates/${templateId}/deactivate/`, {
+      method: 'PATCH'
+    });
+  }
+
+  async getOfficerTemplates() {
+    return this.request('/officer/templates/');
+  }
+
   // JWT Session Management
   async getJwtConfig() {
     return this.request('/system/jwt-session/');

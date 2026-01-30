@@ -3,13 +3,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../services/api';
-import ResolverLevelManagement from '../components/Admin/ResolverLevelManagement';
-import CategoryResolverManagement from '../components/Admin/CategoryResolverManagement';
 import InstitutionManagement from '../components/Admin/InstitutionManagement';
 import CategoryManagement from '../components/Admin/CategoryManagement';
 import UserManagement from '../components/Admin/UserManagement';
+import CategoryResolverManagement from '../components/Admin/CategoryResolverManagement';
 import SystemManagement from '../components/Admin/SystemManagement';
-import AISettings from '../components/Admin/AISettings';
+import FeedbackTemplateManagement from '../components/Admin/FeedbackTemplateManagement';
 import AdminComplaints from '../components/Admin/AdminComplaints';
 
 const AdminDashboard = () => {
@@ -143,10 +142,9 @@ const AdminDashboard = () => {
     { id: 'complaints', name: 'Complaints', icon: '📝' },
     { id: 'institutions', name: 'Institutions', icon: '🏛️' },
     { id: 'categories', name: 'Categories', icon: '📂' },
-    { id: 'resolver-levels', name: 'Resolver Levels', icon: '⚡' },
     { id: 'category-resolvers', name: 'Assignments', icon: '👥' },
     { id: 'users', name: 'Users', icon: '👤' },
-    { id: 'ai-settings', name: 'AI Settings', icon: '🤖' },
+    { id: 'feedback-templates', name: 'Feedback Templates', icon: '📋' },
     { id: 'system', name: 'System', icon: '⚙️' }
   ];
 
@@ -359,14 +357,12 @@ const AdminDashboard = () => {
         return <InstitutionManagement />;
       case 'categories':
         return <CategoryManagement />;
-      case 'resolver-levels':
-        return <ResolverLevelManagement />;
       case 'category-resolvers':
         return <CategoryResolverManagement />;
       case 'users':
         return <UserManagement />;
-      case 'ai-settings':
-        return <AISettings />;
+      case 'feedback-templates':
+        return <FeedbackTemplateManagement />;
       case 'system':
         return <SystemManagement />;
       default:

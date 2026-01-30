@@ -9,6 +9,7 @@ const AdminComplaints = () => {
   const [complaints, setComplaints] = useState([]);
   const [filteredComplaints, setFilteredComplaints] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [officers, setOfficers] = useState([]);
   const [institutions, setInstitutions] = useState([]);
   const [responses, setResponses] = useState([]);
   const [newResponse, setNewResponse] = useState('');
@@ -34,10 +35,11 @@ const AdminComplaints = () => {
 
   const loadData = async () => {
     try {
-      const [complaintsData, categoriesData, institutionsData] = await Promise.all([
+      const [complaintsData, categoriesData, institutionsData, officersData] = await Promise.all([
         apiService.getComplaints(),
         apiService.getCategories(),
-        apiService.getInstitutions()
+        apiService.getInstitutions(),
+        apiService.getAllUsers()
       ]);
       
       setComplaints(complaintsData.results || complaintsData);
@@ -65,6 +67,11 @@ const AdminComplaints = () => {
       
       setCategories(allCategories);
       setInstitutions(institutionsData.results || institutionsData);
+      
+      // Filter officers (users with officer role)
+      const allUsers = officersData.results || officersData;
+      const officerUsers = allUsers.filter(user => user.role === 'officer' || user.is_staff);
+      setOfficers(officerUsers);
       
       console.log('Loaded categories:', allCategories.length);
     } catch (error) {
@@ -141,6 +148,40 @@ const AdminComplaints = () => {
     } catch (error) {
       console.error('Failed to assign category:', error);
       alert('Failed to assign category');
+    }
+  };
+
+  const assignOfficer = async (complaintId, officerId) => {
+    try {
+      if (officerId === '') {
+        // Remove officer assignment
+        await apiService.updateComplaint(complaintId, { assigned_to: null });
+      } else {
+        // Assign officer
+        await apiService.updateComplaint(complaintId, { assigned_to: officerId });
+      }
+      
+      // Update the selected complaint in modal if it's the same complaint
+      if (selectedComplaint?.complaint_id === complaintId) {
+        const updatedOfficer = officerId ? officers.find(off => off.id === parseInt(officerId)) : null;
+        setSelectedComplaint(prev => ({ ...prev, assigned_to: updatedOfficer }));
+      }
+      
+      // Update the complaint in the main list
+      setComplaints(prevComplaints => 
+        prevComplaints.map(complaint => 
+          complaint.complaint_id === complaintId 
+            ? { 
+                ...complaint, 
+                assigned_to: officerId ? officers.find(off => off.id === parseInt(officerId)) : null 
+              }
+            : complaint
+        )
+      );
+      
+    } catch (error) {
+      console.error('Failed to assign officer:', error);
+      alert('Failed to assign officer');
     }
   };
 
@@ -466,6 +507,21 @@ const AdminComplaints = () => {
                       {categories.map(category => (
                         <option key={category.category_id} value={category.category_id}>
                           {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Assigned to:</span>
+                    <select
+                      value={selectedComplaint.assigned_to?.id || ''}
+                      onChange={(e) => assignOfficer(selectedComplaint.complaint_id, e.target.value)}
+                      className={`ml-2 text-sm rounded px-2 py-1 border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    >
+                      <option value="">Unassigned</option>
+                      {officers.map(officer => (
+                        <option key={officer.id} value={officer.id}>
+                          {officer.first_name} {officer.last_name}
                         </option>
                       ))}
                     </select>

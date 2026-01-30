@@ -7,6 +7,7 @@ import { MaintenanceProvider, useMaintenanceMode } from './contexts/MaintenanceC
 import ProtectedRoute from './components/ProtectedRoute';
 import TokenInterceptor from './components/TokenInterceptor';
 import MaintenancePage from './components/MaintenancePage';
+import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import AdminDashboard from './pages/AdminDashboard';
@@ -19,7 +20,7 @@ const RootRedirect = () => {
   const { user, getUserRole } = useAuth();
   
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/landing" replace />;
   }
   
   const role = getUserRole();
@@ -47,6 +48,7 @@ const AppContent = () => {
   return (
     <Routes>
       {/* Public Routes */}
+      <Route path="/landing" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       

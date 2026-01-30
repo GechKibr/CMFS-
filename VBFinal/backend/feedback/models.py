@@ -8,11 +8,51 @@ class FeedbackTemplate(models.Model):
     STATUS_DRAFT = 'draft'
     STATUS_ACTIVE = 'active'
     STATUS_CLOSED = 'closed'
+    STATUS_PENDING = 'pending'
+    STATUS_REJECTED = 'rejected'
+    STATUS_INACTIVE = 'inactive'
     
     STATUS_CHOICES = [
         (STATUS_DRAFT, 'Draft'),
         (STATUS_ACTIVE, 'Active'),
         (STATUS_CLOSED, 'Closed'),
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_REJECTED, 'Rejected'),
+        (STATUS_INACTIVE, 'Inactive'),
+    ]
+    
+    PRIORITY_LOW = 'low'
+    PRIORITY_MEDIUM = 'medium'
+    PRIORITY_HIGH = 'high'
+    
+    PRIORITY_CHOICES = [
+        (PRIORITY_LOW, 'Low'),
+        (PRIORITY_MEDIUM, 'Medium'),
+        (PRIORITY_HIGH, 'High'),
+    ]
+    
+    CATEGORY_GENERAL = 'general'
+    CATEGORY_ACKNOWLEDGMENT = 'acknowledgment'
+    CATEGORY_PROGRESS = 'progress'
+    CATEGORY_RESOLUTION = 'resolution'
+    CATEGORY_FOLLOWUP = 'follow-up'
+    CATEGORY_ASSESSMENT = 'assessment'
+    
+    CATEGORY_CHOICES = [
+        (CATEGORY_GENERAL, 'General'),
+        (CATEGORY_ACKNOWLEDGMENT, 'Acknowledgment'),
+        (CATEGORY_PROGRESS, 'Progress Update'),
+        (CATEGORY_RESOLUTION, 'Resolution'),
+        (CATEGORY_FOLLOWUP, 'Follow-up'),
+        (CATEGORY_ASSESSMENT, 'Service Assessment'),
+    ]
+    
+    TYPE_FEEDBACK = 'feedback'
+    TYPE_ASSESSMENT = 'service_assessment'
+    
+    TYPE_CHOICES = [
+        (TYPE_FEEDBACK, 'Feedback Template'),
+        (TYPE_ASSESSMENT, 'Service Assessment'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -24,7 +64,18 @@ class FeedbackTemplate(models.Model):
         related_name='feedback_templates'
     )
     office = models.CharField(max_length=100)  # Based on user's college
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default=PRIORITY_MEDIUM)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default=CATEGORY_GENERAL)
+    template_type = models.CharField(max_length=50, choices=TYPE_CHOICES, default=TYPE_FEEDBACK)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='approved_templates',
+        null=True,
+        blank=True
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -83,6 +134,13 @@ class FeedbackResponse(models.Model):
         on_delete=models.CASCADE,
         related_name='responses'
     )
+    user = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.CASCADE,
+        related_name='feedback_responses',
+        null=True,
+        blank=True
+    )
     session_token = models.CharField(max_length=100, unique=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
@@ -92,6 +150,7 @@ class FeedbackResponse(models.Model):
         indexes = [
             models.Index(fields=['template', 'submitted_at']),
             models.Index(fields=['session_token']),
+            models.Index(fields=['template', 'user']),
         ]
     
     def __str__(self):

@@ -79,9 +79,37 @@ class FeedbackTemplateViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        template.status = FeedbackTemplate.STATUS_CLOSED
+        template.status = FeedbackTemplate.STATUS_INACTIVE
         template.save()
         return Response({"message": "Template deactivated successfully"})
+    
+    @action(detail=True, methods=['post', 'patch'])
+    def approve(self, request, pk=None):
+        template = self.get_object()
+        if not request.user.is_admin():
+            return Response(
+                {"error": "Only admins can approve templates"}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        template.status = FeedbackTemplate.STATUS_ACTIVE
+        template.approved_by = request.user
+        template.approved_at = timezone.now()
+        template.save()
+        return Response({"message": "Template approved successfully"})
+    
+    @action(detail=True, methods=['post', 'patch'])
+    def reject(self, request, pk=None):
+        template = self.get_object()
+        if not request.user.is_admin():
+            return Response(
+                {"error": "Only admins can reject templates"}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        template.status = FeedbackTemplate.STATUS_REJECTED
+        template.save()
+        return Response({"message": "Template rejected successfully"})
     
     @action(detail=True, methods=['get'])
     def analytics(self, request, pk=None):
@@ -170,11 +198,10 @@ class FeedbackResponseViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Check for duplicate submission (optional IP-based check)
-        ip_address = self.get_client_ip(request)
+        # Check for duplicate submission by user (not IP-based to allow multiple users from same IP)
         if FeedbackResponse.objects.filter(
             template=template, 
-            ip_address=ip_address,
+            user=request.user,
             submitted_at__gte=timezone.now() - timedelta(hours=24)
         ).exists():
             return Response(
@@ -183,11 +210,3 @@ class FeedbackResponseViewSet(viewsets.ModelViewSet):
             )
         
         return super().create(request, *args, **kwargs)
-    
-    def get_client_ip(self, request):
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0]
-        else:
-            ip = request.META.get('REMOTE_ADDR')
-        return ip

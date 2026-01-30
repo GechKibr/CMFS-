@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment, Response
+from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment, Response, Notification
 
 from django.contrib.auth import get_user_model
 
@@ -135,3 +135,17 @@ class AssignmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Assignment
         fields = ["id", "complaint", "officer", "level", "assigned_at", "ended_at", "reason"]
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    complaint_title = serializers.CharField(source='complaint.title', read_only=True, allow_null=True)
+    complaint_id = serializers.CharField(source='complaint.complaint_id', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Notification
+        fields = [
+            "id", "user", "complaint", "complaint_id", "complaint_title",
+            "notification_type", "title", "message", "is_read", 
+            "read_at", "created_at"
+        ]
+        read_only_fields = ["id", "user", "created_at"]

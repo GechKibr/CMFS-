@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response as DRFResponse
 from django.utils import timezone
 
-from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment, Response
+from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment, Response, Notification
 from .serializers import (
     InstitutionSerializer,
     CategorySerializer,
@@ -15,6 +15,7 @@ from .serializers import (
     CommentSerializer,
     AssignmentSerializer,
     ResponseSerializer,
+    NotificationSerializer,
 )
 from .ai_service import ai_service
 
@@ -139,6 +140,50 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         
         return DRFResponse({"detail": "Complaint assigned successfully"}, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=["post"], url_path="reassign")
+    def reassign(self, request, pk=None):
+        """Reassign complaint to another officer"""
+        complaint = self.get_object()
+        new_officer_id = request.data.get("officer_id")
+        reason = request.data.get("reason", "manual reassignment")
+        
+        if not new_officer_id:
+            return DRFResponse({"error": "officer_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get or set a level - if no current level, get the first level or create one
+        level = complaint.current_level
+        if not level:
+            # Try to get the first level for the complaint's institution
+            level = ResolverLevel.objects.filter(
+                institution=complaint.institution
+            ).order_by('level_order').first()
+            
+            # If still no level exists, create a default one
+            if not level:
+                level = ResolverLevel.objects.create(
+                    institution=complaint.institution,
+                    name="Default Level",
+                    level_order=1
+                )
+        
+        # Create assignment record
+        Assignment.objects.create(
+            complaint=complaint,
+            officer_id=new_officer_id,
+            level=level,
+            reason=reason
+        )
+        
+        # Update complaint assignment
+        complaint.assigned_officer_id = new_officer_id
+        complaint.current_level = level
+        complaint.save()
+        
+        return DRFResponse({
+            "detail": "Complaint reassigned successfully",
+            "assigned_officer_id": new_officer_id
+        }, status=status.HTTP_200_OK)
+    
     @action(detail=True, methods=["post"], url_path="change-status")
     def change_status(self, request, pk=None):
         """Update complaint status"""
@@ -306,6 +351,58 @@ class ResponseViewSet(viewsets.ModelViewSet):
         if request.user != response.responder:
             return DRFResponse({"error": "You can only edit your own responses"}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
+
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """Users can only see their own notifications"""
+        return Notification.objects.filter(user=self.request.user)
+
+    @action(detail=False, methods=['get'], url_path='unread')
+    def unread(self, request):
+        """Get unread notifications for current user"""
+        notifications = Notification.get_unread_for_user(request.user)
+        serializer = self.get_serializer(notifications, many=True)
+        return DRFResponse({
+            'count': notifications.count(),
+            'notifications': serializer.data
+        })
+
+    @action(detail=False, methods=['get'], url_path='escalations')
+    def escalations(self, request):
+        """Get escalation-related notifications"""
+        notifications = Notification.get_escalation_notifications(request.user)
+        serializer = self.get_serializer(notifications, many=True)
+        return DRFResponse({
+            'count': notifications.count(),
+            'notifications': serializer.data
+        })
+
+    @action(detail=True, methods=['post'], url_path='mark-as-read')
+    def mark_as_read(self, request, pk=None):
+        """Mark a notification as read"""
+        notification = self.get_object()
+        notification.mark_as_read()
+        return DRFResponse({
+            'message': 'Notification marked as read',
+            'notification': NotificationSerializer(notification).data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='mark-all-as-read')
+    def mark_all_as_read(self, request):
+        """Mark all unread notifications as read"""
+        notifications = Notification.get_unread_for_user(request.user)
+        count = notifications.count()
+        
+        for notification in notifications:
+            notification.mark_as_read()
+        
+        return DRFResponse({
+            'message': f'{count} notifications marked as read'
+        }, status=status.HTTP_200_OK)
 
 
 class AssignmentViewSet(viewsets.ModelViewSet):

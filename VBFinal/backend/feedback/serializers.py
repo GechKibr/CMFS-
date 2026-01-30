@@ -19,7 +19,7 @@ class FeedbackTemplateSerializer(serializers.ModelSerializer):
     class Meta:
         model = FeedbackTemplate
         fields = ['id', 'title', 'description', 'office', 'status', 'priority', 
-                 'category', 'template_type', 'created_at', 'updated_at', 'fields', 
+                 'created_at', 'updated_at', 'fields', 
                  'created_by', 'created_by_role', 'approved_by', 'approved_at']
         read_only_fields = ['created_by', 'office', 'approved_by', 'approved_at']
     
@@ -36,7 +36,7 @@ class FeedbackTemplateCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = FeedbackTemplate
-        fields = ['title', 'description', 'fields', 'priority', 'category', 'template_type']
+        fields = ['title', 'description', 'fields', 'priority']
     
     def create(self, validated_data):
         fields_data = validated_data.pop('fields')

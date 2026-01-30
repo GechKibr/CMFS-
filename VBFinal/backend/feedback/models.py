@@ -31,30 +31,6 @@ class FeedbackTemplate(models.Model):
         (PRIORITY_HIGH, 'High'),
     ]
     
-    CATEGORY_GENERAL = 'general'
-    CATEGORY_ACKNOWLEDGMENT = 'acknowledgment'
-    CATEGORY_PROGRESS = 'progress'
-    CATEGORY_RESOLUTION = 'resolution'
-    CATEGORY_FOLLOWUP = 'follow-up'
-    CATEGORY_ASSESSMENT = 'assessment'
-    
-    CATEGORY_CHOICES = [
-        (CATEGORY_GENERAL, 'General'),
-        (CATEGORY_ACKNOWLEDGMENT, 'Acknowledgment'),
-        (CATEGORY_PROGRESS, 'Progress Update'),
-        (CATEGORY_RESOLUTION, 'Resolution'),
-        (CATEGORY_FOLLOWUP, 'Follow-up'),
-        (CATEGORY_ASSESSMENT, 'Service Assessment'),
-    ]
-    
-    TYPE_FEEDBACK = 'feedback'
-    TYPE_ASSESSMENT = 'service_assessment'
-    
-    TYPE_CHOICES = [
-        (TYPE_FEEDBACK, 'Feedback Template'),
-        (TYPE_ASSESSMENT, 'Service Assessment'),
-    ]
-    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -66,8 +42,6 @@ class FeedbackTemplate(models.Model):
     office = models.CharField(max_length=100)  # Based on user's college
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default=PRIORITY_MEDIUM)
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default=CATEGORY_GENERAL)
-    template_type = models.CharField(max_length=50, choices=TYPE_CHOICES, default=TYPE_FEEDBACK)
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

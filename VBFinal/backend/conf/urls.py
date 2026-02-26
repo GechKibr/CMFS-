@@ -51,6 +51,7 @@ urlpatterns = [
     path('api/', include('complaints.urls')),
     path('api/feedback/', include('feedback.urls')),
     path('api-auth/', include('rest_framework.urls')),
+    path('auth/', include('social_django.urls', namespace='social')),
 
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='redoc-ui'),

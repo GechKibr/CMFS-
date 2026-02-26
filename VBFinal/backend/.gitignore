@@ -18,6 +18,11 @@ var/
 wheels/
 *.egg-info/
 .installed.cfg
+
+# Environment variables
+.env
+.env.local
+.env.*.local
 *.egg
 
 # Django

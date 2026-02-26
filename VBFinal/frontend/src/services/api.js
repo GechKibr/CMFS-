@@ -1,5 +1,5 @@
 // const API_BASE_URL = 'https://verbose-fiesta-r4p5rqw5jgw6fgx4-8000.app.github.dev/api';
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = "/api";
 import systemLogger from './systemLogger.js';
 
 class ApiService {
@@ -59,7 +59,7 @@ class ApiService {
 
     try {
       let response = await fetch(url, config);
-      
+
       // If token expired, try to refresh and retry
       if (response.status === 401 && this.token) {
         try {
@@ -79,15 +79,15 @@ class ApiService {
         systemLogger.error(`API ${method} ${endpoint} failed: ${response.status} ${response.statusText}`, 'API');
         throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
-      
+
       systemLogger.success(`API ${method} ${endpoint} completed successfully`, 'API');
-      
+
       // Handle empty responses (like DELETE requests)
       const contentType = response.headers.get('content-type');
       if (response.status === 204 || !contentType?.includes('application/json')) {
         return {}; // Return empty object for successful requests with no content
       }
-      
+
       const data = await response.json();
       return data;
     } catch (error) {
@@ -285,7 +285,7 @@ class ApiService {
   async addComplaintRating(complaintId, rating, feedback) {
     return this.request('/comments/', {
       method: 'POST',
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         complaint: complaintId,
         comment_type: 'rating',
         message: feedback || 'No feedback provided',
@@ -297,14 +297,14 @@ class ApiService {
   async getUsers(page = null, pageSize = null) {
     let url = '/accounts/';
     const params = new URLSearchParams();
-    
+
     if (page) params.append('page', page);
     if (pageSize) params.append('page_size', pageSize);
-    
+
     if (params.toString()) {
       url += `?${params.toString()}`;
     }
-    
+
     return this.request(url);
   }
 
@@ -313,23 +313,23 @@ class ApiService {
     let allUsers = [];
     let page = 1;
     let hasMore = true;
-    
+
     while (hasMore) {
       const response = await this.getUsers(page, 50); // Use larger page size
       const users = response.results || response;
-      
+
       if (Array.isArray(users)) {
         allUsers = allUsers.concat(users);
       } else {
         // If response is not paginated, return as is
         return response;
       }
-      
+
       // Check if there are more pages
       hasMore = response.next !== null;
       page++;
     }
-    
+
     return { results: allUsers, count: allUsers.length };
   }
 
@@ -417,14 +417,14 @@ class ApiService {
   async getCategoryResolvers(page = null, pageSize = null) {
     let url = '/resolver-assignments/';
     const params = new URLSearchParams();
-    
+
     if (page) params.append('page', page);
     if (pageSize) params.append('page_size', pageSize);
-    
+
     if (params.toString()) {
       url += `?${params.toString()}`;
     }
-    
+
     return this.request(url);
   }
 
@@ -432,21 +432,21 @@ class ApiService {
     let allResolvers = [];
     let page = 1;
     let hasMore = true;
-    
+
     while (hasMore) {
       const response = await this.getCategoryResolvers(page, 50);
       const resolvers = response.results || response;
-      
+
       if (Array.isArray(resolvers)) {
         allResolvers = allResolvers.concat(resolvers);
       } else {
         return response;
       }
-      
+
       hasMore = response.next !== null;
       page++;
     }
-    
+
     return { results: allResolvers, count: allResolvers.length };
   }
 
@@ -480,6 +480,14 @@ class ApiService {
   }
 
   async updateUser(id, data) {
+    if (data.password) {
+      // Password update requires a different endpoint usually, but UserViewSet uses 'me' or specific ID with PATCH
+      // If we are updating ourselves, use /accounts/me/
+      return this.request('/accounts/me/', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
+    }
     return this.request(`/accounts/${id}/`, {
       method: 'PATCH',
       body: JSON.stringify(data),

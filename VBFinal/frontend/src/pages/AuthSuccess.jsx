@@ -1,35 +1,57 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const AuthSuccess = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { setAuth } = useAuth();
 
   useEffect(() => {
     const access = searchParams.get('access');
     const refresh = searchParams.get('refresh');
-    const email = searchParams.get('email');
-    const isNew = searchParams.get('is_new') === 'true';
 
     if (access && refresh) {
-      // Store tokens
       localStorage.setItem('token', access);
       localStorage.setItem('refreshToken', refresh);
-      localStorage.setItem('userEmail', email);
 
-      // Redirect based on user type
-      if (isNew) {
-        // New user - redirect to complete registration
-        navigate('/register/complete');
-      } else {
-        // Existing user - redirect to dashboard
-        navigate('/dashboard');
-      }
+      // Fetch user data
+      fetch('/api/accounts/me/', {
+        headers: {
+          'Authorization': `Bearer ${access}`
+        }
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Failed to fetch user data: ${res.status} ${text}`);
+          }
+          return res.json();
+        })
+        .then(userData => {
+          localStorage.setItem('user', JSON.stringify(userData));
+          setAuth(userData, access);
+
+          // Role-based redirection
+          const role = userData.role;
+          if (role === 'admin') {
+            navigate('/admin');
+          } else if (role === 'officer') {
+            navigate('/officer');
+          } else {
+            navigate('/user');
+          }
+        })
+        .catch((err) => {
+          console.error("Auth Success Error:", err);
+          // navigate('/login?error=auth_failed'); // Don't redirect immediately on error, let user see it or handle gracefully
+          alert("Authentication successful, but failed to load user profile. Please try logging in again.");
+          navigate('/login');
+        });
     } else {
-      // No tokens - redirect to login
-      navigate('/login?error=authentication_failed');
+      navigate('/login?error=missing_tokens');
     }
-  }, [navigate, searchParams]);
+  }, [navigate, searchParams, setAuth]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">

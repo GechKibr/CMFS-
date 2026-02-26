@@ -23,11 +23,11 @@ export const AuthProvider = ({ children }) => {
   const initializeAuth = async () => {
     const currentUser = authService.getCurrentUser();
     const token = authService.getToken();
-    
+
     if (currentUser && token) {
       setUser(currentUser);
       apiService.setToken(token);
-      
+
       // Verify token in background, don't block UI
       authService.verifyToken().then(isValid => {
         if (!isValid) {
@@ -68,6 +68,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const setAuth = (userData, accessToken) => {
+    setUser(userData);
+    if (accessToken) {
+      apiService.setToken(accessToken);
+    }
+  };
+
   const logout = () => {
     authService.logout();
     setUser(null);
@@ -94,11 +101,12 @@ export const AuthProvider = ({ children }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      login, 
+    <AuthContext.Provider value={{
+      user,
+      login,
       register,
       logout,
+      setAuth,
       getUserRole,
       isAdmin,
       isOfficer,

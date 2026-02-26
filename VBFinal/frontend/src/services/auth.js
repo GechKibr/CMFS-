@@ -1,5 +1,5 @@
 // const AUTH_API_URL = 'https://verbose-fiesta-r4p5rqw5jgw6fgx4-8000.app.github.dev/api/accounts';
-const AUTH_API_URL = "http://localhost:8000/api/accounts";
+const AUTH_API_URL = "/api/accounts";
 
 class AuthService {
   async login(email, password) {
@@ -17,14 +17,14 @@ class AuthService {
       if (!response.ok) {
         throw new Error(data.non_field_errors?.[0] || data.detail || 'Login failed');
       }
-      
+
       if (data.access) {
         localStorage.setItem('token', data.access);
         localStorage.setItem('refresh', data.refresh);
         localStorage.setItem('user', JSON.stringify(data.user));
         return data;
       }
-      
+
       throw new Error('No token received');
     } catch (error) {
       throw error;

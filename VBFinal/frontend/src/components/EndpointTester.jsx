@@ -56,7 +56,7 @@ const EndpointTester = () => {
   return (
     <div className="p-6 bg-white rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold mb-6 text-gray-800">API Endpoint Tester</h2>
-      
+
       <div className="mb-6 flex gap-4">
         <button
           onClick={testAllEndpoints}
@@ -93,9 +93,8 @@ const EndpointTester = () => {
             {results[endpoint.name] && (
               <div className="mt-3 p-3 bg-gray-50 rounded">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className={`inline-block w-3 h-3 rounded-full ${
-                    results[endpoint.name].status === 'success' ? 'bg-green-500' : 'bg-red-500'
-                  }`}></span>
+                  <span className={`inline-block w-3 h-3 rounded-full ${results[endpoint.name].status === 'success' ? 'bg-green-500' : 'bg-red-500'
+                    }`}></span>
                   <span className="font-medium">
                     {results[endpoint.name].status === 'success' ? 'Success' : 'Error'}
                   </span>
@@ -107,8 +106,8 @@ const EndpointTester = () => {
                 {results[endpoint.name].status === 'success' ? (
                   <div>
                     <p className="text-sm text-green-700 mb-2">
-                      Response received: {Array.isArray(results[endpoint.name].data) 
-                        ? `${results[endpoint.name].data.length} items` 
+                      Response received: {Array.isArray(results[endpoint.name].data)
+                        ? `${results[endpoint.name].data.length} items`
                         : 'Object'}
                     </p>
                     <details className="text-xs">
@@ -133,7 +132,7 @@ const EndpointTester = () => {
 
       <div className="mt-6 p-4 bg-blue-50 rounded-lg">
         <h3 className="font-semibold mb-2">Current API Configuration:</h3>
-        <p className="text-sm text-gray-700">Base URL: {ApiService.constructor.name === 'ApiService' ? 'http://localhost:8000/api' : 'Unknown'}</p>
+        <p className="text-sm text-gray-700">Base URL: {ApiService.constructor.name === 'ApiService' ? '/api' : 'Unknown'}</p>
         <p className="text-sm text-gray-700">Authentication: {localStorage.getItem('token') ? 'Token present' : 'No token'}</p>
       </div>
     </div>

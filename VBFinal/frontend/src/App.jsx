@@ -9,7 +9,8 @@ import TokenInterceptor from './components/TokenInterceptor';
 import MaintenancePage from './components/MaintenancePage';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
-import Register from './pages/Register';
+import RegisterComplete from './pages/RegisterComplete';
+import AuthSuccess from './pages/AuthSuccess';
 import AdminDashboard from './pages/AdminDashboard';
 import OfficerDashboard from './pages/OfficerDashboard';
 import UserDashboard from './pages/UserDashboard';
@@ -18,11 +19,11 @@ import EndpointTester from './components/EndpointTester';
 // Component to handle root redirect based on auth status
 const RootRedirect = () => {
   const { user, getUserRole } = useAuth();
-  
+
   if (!user) {
     return <Navigate to="/landing" replace />;
   }
-  
+
   const role = getUserRole();
   switch (role) {
     case 'admin':
@@ -39,48 +40,49 @@ const RootRedirect = () => {
 const AppContent = () => {
   const { isMaintenanceMode, maintenanceMessage } = useMaintenanceMode();
   const { user, getUserRole } = useAuth();
-  
+
   // Show maintenance page if maintenance mode is enabled and user is not admin
   if (isMaintenanceMode && (!user || getUserRole() !== 'admin')) {
     return <MaintenancePage message={maintenanceMessage} />;
   }
-  
+
   return (
     <Routes>
       {/* Public Routes */}
       <Route path="/landing" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      
+      <Route path="/register/complete" element={<RegisterComplete />} />
+      <Route path="/auth/success" element={<AuthSuccess />} />
+
       {/* Protected Routes */}
-      <Route 
-        path="/admin" 
+      <Route
+        path="/admin"
         element={
           <ProtectedRoute requiredRole="admin">
             <AdminDashboard />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/officer" 
+      <Route
+        path="/officer"
         element={
           <ProtectedRoute requiredRole="officer">
             <OfficerDashboard />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/user" 
+      <Route
+        path="/user"
         element={
           <ProtectedRoute requiredRole="user">
             <UserDashboard />
           </ProtectedRoute>
-        } 
+        }
       />
-      
+
       {/* Development Route */}
       <Route path="/test" element={<EndpointTester />} />
-      
+
       {/* Default Route */}
       <Route path="/" element={<RootRedirect />} />
     </Routes>

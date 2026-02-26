@@ -80,7 +80,7 @@ const UserManagement = () => {
     }
 
     if (filters.status !== 'all') {
-      filtered = filtered.filter(user => 
+      filtered = filtered.filter(user =>
         filters.status === 'active' ? user.is_active : !user.is_active
       );
     }
@@ -118,8 +118,8 @@ const UserManagement = () => {
   const updateUserRole = async (userId, newRole) => {
     try {
       await apiService.updateUser(userId, { role: newRole });
-      setUsers(prev => 
-        prev.map(user => 
+      setUsers(prev =>
+        prev.map(user =>
           user.id === userId ? { ...user, role: newRole } : user
         )
       );
@@ -133,14 +133,27 @@ const UserManagement = () => {
     try {
       const newStatus = !currentStatus;
       await apiService.updateUser(userId, { is_active: newStatus });
-      setUsers(prev => 
-        prev.map(user => 
+      setUsers(prev =>
+        prev.map(user =>
           user.id === userId ? { ...user, is_active: newStatus } : user
         )
       );
     } catch (error) {
       console.error('Failed to update user status:', error);
       alert('Failed to update user status');
+    }
+  };
+
+  const handleDelete = async (userId) => {
+    if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      try {
+        await apiService.deleteUser(userId);
+        setUsers(prev => prev.filter(user => user.id !== userId));
+        alert('User deleted successfully');
+      } catch (error) {
+        console.error('Failed to delete user:', error);
+        alert('Failed to delete user');
+      }
     }
   };
 
@@ -162,8 +175,8 @@ const UserManagement = () => {
     e.preventDefault();
     try {
       await apiService.updateUser(editingUser.id, formData);
-      setUsers(prev => 
-        prev.map(user => 
+      setUsers(prev =>
+        prev.map(user =>
           user.id === editingUser.id ? { ...user, ...formData } : user
         )
       );
@@ -209,7 +222,7 @@ const UserManagement = () => {
             <input
               type="text"
               value={filters.search}
-              onChange={(e) => setFilters({...filters, search: e.target.value})}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               placeholder="Search by name, email..."
               className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'}`}
             />
@@ -220,7 +233,7 @@ const UserManagement = () => {
             </label>
             <select
               value={filters.role}
-              onChange={(e) => setFilters({...filters, role: e.target.value})}
+              onChange={(e) => setFilters({ ...filters, role: e.target.value })}
               className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
             >
               <option value="all">All Roles</option>
@@ -235,7 +248,7 @@ const UserManagement = () => {
             </label>
             <select
               value={filters.status}
-              onChange={(e) => setFilters({...filters, status: e.target.value})}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
               className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
             >
               <option value="all">All Status</option>
@@ -249,7 +262,7 @@ const UserManagement = () => {
             </label>
             <select
               value={pagination.itemsPerPage}
-              onChange={(e) => setPagination(prev => ({...prev, itemsPerPage: parseInt(e.target.value), currentPage: 1}))}
+              onChange={(e) => setPagination(prev => ({ ...prev, itemsPerPage: parseInt(e.target.value), currentPage: 1 }))}
               className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
             >
               <option value={5}>5</option>
@@ -298,22 +311,20 @@ const UserManagement = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
                       user.role === 'officer' ? 'bg-blue-100 text-blue-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
+                        'bg-green-100 text-green-800'
+                      }`}>
                       {user.role?.charAt(0).toUpperCase() + user.role?.slice(1) || 'User'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button
                       onClick={() => toggleUserStatus(user.id, user.is_active)}
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        user.is_active
-                          ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                          : 'bg-red-100 text-red-800 hover:bg-red-200'
-                      }`}
+                      className={`px-2 py-1 rounded text-xs font-medium ${user.is_active
+                        ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                        : 'bg-red-100 text-red-800 hover:bg-red-200'
+                        }`}
                     >
                       {user.is_active ? 'Active' : 'Inactive'}
                     </button>
@@ -321,12 +332,18 @@ const UserManagement = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {user.date_joined ? new Date(user.date_joined).toLocaleDateString() : 'N/A'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button 
+                  <td className="px-6 py-4 whitespace-nowrap text-sm space-x-3">
+                    <button
                       onClick={() => handleEdit(user)}
-                      className="text-blue-600 hover:text-blue-900"
+                      className="text-blue-600 hover:text-blue-900 font-medium"
                     >
                       Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(user.id)}
+                      className="text-red-600 hover:text-red-900 font-medium"
+                    >
+                      Delete
                     </button>
                   </td>
                 </tr>
@@ -347,15 +364,14 @@ const UserManagement = () => {
               <button
                 onClick={() => handlePageChange(pagination.currentPage - 1)}
                 disabled={pagination.currentPage === 1}
-                className={`px-3 py-1 rounded text-sm ${
-                  pagination.currentPage === 1
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-500 text-white hover:bg-blue-600'
-                }`}
+                className={`px-3 py-1 rounded text-sm ${pagination.currentPage === 1
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }`}
               >
                 Previous
               </button>
-              
+
               {[...Array(pagination.totalPages)].map((_, index) => {
                 const page = index + 1;
                 if (
@@ -367,13 +383,12 @@ const UserManagement = () => {
                     <button
                       key={page}
                       onClick={() => handlePageChange(page)}
-                      className={`px-3 py-1 rounded text-sm ${
-                        page === pagination.currentPage
-                          ? 'bg-blue-500 text-white'
-                          : isDark
-                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
+                      className={`px-3 py-1 rounded text-sm ${page === pagination.currentPage
+                        ? 'bg-blue-500 text-white'
+                        : isDark
+                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
                     >
                       {page}
                     </button>
@@ -390,11 +405,10 @@ const UserManagement = () => {
               <button
                 onClick={() => handlePageChange(pagination.currentPage + 1)}
                 disabled={pagination.currentPage === pagination.totalPages}
-                className={`px-3 py-1 rounded text-sm ${
-                  pagination.currentPage === pagination.totalPages
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-500 text-white hover:bg-blue-600'
-                }`}
+                className={`px-3 py-1 rounded text-sm ${pagination.currentPage === pagination.totalPages
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }`}
               >
                 Next
               </button>

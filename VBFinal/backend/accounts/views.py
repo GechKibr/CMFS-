@@ -68,13 +68,13 @@ class UserViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=["get", "put"], url_path="me")
+    @action(detail=False, methods=["get", "put", "patch"], url_path="me")
     def me(self, request):
         if request.method == "GET":
             serializer = self.get_serializer(request.user, context={"request": request})
             return Response(serializer.data)
 
-        elif request.method == "PUT":
+        elif request.method in ["PUT", "PATCH"]:
             serializer = self.get_serializer(request.user, data=request.data, partial=True, context={"request": request})
             serializer.is_valid(raise_exception=True)
             serializer.save()

@@ -154,26 +154,6 @@ class SystemMonitor:
                 'uptime': 'Unknown',
                 'environment': 'Unknown'
             }
-    @staticmethod
-    def get_system_health():
-        """Determine overall system health status"""
-        try:
-            if not PSUTIL_AVAILABLE:
-                return 'unknown'
-            
-            cpu = psutil.cpu_percent(interval=0.1)
-            memory = psutil.virtual_memory().percent
-            disk = psutil.disk_usage('/').percent if hasattr(psutil.disk_usage('/'), 'percent') else 0
-            
-            # Health thresholds
-            if cpu > 90 or memory > 90 or disk > 95:
-                return 'critical'
-            elif cpu > 70 or memory > 80 or disk > 85:
-                return 'warning'
-            else:
-                return 'healthy'
-        except:
-            return 'unknown'
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -229,7 +209,6 @@ def get_system_stats(request):
                     'network_recv': round(network.bytes_recv / (1024*1024), 2),
                     'uptime_hours': round(uptime / 3600, 1),
                     'process_count': len(psutil.pids()),
-                    'health': monitor.get_system_health(),
                     'load_avg': list(psutil.getloadavg()) if hasattr(psutil, 'getloadavg') else [0, 0, 0]
                 },
                 'database': monitor.get_database_stats(),

@@ -47,25 +47,6 @@ const AdminDashboard = () => {
 
   const loadSystemStats = async () => {
     try {
-      // Fetch all categories (handle pagination)
-      let allCategories = [];
-      let page = 1;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const categoriesData = await apiService.getCategories(page);
-        if (categoriesData.results) {
-          allCategories = [...allCategories, ...categoriesData.results];
-          hasMore = !!categoriesData.next;
-          page++;
-        } else if (Array.isArray(categoriesData)) {
-          allCategories = [...allCategories, ...categoriesData];
-          hasMore = false;
-        } else {
-          hasMore = false;
-        }
-      }
-
       const [complaintsData, usersData, institutionsData] = await Promise.all([
         apiService.getComplaints(),
         apiService.getAllUsers(),
@@ -75,7 +56,6 @@ const AdminDashboard = () => {
       const complaints = complaintsData.results || complaintsData;
       const users = usersData.results || usersData;
       const institutions = institutionsData.results || institutionsData;
-      const categories = allCategories;
 
       // Calculate resolution time
       const resolvedComplaints = complaints.filter(c => c.status === 'resolved');
@@ -97,9 +77,7 @@ const AdminDashboard = () => {
         urgentComplaints: complaints.filter(c => c.priority === 'urgent').length,
         totalUsers: users.length,
         totalInstitutions: institutions.length,
-        totalCategories: categories.length,
-        avgResolutionTime: `${avgResolutionDays} days`,
-        systemHealth: complaints.filter(c => c.status === 'pending').length > 10 ? 'Busy' : 'Good'
+        avgResolutionTime: `${avgResolutionDays} days`
       });
     } catch (error) {
       console.error('Failed to load system stats:', error);
@@ -153,9 +131,7 @@ const AdminDashboard = () => {
     urgentComplaints: 0,
     totalUsers: 0,
     totalInstitutions: 0,
-    totalCategories: 0,
-    avgResolutionTime: '0 days',
-    systemHealth: 'Good'
+    avgResolutionTime: '0 days'
   });
 
   const renderOverview = () => {
@@ -249,66 +225,10 @@ const AdminDashboard = () => {
               </div>
             </div>
           </div>
-
-          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-teal-500 rounded-md flex items-center justify-center">
-                  <span className="text-white text-lg">📂</span>
-                </div>
-              </div>
-              <div className="ml-4">
-                <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Categories</p>
-                <p className={`text-2xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{systemStats.totalCategories}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className={`w-8 h-8 ${systemStats.systemHealth === 'Good' ? 'bg-green-500' : 'bg-orange-500'} rounded-md flex items-center justify-center`}>
-                  <span className="text-white text-lg">💚</span>
-                </div>
-              </div>
-              <div className="ml-4">
-                <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>System Health</p>
-                <p className={`text-2xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{systemStats.systemHealth}</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Performance Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-              Resolution Performance
-            </h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Average Resolution Time</span>
-                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{systemStats.avgResolutionTime}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Resolution Rate</span>
-                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {systemStats.totalComplaints > 0 
-                    ? Math.round((systemStats.resolvedComplaints / systemStats.totalComplaints) * 100)
-                    : 0}%
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending Rate</span>
-                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {systemStats.totalComplaints > 0 
-                    ? Math.round((systemStats.pendingComplaints / systemStats.totalComplaints) * 100)
-                    : 0}%
-                </span>
-              </div>
-            </div>
-          </div>
-
           <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
             <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
               Recent Activity

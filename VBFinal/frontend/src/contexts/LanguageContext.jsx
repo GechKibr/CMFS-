@@ -35,7 +35,7 @@ const translations = {
     'assignments': 'Assignments',
     'ai_settings': 'AI Settings',
     'system': 'System',
-    
+
     // Form Labels
     'title': 'Title',
     'description': 'Description',
@@ -55,20 +55,20 @@ const translations = {
     'current_password': 'Current Password',
     'new_password': 'New Password',
     'confirm_password': 'Confirm New Password',
-    
+
     // Status Values
     'pending': 'Pending',
     'in_progress': 'In Progress',
     'resolved': 'Resolved',
     'escalated': 'Escalated',
     'closed': 'Closed',
-    
+
     // Priority Values
     'urgent': 'Urgent',
     'high': 'High',
     'medium': 'Medium',
     'low': 'Low',
-    
+
     // Actions
     'submit': 'Submit',
     'update': 'Update',
@@ -85,7 +85,7 @@ const translations = {
     'search': 'Search',
     'filter': 'Filter',
     'export': 'Export',
-    
+
     // Messages
     'loading': 'Loading...',
     'no_data': 'No data found',
@@ -98,7 +98,7 @@ const translations = {
     'inactive': 'Inactive',
     'verified': 'Verified',
     'unverified': 'Unverified',
-    
+
     // Complaint Form
     'submit_new_complaint': 'Submit New Complaint',
     'ai_will_detect': 'AI will automatically detect the category and priority of your complaint.',
@@ -106,7 +106,7 @@ const translations = {
     'brief_title': 'Brief title of your complaint',
     'detailed_description': 'Detailed description of your complaint',
     'select_institution': 'Select Institution',
-    
+
     // Profile
     'personal_information': 'Personal Information',
     'account_information': 'Account Information',
@@ -124,7 +124,7 @@ const translations = {
     'last_login': 'Last Login',
     'user_id': 'User ID',
     'account_status': 'Account Status',
-    
+
     // Table Headers
     'complaint_id': 'Complaint ID',
     'submission_date': 'Submission Date',
@@ -133,7 +133,7 @@ const translations = {
     'date': 'Date',
     'name': 'Name',
     'domain': 'Domain',
-    
+
     // Colleges
     'college_medicine': 'College of Medicine and Health Sciences',
     'college_natural': 'College of Natural and Computational Sciences',
@@ -146,7 +146,7 @@ const translations = {
     'institute_technology': 'Institute of Technology',
     'institute_biotechnology': 'Institute of Biotechnology',
     'school_law': 'School of Law',
-    
+
     // Notifications
     'mark_all_read': 'Mark all as read',
     'urgent_complaint_assigned': 'Urgent Complaint Assigned',
@@ -156,14 +156,14 @@ const translations = {
     'complaint_assigned': 'Your complaint has been assigned to an officer',
     'status_updated': 'Status updated: In Progress',
     'new_comment': 'New comment on your complaint',
-    
+
     // Stats & Metrics
     'total_complaints': 'Total Complaints',
     'resolved_complaints': 'Resolved Complaints',
     'avg_resolution_time': 'Avg Resolution Time',
     'escalations': 'Escalations',
     'assigned': 'Assigned',
-    
+
     // Time
     'days': 'days',
     'hours': 'hours',
@@ -171,7 +171,7 @@ const translations = {
     'ago': 'ago',
     'today': 'Today',
     'yesterday': 'Yesterday',
-    
+
     // Common Phrases
     'welcome': 'Welcome',
     'manage_system': 'Manage your complaint management system',
@@ -192,7 +192,7 @@ const translations = {
     // Navigation & General
     'admin_panel': 'የአስተዳዳሪ ክፍል',
     'officer_panel': 'የኦፊሰር ክፍል',
-    'student_portal': 'የተማሪዎች ፖርታል',
+    '': '',
     'complaint_system': 'የቅሬታ መቀበያ ስርዓት',
     'complaint_management': 'የቅሬታ አስተዳደር',
     'dashboard': 'ዳሽቦርድ',
@@ -211,7 +211,7 @@ const translations = {
     'assignments': 'ምደባዎች',
     'ai_settings': 'የAI ቅንብሮች',
     'system': 'ሲስተም',
-    
+
     // Form Labels
     'title': 'ርዕስ',
     'description': 'መግለጫ',
@@ -231,20 +231,20 @@ const translations = {
     'current_password': 'የአሁኑ የይለፍ ቃል',
     'new_password': 'አዲስ የይለፍ ቃል',
     'confirm_password': 'አዲሱን የይለፍ ቃል አረጋግጥ',
-    
+
     // Status Values
     'pending': 'በመጠባበቅ ላይ',
     'in_progress': 'በሂደት ላይ',
     'resolved': 'ተፈትቷል',
     'escalated': 'የተሸጋገረ',
     'closed': 'የተዘጋ',
-    
+
     // Priority Values
     'urgent': 'አስቸኳይ',
     'high': 'ከፍተኛ',
     'medium': 'መካከለኛ',
     'low': 'ዝቅተኛ',
-    
+
     // Actions
     'submit': 'አስገባ',
     'update': 'አዘምን',
@@ -261,7 +261,7 @@ const translations = {
     'search': 'ፈልግ',
     'filter': 'አጣራ',
     'export': 'ላክ',
-    
+
     // Messages
     'loading': 'በመጫን ላይ...',
     'no_data': 'ምንም መረጃ አልተገኘም',
@@ -274,7 +274,7 @@ const translations = {
     'inactive': 'ንቁ ያልሆነ',
     'verified': 'የተረጋገጠ',
     'unverified': 'ያልተረጋገጠ',
-    
+
     // Complaint Form
     'submit_new_complaint': 'አዲስ ቅሬታ አቅርብ',
     'ai_will_detect': 'AI የቅሬታዎን ዘርፍ እና ቅድሚያ የሚሰጠውን በራሱ ይለያል።',
@@ -282,7 +282,7 @@ const translations = {
     'brief_title': 'የቅሬታዎ አጭር ርዕስ',
     'detailed_description': 'የቅሬታዎ ዝርዝር መግለጫ',
     'select_institution': 'ተቋም ይምረጡ',
-    
+
     // Profile
     'personal_information': 'የግል መረጃ',
     'account_information': 'የመለያ መረጃ',
@@ -300,7 +300,7 @@ const translations = {
     'last_login': 'ለመጨረሻ ጊዜ የገቡበት',
     'user_id': 'የተጠቃሚ መለያ',
     'account_status': 'የመለያ ሁኔታ',
-    
+
     // Table Headers
     'complaint_id': 'የቅሬታ መለያ',
     'submission_date': 'የቀረበበት ቀን',
@@ -309,7 +309,7 @@ const translations = {
     'date': 'ቀን',
     'name': 'ስም',
     'domain': 'ዶሜይን',
-    
+
     // Colleges
     'college_medicine': 'የህክምና እና ጤና ሳይንስ ኮሌጅ',
     'college_natural': 'የተፈጥሮ እና ቀመር ሳይንስ ኮሌጅ',
@@ -322,7 +322,7 @@ const translations = {
     'institute_technology': 'የቴክኖሎጂ ኢንስቲትዩት',
     'institute_biotechnology': 'የባዮቴክኖሎጂ ኢንስቲትዩት',
     'school_law': 'የህግ ትምህርት ቤት',
-    
+
     // Notifications
     'mark_all_read': 'ሁሉንም እንደተነበበ አድርግ',
     'urgent_complaint_assigned': 'አስቸኳይ ቅሬታ ተመድቧል',
@@ -332,14 +332,14 @@ const translations = {
     'complaint_assigned': 'ቅሬታዎ ለኦፊሰር ተመድቧል',
     'status_updated': 'ሁኔታው ተቀይሯል፡ በሂደት ላይ',
     'new_comment': 'በቅሬታዎ ላይ አዲስ አስተያየት አለ',
-    
+
     // Stats & Metrics
     'total_complaints': 'አጠቃላይ ቅሬታዎች',
     'resolved_complaints': 'የተፈቱ ቅሬታዎች',
     'avg_resolution_time': 'አማካይ የመፍቻ ጊዜ',
     'escalations': 'የተሸጋገሩ ቅሬታዎች',
     'assigned': 'የተመደቡ',
-    
+
     // Time
     'days': 'ቀናት',
     'hours': 'ሰዓታት',
@@ -347,7 +347,7 @@ const translations = {
     'ago': 'ከ... በፊት',
     'today': 'ዛሬ',
     'yesterday': 'ትናንት',
-    
+
     // Common Phrases
     'welcome': 'እንኳን ደህና መጡ',
     'manage_system': 'የቅሬታ ማስተዳደሪያ ስርዓትዎን ያስተዳድሩ',

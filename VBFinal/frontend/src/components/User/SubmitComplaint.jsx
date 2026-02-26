@@ -39,7 +39,7 @@ const SubmitComplaint = ({ institutions, setSubmitSuccess }) => {
     if (complaintForm.description.length > 500) {
       errors.description = language === 'am' ? 'መግለጫው ከ500 ቁምፊዎች በታች መሆን አለበት' : 'Description must be under 500 characters';
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -51,14 +51,14 @@ const SubmitComplaint = ({ institutions, setSubmitSuccess }) => {
       const maxSize = 5 * 1024 * 1024; // 5MB
       return validTypes.includes(file.type) && file.size <= maxSize;
     });
-    
+
     if (validFiles.length !== selectedFiles.length) {
-      const message = language === 'am' 
+      const message = language === 'am'
         ? 'አንዳንድ ፋይሎች ተቀባይነት አላገኙም። ከ5MB በታች ያሉ ምስሎች፣ PDF እና ሰነዶች ብቻ ይፈቀዳሉ።'
         : 'Some files were rejected. Only images, PDFs, and documents under 5MB are allowed.';
       alert(message);
     }
-    
+
     setFiles(prev => [...prev, ...validFiles].slice(0, 5)); // Max 5 files
   };
 
@@ -77,26 +77,26 @@ const SubmitComplaint = ({ institutions, setSubmitSuccess }) => {
       formData.append('description', complaintForm.description);
       formData.append('institution', complaintForm.institution);
       formData.append('priority', 'medium');
-      
+
       // Add files to form data
       files.forEach((file, index) => {
         formData.append(`attachment_${index}`, file);
       });
 
       const response = await apiService.createComplaint(formData);
-      
+
       if (response) {
         setComplaintForm({ title: '', description: '', institution: '' });
         setFiles([]);
         setFormErrors({});
         setSubmitSuccess(true);
-        
+
         // Hide success message after 5 seconds
         setTimeout(() => setSubmitSuccess(false), 5000);
       }
     } catch (error) {
       console.error('Failed to submit complaint:', error);
-      const message = language === 'am' 
+      const message = language === 'am'
         ? 'ቅሬታ ማስገባት አልተሳካም። እባክዎ እንደገና ይሞክሩ።'
         : 'Failed to submit complaint. Please try again.';
       alert(message);
@@ -127,11 +127,11 @@ const SubmitComplaint = ({ institutions, setSubmitSuccess }) => {
           <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
             {t('submit_new_complaint')}
           </h3>
-          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
+          {/* <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
             🤖 {t('ai_will_detect')}
-          </p>
+          </p> */}
         </div>
-        
+
         <div className="p-6">
           <form onSubmit={submitComplaint} className="space-y-6">
             <div>
@@ -141,7 +141,7 @@ const SubmitComplaint = ({ institutions, setSubmitSuccess }) => {
               <input
                 type="text"
                 value={complaintForm.title}
-                onChange={(e) => setComplaintForm({...complaintForm, title: e.target.value})}
+                onChange={(e) => setComplaintForm({ ...complaintForm, title: e.target.value })}
                 className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'} ${formErrors.title ? 'border-red-500' : ''}`}
                 placeholder={t('brief_title')}
               />
@@ -154,7 +154,7 @@ const SubmitComplaint = ({ institutions, setSubmitSuccess }) => {
               </label>
               <textarea
                 value={complaintForm.description}
-                onChange={(e) => setComplaintForm({...complaintForm, description: e.target.value})}
+                onChange={(e) => setComplaintForm({ ...complaintForm, description: e.target.value })}
                 rows={5}
                 className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'} ${formErrors.description ? 'border-red-500' : ''}`}
                 placeholder={t('detailed_description')}
@@ -173,7 +173,7 @@ const SubmitComplaint = ({ institutions, setSubmitSuccess }) => {
               </label>
               <select
                 value={complaintForm.institution}
-                onChange={(e) => setComplaintForm({...complaintForm, institution: e.target.value})}
+                onChange={(e) => setComplaintForm({ ...complaintForm, institution: e.target.value })}
                 className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'} ${formErrors.institution ? 'border-red-500' : ''}`}
               >
                 <option value="">{t('select_institution')}</option>
@@ -203,13 +203,13 @@ const SubmitComplaint = ({ institutions, setSubmitSuccess }) => {
                 <label htmlFor="file-upload" className="cursor-pointer">
                   <div className="text-4xl mb-2">📎</div>
                   <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {language === 'am' 
+                    {language === 'am'
                       ? 'ፋይሎችን ለመጫን ይጫኑ ወይም እዚህ ይጎትቱ'
                       : 'Click to upload files or drag and drop'
                     }
                   </p>
                   <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-                    {language === 'am' 
+                    {language === 'am'
                       ? 'ከ5MB በታች ያሉ ምስሎች፣ PDF፣ ሰነዶች (ከ5 ፋይሎች በታች)'
                       : 'Images, PDFs, Documents under 5MB (Max 5 files)'
                     }

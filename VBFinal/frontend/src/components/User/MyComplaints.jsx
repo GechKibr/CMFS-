@@ -197,6 +197,7 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
   };
 
   const stats = getStats();
+  const hasOfficerResponse = responses.length > 0;
 
   if (loading) {
     return (
@@ -520,7 +521,13 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
                 {/* Rating Section */}
                 {selectedComplaint.status === 'resolved' && (
                   <div className="mt-6">
-                    {!showRatingForm ? (
+                    {!hasOfficerResponse ? (
+                      <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                          You can rate this complaint after an officer responds.
+                        </p>
+                      </div>
+                    ) : !showRatingForm ? (
                       <button
                         onClick={() => setShowRatingForm(true)}
                         className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
@@ -595,17 +602,23 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
                     <textarea
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Add a comment about this complaint..."
+                      placeholder={hasOfficerResponse ? "Add a comment about this complaint..." : "Comments are available after an officer responds."}
                       className={`w-full p-3 rounded border ${isDark ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'} mb-3`}
                       rows="3"
+                      disabled={!hasOfficerResponse}
                     />
                     <button
                       onClick={addComment}
-                      disabled={!newComment.trim()}
+                      disabled={!hasOfficerResponse || !newComment.trim()}
                       className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       Add Comment
                     </button>
+                    {!hasOfficerResponse && (
+                      <p className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        You can add comments after an officer responds to your complaint.
+                      </p>
+                    )}
                   </div>
 
                   {/* Existing Comments */}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
-import apiService from '../services/api';
+import PublicNavbar from '../components/UI/PublicNavbar';
+import PublicFooter from '../components/UI/PublicFooter';
 
 const LandingPage = () => {
   const { isDark } = useTheme();
@@ -14,56 +15,19 @@ const LandingPage = () => {
     avgResolutionTime: '0 days',
     satisfactionRate: 0
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadSystemStats();
+    // Use demo data for public landing page
+    setStats({
+      totalComplaints: 1247,
+      resolvedComplaints: 1089,
+      activeUsers: 3456,
+      institutions: 12,
+      avgResolutionTime: '3.2 days',
+      satisfactionRate: 87
+    });
   }, []);
-
-  const loadSystemStats = async () => {
-    try {
-      const [complaintsData, usersData, institutionsData] = await Promise.all([
-        apiService.getComplaints().catch(() => ({ results: [] })),
-        apiService.getAllUsers().catch(() => ({ results: [] })),
-        apiService.getInstitutions().catch(() => ({ results: [] }))
-      ]);
-
-      const complaints = complaintsData.results || complaintsData || [];
-      const users = usersData.results || usersData || [];
-      const institutions = institutionsData.results || institutionsData || [];
-
-      const resolved = complaints.filter(c => c.status === 'resolved');
-      const avgDays = resolved.length > 0 
-        ? Math.round(resolved.reduce((sum, c) => {
-            const created = new Date(c.created_at);
-            const updated = new Date(c.updated_at);
-            return sum + Math.ceil((updated - created) / (1000 * 60 * 60 * 24));
-          }, 0) / resolved.length)
-        : 0;
-
-      setStats({
-        totalComplaints: complaints.length,
-        resolvedComplaints: resolved.length,
-        activeUsers: users.length,
-        institutions: institutions.length,
-        avgResolutionTime: `${avgDays} days`,
-        satisfactionRate: Math.round((resolved.length / Math.max(complaints.length, 1)) * 100)
-      });
-    } catch (error) {
-      console.error('Failed to load stats:', error);
-      // Fallback to demo data
-      setStats({
-        totalComplaints: 1247,
-        resolvedComplaints: 1089,
-        activeUsers: 3456,
-        institutions: 12,
-        avgResolutionTime: '3.2 days',
-        satisfactionRate: 87
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const features = [
     {
@@ -100,84 +64,79 @@ const LandingPage = () => {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      {/* Header */}
-      <header className={`${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                CMFS
-              </h1>
-              <span className={`ml-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Complaint Management System
-              </span>
-            </div>
-            <div className="flex space-x-4">
-              <button
-                onClick={() => navigate('/login')}
-                className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
-              >
-                Login
-              </button>
-              <button
-                onClick={() => navigate('/register')}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Register
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <PublicNavbar />
 
       {/* Hero Section */}
-      <section className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className={`text-4xl md:text-6xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-6`}>
-            Streamline Your
-            <span className="text-blue-600"> Complaint Management</span>
-          </h2>
-          <p className={`text-xl ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-8 max-w-3xl mx-auto`}>
-            A comprehensive platform for educational institutions to manage, track, and resolve complaints efficiently with real-time analytics and automated workflows.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={() => navigate('/register')}
-              className="bg-blue-600 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors"
-            >
-              Get Started Free
-            </button>
-            <button
-              onClick={() => navigate('/login')}
-              className={`px-8 py-3 rounded-lg text-lg font-semibold border-2 transition-colors ${isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-            >
-              Sign In
-            </button>
+      <section className="relative py-20 overflow-hidden">
+        {/* Background Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"></div>
+        
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h1 className={`text-5xl md:text-7xl font-extrabold ${isDark ? 'text-white' : 'text-gray-900'} mb-6 leading-tight`}>
+              Streamline Your
+              <br />
+              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Complaint Management
+              </span>
+            </h1>
+            
+            <p className={`text-xl md:text-2xl ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-10 max-w-3xl mx-auto leading-relaxed`}>
+              A comprehensive platform for educational institutions to manage, track, and resolve complaints efficiently with real-time analytics and AI-powered workflows.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+              <button
+                onClick={() => navigate('/register')}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                Get Started Free →
+              </button>
+              <button
+                onClick={() => navigate('/login')}
+                className={`px-8 py-4 rounded-lg text-lg font-semibold transition-all border-2 ${
+                  isDark 
+                    ? 'border-gray-600 text-white hover:bg-gray-800' 
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Sign In
+              </button>
+            </div>
+
+            {/* Trust Badges */}
+            <div className="flex flex-wrap justify-center gap-8 items-center opacity-60">
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Secure & Encrypted</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>24/7 Support</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Free Trial</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Statistics Section */}
+      {/* Stats Section */}
       <section className={`py-16 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h3 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-              Trusted by Educational Institutions
-            </h3>
-            <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Real-time statistics from our complaint management system
-            </p>
-          </div>
-          
-          {loading ? (
-            <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-          ) : (
+          {!loading && (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
               <div className="text-center">
                 <div className="text-4xl font-bold text-blue-600 mb-2">
-                  {stats.totalComplaints.toLocaleString()}
+                  {stats.totalComplaints}
                 </div>
                 <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                   Total Complaints
@@ -185,7 +144,7 @@ const LandingPage = () => {
               </div>
               <div className="text-center">
                 <div className="text-4xl font-bold text-green-600 mb-2">
-                  {stats.resolvedComplaints.toLocaleString()}
+                  {stats.resolvedComplaints}
                 </div>
                 <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                   Resolved
@@ -193,7 +152,7 @@ const LandingPage = () => {
               </div>
               <div className="text-center">
                 <div className="text-4xl font-bold text-purple-600 mb-2">
-                  {stats.activeUsers.toLocaleString()}
+                  {stats.activeUsers}
                 </div>
                 <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                   Active Users
@@ -229,25 +188,32 @@ const LandingPage = () => {
       </section>
 
       {/* Features Section */}
-      <section className="py-16">
+      <section id="features" className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h3 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
+          <div className="text-center mb-16">
+            <h3 className={`text-4xl md:text-5xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
               Why Choose CMFS?
             </h3>
-            <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Powerful features designed for educational institutions
+            <p className={`text-xl ${isDark ? 'text-gray-400' : 'text-gray-600'} max-w-2xl mx-auto`}>
+              Powerful features designed to streamline complaint management for educational institutions
             </p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature, index) => (
-              <div key={index} className={`p-6 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
-                <div className="text-4xl mb-4">{feature.icon}</div>
-                <h4 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>
+              <div 
+                key={index} 
+                className={`p-8 rounded-xl ${
+                  isDark ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white hover:shadow-xl'
+                } shadow-lg transition-all duration-300 transform hover:-translate-y-1 border ${
+                  isDark ? 'border-gray-700' : 'border-gray-100'
+                }`}
+              >
+                <div className="text-5xl mb-4">{feature.icon}</div>
+                <h4 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-3`}>
                   {feature.title}
                 </h4>
-                <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} leading-relaxed`}>
                   {feature.description}
                 </p>
               </div>
@@ -257,44 +223,36 @@ const LandingPage = () => {
       </section>
 
       {/* CTA Section */}
-      <section className={`py-16 ${isDark ? 'bg-gray-800' : 'bg-blue-50'}`}>
+      <section className={`py-20 ${isDark ? 'bg-gradient-to-r from-gray-800 to-gray-900' : 'bg-gradient-to-r from-blue-50 to-indigo-50'}`}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h3 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
+          <h3 className={`text-4xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
             Ready to Transform Your Complaint Management?
           </h3>
-          <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-8`}>
-            Join thousands of users who trust CMFS for efficient complaint resolution
+          <p className={`text-xl ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-10`}>
+            Join {stats.activeUsers}+ users who trust CMFS for efficient complaint resolution
           </p>
-          <button
-            onClick={() => navigate('/register')}
-            className="bg-blue-600 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors"
-          >
-            Start Your Free Trial
-          </button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              onClick={() => navigate('/register')}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
+            >
+              Start Your Free Trial
+            </button>
+            <button
+              onClick={() => navigate('/login')}
+              className={`px-8 py-4 rounded-lg text-lg font-semibold transition-all ${
+                isDark 
+                  ? 'bg-gray-700 text-white hover:bg-gray-600' 
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              } shadow-md`}
+            >
+              Sign In
+            </button>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className={`py-8 ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} border-t`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              © 2024 CMFS. All rights reserved.
-            </div>
-            <div className="flex space-x-6 mt-4 md:mt-0">
-              <a href="#" className={`text-sm ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>
-                Privacy Policy
-              </a>
-              <a href="#" className={`text-sm ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>
-                Terms of Service
-              </a>
-              <a href="#" className={`text-sm ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>
-                Support
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 };

@@ -3,7 +3,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useMaintenanceMode } from '../../contexts/MaintenanceContext';
 import apiService from '../../services/api';
 import systemLogger from '../../services/systemLogger';
-import AISettings from './AISettings';
+
 
 const SystemManagement = () => {
   const { isDark } = useTheme();
@@ -13,7 +13,6 @@ const SystemManagement = () => {
     uptime: '0 days',
     totalComplaints: 0,
     activeUsers: 0,
-    systemHealth: 'Good',
     database: {
       size: 'N/A',
       active_connections: 0,
@@ -67,8 +66,6 @@ const SystemManagement = () => {
   const [systemAlerts, setSystemAlerts] = useState([]);
 
   const systemTabs = [
-    { id: 'overview', name: 'System Overview', icon: '📊' },
-    { id: 'ai-settings', name: 'AI Settings', icon: '🤖' },
     { id: 'maintenance', name: 'Maintenance', icon: '🔧' },
     { id: 'backup', name: 'Backup & Restore', icon: '💾' },
     { id: 'logs', name: 'System Logs', icon: '📋' },
@@ -120,7 +117,6 @@ const SystemManagement = () => {
         setSystemStats(prev => ({
           ...prev,
           uptime: systemData.uptime_hours ? `${Math.floor(systemData.uptime_hours / 24)} days, ${Math.floor(systemData.uptime_hours % 24)} hours` : prev.uptime,
-          systemHealth: systemData.health || prev.systemHealth,
           database: response.database || prev.database,
           django: response.django || prev.django,
           system_info: response.system_info || {
@@ -237,8 +233,7 @@ const SystemManagement = () => {
       setSystemStats(prev => ({
         ...prev,
         totalComplaints: complaints.length,
-        activeUsers: users.length,
-        systemHealth: complaints.filter(c => c.status === 'pending').length > 10 ? 'Busy' : 'Good'
+        activeUsers: users.length
       }));
     } catch (error) {
       console.error('Failed to load system stats:', error);
@@ -367,6 +362,7 @@ const SystemManagement = () => {
 
     setLoading(true);
     setRestoreProgress(0);
+    systemLogger.info('Starting restore from backup', 'RESTORE');
 
     try {
       const progressInterval = setInterval(() => {
@@ -375,7 +371,7 @@ const SystemManagement = () => {
             clearInterval(progressInterval);
             return 90;
           }
-          return prev + 15;
+          return prev + 10;
         });
       }, 300);
 
@@ -391,21 +387,99 @@ const SystemManagement = () => {
       
       // Validate backup format
       if (!backupData.data || !backupData.timestamp) {
+        clearInterval(progressInterval);
         throw new Error('Invalid backup file format');
       }
 
-      // Simulate restore process
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      systemLogger.info(`Restoring ${backupData.metadata?.totalRecords || 0} records`, 'RESTORE');
+
+      // Restore data to backend
+      let restoredCount = 0;
+      let skippedCount = 0;
+      let errorCount = 0;
+      const errors = [];
+      
+      // Restore institutions first (categories depend on them)
+      if (backupData.data.institutions && backupData.data.institutions.length > 0) {
+        systemLogger.info(`Restoring ${backupData.data.institutions.length} institutions`, 'RESTORE');
+        for (const institution of backupData.data.institutions) {
+          try {
+            const { id, created_at, updated_at, ...institutionData } = institution;
+            await apiService.createInstitution(institutionData);
+            restoredCount++;
+          } catch (error) {
+            const errorMsg = error.response?.data || error.message;
+            if (errorMsg?.name?.[0]?.includes('already exists') || error.response?.status === 400) {
+              skippedCount++;
+              console.log('Institution already exists, skipping:', institution.name);
+            } else {
+              errorCount++;
+              errors.push(`Institution "${institution.name}": ${JSON.stringify(errorMsg)}`);
+              console.error('Failed to restore institution:', institution.name, errorMsg);
+            }
+          }
+        }
+      }
+      
+      // Restore categories
+      if (backupData.data.categories && backupData.data.categories.length > 0) {
+        systemLogger.info(`Restoring ${backupData.data.categories.length} categories`, 'RESTORE');
+        for (const category of backupData.data.categories) {
+          try {
+            const { category_id, id, created_at, updated_at, institution_name, parent_name, ...categoryData } = category;
+            
+            // Validate required fields
+            if (!categoryData.name) {
+              throw new Error('Category name is required');
+            }
+            if (!categoryData.institution) {
+              throw new Error('Institution is required');
+            }
+            
+            await apiService.createCategory(categoryData);
+            restoredCount++;
+          } catch (error) {
+            const errorMsg = error.response?.data || error.message;
+            if (errorMsg?.name?.[0]?.includes('already exists') || (typeof errorMsg === 'object' && JSON.stringify(errorMsg).includes('already exists'))) {
+              skippedCount++;
+              console.log('Category already exists, skipping:', category.name);
+            } else {
+              errorCount++;
+              errors.push(`Category "${category.name}": ${JSON.stringify(errorMsg)}`);
+              console.error('Failed to restore category:', category.name, errorMsg);
+            }
+          }
+        }
+      }
+
+      clearInterval(progressInterval);
       setRestoreProgress(100);
 
-      alert(`Restore completed successfully! Restored ${backupData.metadata?.totalRecords || 'unknown'} records from ${new Date(backupData.timestamp).toLocaleString()}`);
+      systemLogger.success(`Restore completed: ${restoredCount} restored, ${skippedCount} skipped, ${errorCount} errors`, 'RESTORE');
+      
+      let message = `Restore completed!\n\n✓ Restored: ${restoredCount} records\n⊘ Skipped (duplicates): ${skippedCount}\n✗ Errors: ${errorCount}\n\nFrom backup: ${new Date(backupData.timestamp).toLocaleString()}`;
+      
+      if (errors.length > 0) {
+        message += `\n\nError details (check console for full details):\n${errors.slice(0, 3).join('\n')}`;
+        if (errors.length > 3) {
+          message += `\n... and ${errors.length - 3} more errors`;
+        }
+      }
+      
+      message += '\n\nNote: Users and complaints were not restored for security reasons.';
+      
+      alert(message);
       
       // Reset file input
       setRestoreFile(null);
       const fileInput = document.getElementById('restore-file-input');
       if (fileInput) fileInput.value = '';
       
+      // Reload data to show restored items
+      await loadSystemStats();
+      
     } catch (error) {
+      systemLogger.error(`Restore failed: ${error.message}`, 'RESTORE');
       alert('Restore failed: ' + error.message);
     } finally {
       setLoading(false);
@@ -520,19 +594,6 @@ const SystemManagement = () => {
             <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Active Users</div>
             <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
               {systemStats.django.total_users || 0} total
-            </div>
-          </div>
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-            <div className={`text-2xl font-bold ${
-              systemStats.systemHealth === 'healthy' ? 'text-green-500' : 
-              systemStats.systemHealth === 'warning' ? 'text-yellow-500' : 'text-red-500'
-            }`}>
-              {systemStats.systemHealth === 'healthy' ? '●' : 
-               systemStats.systemHealth === 'warning' ? '⚠' : '●'}
-            </div>
-            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>System Health</div>
-            <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1 capitalize`}>
-              {systemStats.systemHealth}
             </div>
           </div>
           <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
@@ -905,87 +966,6 @@ const SystemManagement = () => {
           )}
         </div>
       </div>
-
-      {/* Backup History */}
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-          Backup History
-        </h3>
-        {backupHistory.length === 0 ? (
-          <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            <div className="text-4xl mb-2">📦</div>
-            <p>No backups created yet</p>
-            <p className="text-sm mt-1">Create your first backup above</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {backupHistory.map((backup) => (
-              <div key={backup.id} className={`p-4 rounded-lg border ${isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-gray-50'}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      backup.type === 'full' ? 'bg-blue-100 text-blue-600' :
-                      backup.type === 'data' ? 'bg-green-100 text-green-600' :
-                      'bg-purple-100 text-purple-600'
-                    }`}>
-                      {backup.type === 'full' ? '💾' : backup.type === 'data' ? '📊' : '⚙️'}
-                    </div>
-                    <div>
-                      <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {backup.type.charAt(0).toUpperCase() + backup.type.slice(1)} Backup
-                      </div>
-                      <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {new Date(backup.timestamp).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {backup.size}
-                    </div>
-                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {backup.records} records
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Backup Tips */}
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-          💡 Backup Tips
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-blue-50'}`}>
-            <h4 className={`font-medium ${isDark ? 'text-blue-400' : 'text-blue-800'} mb-2`}>Regular Backups</h4>
-            <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-blue-700'}`}>
-              Create full backups weekly and data backups daily for optimal protection.
-            </p>
-          </div>
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-green-50'}`}>
-            <h4 className={`font-medium ${isDark ? 'text-green-400' : 'text-green-800'} mb-2`}>Safe Storage</h4>
-            <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-green-700'}`}>
-              Store backup files in multiple locations including cloud storage.
-            </p>
-          </div>
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-yellow-50'}`}>
-            <h4 className={`font-medium ${isDark ? 'text-yellow-400' : 'text-yellow-800'} mb-2`}>Test Restores</h4>
-            <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-yellow-700'}`}>
-              Regularly test restore process to ensure backup integrity.
-            </p>
-          </div>
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-purple-50'}`}>
-            <h4 className={`font-medium ${isDark ? 'text-purple-400' : 'text-purple-800'} mb-2`}>Version Control</h4>
-            <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-purple-700'}`}>
-              Keep multiple backup versions to recover from different time points.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 
@@ -1271,15 +1251,6 @@ const SystemManagement = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Two-Factor Authentication</div>
-                <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Require 2FA for admin accounts</div>
-              </div>
-              <button className="bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600 transition-colors">
-                Enabled
-              </button>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
                 <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>JWT Session Timeout</div>
                 <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Token expiry time (affects all users)</div>
               </div>
@@ -1293,78 +1264,6 @@ const SystemManagement = () => {
                     {timeout < 60 ? `${timeout} minutes` : `${timeout / 60} hour${timeout > 60 ? 's' : ''}`}
                   </option>
                 ))}
-              </select>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Login Attempts</div>
-                <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Max failed login attempts</div>
-              </div>
-              <select className={`px-3 py-2 border rounded text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}>
-                <option>3 attempts</option>
-                <option>5 attempts</option>
-                <option>10 attempts</option>
-              </select>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Password Policy</div>
-                <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Minimum password requirements</div>
-              </div>
-              <span className="text-sm text-green-600">Strong (8+ chars, mixed case, numbers)</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Configuration Section */}
-        <div>
-          <h4 className={`text-md font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-            ⚙️ System Configuration
-          </h4>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Auto-Assignment</div>
-                <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Automatically assign complaints to officers</div>
-              </div>
-              <button 
-                onClick={() => setAutoAssignment(!autoAssignment)}
-                className={`px-4 py-2 rounded text-sm transition-colors ${
-                  autoAssignment 
-                    ? 'bg-green-500 text-white hover:bg-green-600' 
-                    : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                }`}
-              >
-                {autoAssignment ? 'ON' : 'OFF'}
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Email Notifications</div>
-                <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Send email notifications for updates</div>
-              </div>
-              <button 
-                onClick={() => setEmailNotifications(!emailNotifications)}
-                className={`px-4 py-2 rounded text-sm transition-colors ${
-                  emailNotifications 
-                    ? 'bg-green-500 text-white hover:bg-green-600' 
-                    : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                }`}
-              >
-                {emailNotifications ? 'ON' : 'OFF'}
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Default Priority</div>
-                <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Default priority for new complaints</div>
-              </div>
-              <select className={`px-3 py-2 border rounded text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}>
-                <option>Low</option>
-                <option>Medium</option>
-                <option>High</option>
               </select>
             </div>
           </div>
@@ -1421,81 +1320,7 @@ const SystemManagement = () => {
   const renderMonitoring = () => (
     <div className="space-y-6">
       {/* Performance Overview */}
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Performance & Monitoring Dashboard
-          </h3>
-          <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Live Data</span>
-          </div>
-        </div>
-        
-        {/* Key Performance Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-            <div className="text-2xl font-bold text-green-500">{realTimeStats.cpu.toFixed(1)}%</div>
-            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>CPU Usage</div>
-            <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-              {realTimeStats.cpu > 80 ? 'High Load' : realTimeStats.cpu > 60 ? 'Medium Load' : 'Normal'}
-            </div>
-          </div>
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-            <div className="text-2xl font-bold text-blue-500">{realTimeStats.memory.toFixed(1)}%</div>
-            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Memory Usage</div>
-            <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-              {realTimeStats.memory > 80 ? 'High Usage' : realTimeStats.memory > 60 ? 'Medium Usage' : 'Normal'}
-            </div>
-          </div>
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-            <div className="text-2xl font-bold text-purple-500">{realTimeStats.disk.toFixed(1)}%</div>
-            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Disk Usage</div>
-            <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-              {realTimeStats.disk > 85 ? 'High Usage' : realTimeStats.disk > 70 ? 'Medium Usage' : 'Normal'}
-            </div>
-          </div>
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-            <div className="text-2xl font-bold text-orange-500">{realTimeStats.activeSessions}</div>
-            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Active Processes</div>
-            <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-              Network: {realTimeStats.network.toFixed(1)} MB
-            </div>
-          </div>
-        </div>
-        
-        {/* Real-time System Health */}
-        <div className="mb-6">
-          <div className={`p-4 rounded-lg border-2 ${
-            systemStats.systemHealth === 'critical' 
-              ? isDark ? 'border-red-500 bg-red-900/20' : 'border-red-300 bg-red-50'
-              : systemStats.systemHealth === 'warning' 
-              ? isDark ? 'border-yellow-500 bg-yellow-900/20' : 'border-yellow-300 bg-yellow-50'
-              : isDark ? 'border-green-500 bg-green-900/20' : 'border-green-300 bg-green-50'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className={`font-medium ${
-                  systemStats.systemHealth === 'critical' ? 'text-red-600' :
-                  systemStats.systemHealth === 'warning' ? 'text-yellow-600' :
-                  'text-green-600'
-                }`}>
-                  System Health: {systemStats.systemHealth?.toUpperCase() || 'UNKNOWN'}
-                </div>
-                <div className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Uptime: {systemStats.uptime} | Environment: {systemStats.system_info?.environment || 'Unknown'}
-                </div>
-              </div>
-              <div className={`text-3xl ${
-                systemStats.systemHealth === 'critical' ? 'animate-pulse' : ''
-              }`}>
-                {systemStats.systemHealth === 'critical' ? '🔴' :
-                 systemStats.systemHealth === 'warning' ? '🟡' : '🟢'}
-              </div>
-            </div>
-          </div>
-        </div>
-        
+      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>   
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Real-time Gauges */}
           <div className="space-y-6">
@@ -1616,118 +1441,12 @@ const SystemManagement = () => {
             </div>
           </div>
         </div>
-        
-        {/* Database Performance Metrics */}
-        <div className="mt-6">
-          <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>Database Performance</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="text-xl font-bold text-indigo-500">{systemStats.database.size}</div>
-              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Database Size</div>
-              <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-                {systemStats.system_info?.database?.vendor || 'Unknown'} {systemStats.system_info?.database?.version || ''}
-              </div>
-            </div>
-            <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="text-xl font-bold text-cyan-500">{systemStats.database.active_connections}</div>
-              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Active Connections</div>
-              <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-                Current DB sessions
-              </div>
-            </div>
-            <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="text-xl font-bold text-teal-500">{systemStats.database.total_queries}</div>
-              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Query Count</div>
-              <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-                Total executed
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Application Performance */}
-        <div className="mt-6">
-          <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>Application Performance</h4>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="text-xl font-bold text-green-500">{systemStats.django.total_complaints}</div>
-              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Complaints</div>
-              <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-                System workload
-              </div>
-            </div>
-            <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="text-xl font-bold text-yellow-500">{systemStats.django.pending_complaints}</div>
-              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending Items</div>
-              <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-                Processing queue
-              </div>
-            </div>
-            <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="text-xl font-bold text-blue-500">{systemStats.django.total_users}</div>
-              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Users</div>
-              <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-                Registered accounts
-              </div>
-            </div>
-            <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="text-xl font-bold text-orange-500">{systemStats.django.recent_complaints}</div>
-              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Recent Activity</div>
-              <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-                Last 24 hours
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Performance History */}
-        <div className="mt-6">
-          <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>Performance Trends</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="text-sm font-medium mb-2">CPU History (Last 20 updates)</div>
-              <div className="text-lg font-bold text-green-500">
-                Avg: {statsHistory.cpu.length > 0 ? (statsHistory.cpu.reduce((a, b) => a + b, 0) / statsHistory.cpu.length).toFixed(1) : 0}%
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                Peak: {statsHistory.cpu.length > 0 ? Math.max(...statsHistory.cpu).toFixed(1) : 0}%
-              </div>
-            </div>
-            <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="text-sm font-medium mb-2">Memory History</div>
-              <div className="text-lg font-bold text-blue-500">
-                Avg: {statsHistory.memory.length > 0 ? (statsHistory.memory.reduce((a, b) => a + b, 0) / statsHistory.memory.length).toFixed(1) : 0}%
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                Peak: {statsHistory.memory.length > 0 ? Math.max(...statsHistory.memory).toFixed(1) : 0}%
-              </div>
-            </div>
-            <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="text-sm font-medium mb-2">Disk History</div>
-              <div className="text-lg font-bold text-purple-500">
-                Avg: {statsHistory.disk.length > 0 ? (statsHistory.disk.reduce((a, b) => a + b, 0) / statsHistory.disk.length).toFixed(1) : 0}%
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                Current: {realTimeStats.disk.toFixed(1)}%
-              </div>
-            </div>
-          </div>
-          {statsHistory.timestamps.length > 0 && (
-            <div className="mt-4 text-sm text-gray-600">
-              Last updated: {statsHistory.timestamps[statsHistory.timestamps.length - 1]}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
 
   const renderTabContent = () => {
     switch (activeSystemTab) {
-      case 'overview':
-        return renderSystemOverview();
-      case 'ai-settings':
-        return <AISettings />;
       case 'maintenance':
         return renderMaintenance();
       case 'backup':
@@ -1739,7 +1458,7 @@ const SystemManagement = () => {
       case 'monitoring':
         return renderMonitoring();
       default:
-        return renderSystemOverview();
+        return renderMaintenance();
     }
   };
 

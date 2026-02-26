@@ -59,8 +59,11 @@ const UserManagement = () => {
 
   const loadUsers = async () => {
     try {
+      console.log('Loading users...');
       const data = await apiService.getAllUsers();
+      console.log('Users data received:', data);
       const usersList = data.results || data;
+      console.log('Users list:', usersList);
       setUsers(usersList);
     } catch (error) {
       console.error('Failed to load users:', error);

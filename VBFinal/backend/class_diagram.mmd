@@ -1,0 +1,287 @@
+---
+title: CMFS Backend Class Diagram
+---
+classDiagram
+    direction TB
+
+    %% ─────────────────────────────────────────
+    %%  accounts app
+    %% ─────────────────────────────────────────
+
+    class User {
+        +String email
+        +String username
+        +String campus_id
+        +String first_name
+        +String last_name
+        +String college
+        +String phone
+        +String role
+        +String auth_provider
+        +String microsoft_id
+        +Boolean is_active
+        +Boolean is_staff
+        +Boolean is_email_verified
+        +DateTime date_joined
+        +DateTime last_login
+        +full_name() String
+        +role_level() int
+        +is_complainter() bool
+        +is_resolver() bool
+        +is_admin() bool
+        +is_officer() bool
+        +can_manage(other_user) bool
+        +can_submit_complaint() bool
+        +can_be_assigned_complaints() bool
+        +can_assign_complaints() bool
+        +can_escalate_complaints() bool
+        +can_view_all_complaints() bool
+        +get_accessible_complaints() QuerySet
+    }
+
+    class EmailLog {
+        +User recipient
+        +String email
+        +String subject
+        +String message
+        +String email_type
+        +String status
+        +String error_message
+        +DateTime sent_at
+    }
+
+    class PasswordResetToken {
+        +User user
+        +String token
+        +DateTime created_at
+        +DateTime expires_at
+        +Boolean is_used
+        +is_valid() bool
+    }
+
+    class EmailVerificationToken {
+        +User user
+        +String token
+        +DateTime created_at
+        +DateTime expires_at
+        +Boolean is_used
+        +is_valid() bool
+    }
+
+    %% ─────────────────────────────────────────
+    %%  complaints app
+    %% ─────────────────────────────────────────
+
+    class Institution {
+        +String name
+        +String domain
+        +DateTime created_at
+    }
+
+    class Category {
+        +String category_id
+        +Institution institution
+        +String name
+        +String name_amharic
+        +String description
+        +String description_amharic
+        +Category parent
+        +Boolean is_active
+        +DateTime created_at
+    }
+
+    class ResolverLevel {
+        +Institution institution
+        +String name
+        +int level_order
+        +Duration escalation_time
+    }
+
+    class CategoryResolver {
+        +Category category
+        +ResolverLevel level
+        +User officer
+        +Boolean active
+    }
+
+    class Complaint {
+        +UUID complaint_id
+        +Institution institution
+        +User submitted_by
+        +Category category
+        +String title
+        +String description
+        +File attachment
+        +String status
+        +String priority
+        +ResolverLevel current_level
+        +User assigned_officer
+        +DateTime escalation_deadline
+        +DateTime created_at
+        +DateTime updated_at
+        +set_escalation_deadline()
+        +escalate_to_next_level() bool
+    }
+
+    class ComplaintAttachment {
+        +Complaint complaint
+        +File file
+        +String filename
+        +int file_size
+        +String content_type
+        +DateTime uploaded_at
+    }
+
+    class Assignment {
+        +Complaint complaint
+        +User officer
+        +ResolverLevel level
+        +DateTime assigned_at
+        +DateTime ended_at
+        +String reason
+    }
+
+    class Comment {
+        +Complaint complaint
+        +User author
+        +String comment_type
+        +String message
+        +int rating
+        +DateTime created_at
+        +DateTime updated_at
+        +clean()
+    }
+
+    class Response {
+        +Complaint complaint
+        +User responder
+        +String response_type
+        +String title
+        +String message
+        +File attachment
+        +Boolean is_public
+        +DateTime created_at
+        +DateTime updated_at
+    }
+
+    class Notification {
+        +User user
+        +Complaint complaint
+        +String notification_type
+        +String title
+        +String message
+        +Boolean is_read
+        +DateTime read_at
+        +DateTime created_at
+        +mark_as_read()
+        +get_unread_for_user(user)$
+        +get_escalation_notifications(user)$
+    }
+
+    class AISettingsConfig {
+        +Boolean auto_category
+        +Boolean auto_assignment
+        +Boolean auto_priority
+        +Boolean smart_routing
+        +String assignment_strategy
+        +int confidence_threshold
+        +int max_retries
+        +Boolean learning_mode
+        +DateTime last_trained
+        +DateTime updated_at
+    }
+
+    class AIPriorityKeyword {
+        +String priority
+        +String word
+    }
+
+    %% ─────────────────────────────────────────
+    %%  feedback app
+    %% ─────────────────────────────────────────
+
+    class FeedbackTemplate {
+        +UUID id
+        +String title
+        +String description
+        +User created_by
+        +String office
+        +String status
+        +String priority
+        +User approved_by
+        +DateTime approved_at
+        +DateTime created_at
+        +DateTime updated_at
+    }
+
+    class TemplateField {
+        +UUID id
+        +FeedbackTemplate template
+        +String label
+        +String field_type
+        +JSON options
+        +Boolean is_required
+        +int order
+    }
+
+    class FeedbackResponse {
+        +UUID id
+        +FeedbackTemplate template
+        +User user
+        +String session_token
+        +DateTime submitted_at
+        +String ip_address
+    }
+
+    class FeedbackAnswer {
+        +UUID id
+        +FeedbackResponse response
+        +TemplateField field
+        +String text_value
+        +float number_value
+        +int rating_value
+        +String choice_value
+        +JSON checkbox_values
+        +value() Any
+    }
+
+    %% ─────────────────────────────────────────
+    %%  Relationships
+    %% ─────────────────────────────────────────
+
+    %% accounts relationships
+    EmailLog "0..*" --> "1" User : recipient
+    PasswordResetToken "0..*" --> "1" User : user
+    EmailVerificationToken "0..*" --> "1" User : user
+
+    %% complaints → accounts relationships
+    Category "0..*" --> "0..1" Institution : institution
+    Category "0..*" --> "0..1" Category : parent (self)
+    ResolverLevel "0..*" --> "1" Institution : institution
+    CategoryResolver "0..*" --> "1" Category : category
+    CategoryResolver "0..*" --> "1" ResolverLevel : level
+    CategoryResolver "0..*" --> "1" User : officer
+    Complaint "0..*" --> "0..1" Institution : institution
+    Complaint "0..*" --> "1" User : submitted_by
+    Complaint "0..*" --> "0..1" Category : category
+    Complaint "0..*" --> "0..1" ResolverLevel : current_level
+    Complaint "0..*" --> "0..1" User : assigned_officer
+    ComplaintAttachment "0..*" --> "1" Complaint : complaint
+    Assignment "0..*" --> "1" Complaint : complaint
+    Assignment "0..*" --> "1" User : officer
+    Assignment "0..*" --> "1" ResolverLevel : level
+    Comment "0..*" --> "1" Complaint : complaint
+    Comment "0..*" --> "1" User : author
+    Response "0..*" --> "1" Complaint : complaint
+    Response "0..*" --> "1" User : responder
+    Notification "0..*" --> "1" User : user
+    Notification "0..*" --> "0..1" Complaint : complaint
+
+    %% feedback → accounts relationships
+    FeedbackTemplate "0..*" --> "1" User : created_by
+    FeedbackTemplate "0..*" --> "0..1" User : approved_by
+    TemplateField "0..*" --> "1" FeedbackTemplate : template
+    FeedbackResponse "0..*" --> "1" FeedbackTemplate : template
+    FeedbackResponse "0..*" --> "0..1" User : user
+    FeedbackAnswer "0..*" --> "1" FeedbackResponse : response
+    FeedbackAnswer "0..*" --> "1" TemplateField : field

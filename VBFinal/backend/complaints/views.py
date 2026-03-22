@@ -5,7 +5,7 @@ from rest_framework.exceptions import ValidationError
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 
-from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment, Response, Notification
+from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, ComplaintCC, Comment, Assignment, Response, Notification, Appointment
 from .serializers import (
     InstitutionSerializer,
     CategorySerializer,
@@ -18,6 +18,7 @@ from .serializers import (
     AssignmentSerializer,
     ResponseSerializer,
     NotificationSerializer,
+    AppointmentSerializer,
 )
 from .service import service
 
@@ -91,7 +92,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             return Complaint.objects.all()
 
     def create(self, request, *args, **kwargs):
-        # Extract user ID from request data if provided
+        import json
         user_id = request.data.get('user')
         if user_id:
             from django.contrib.auth import get_user_model
@@ -102,12 +103,19 @@ class ComplaintViewSet(viewsets.ModelViewSet):
                 submitted_by = None
         else:
             submitted_by = request.user if request.user.is_authenticated else None
-        
-        # Create mutable copy of request data
+
         data = request.data.copy()
         if 'user' in data:
-            del data['user']  # Remove user from data as it's handled separately
-            
+            del data['user']
+
+        # Parse cc_emails from JSON string (sent via FormData)
+        raw_cc = data.get('cc_emails', '[]')
+        try:
+            cc_emails = json.loads(raw_cc) if isinstance(raw_cc, str) else raw_cc
+        except (ValueError, TypeError):
+            cc_emails = []
+        data.setlist('cc_emails', cc_emails)
+
         serializer = self.get_serializer(data=data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         complaint = serializer.save(submitted_by=submitted_by)
@@ -405,3 +413,30 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     queryset = Assignment.objects.all()
     serializer_class = AssignmentSerializer
     permission_classes = [permissions.AllowAny]  # For development
+
+
+class AppointmentViewSet(viewsets.ModelViewSet):
+    serializer_class = AppointmentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role in ('officer', 'admin'):
+            return Appointment.objects.all()
+        return Appointment.objects.filter(requested_by=user)
+
+    def perform_create(self, serializer):
+        complaint = serializer.validated_data['complaint']
+        # auto-assign officer from complaint if not provided
+        officer = serializer.validated_data.get('officer') or complaint.assigned_officer
+        serializer.save(requested_by=self.request.user, officer=officer)
+
+    @action(detail=True, methods=['patch'], url_path='status')
+    def update_status(self, request, pk=None):
+        appointment = self.get_object()
+        new_status = request.data.get('status')
+        if new_status not in dict(Appointment.STATUS_CHOICES):
+            return DRFResponse({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+        appointment.status = new_status
+        appointment.save()
+        return DRFResponse(AppointmentSerializer(appointment).data)

@@ -245,6 +245,21 @@ class Complaint(models.Model):
         return False
 
 
+class ComplaintCC(models.Model):
+    complaint = models.ForeignKey(
+        Complaint,
+        on_delete=models.CASCADE,
+        related_name='cc_list'
+    )
+    email = models.EmailField()
+
+    class Meta:
+        unique_together = ('complaint', 'email')
+
+    def __str__(self):
+        return f"CC {self.email} on {self.complaint.complaint_id}"
+
+
 class ComplaintAttachment(models.Model):
     complaint = models.ForeignKey(
         Complaint,
@@ -465,3 +480,41 @@ class Notification(models.Model):
         )
 
 
+
+class Appointment(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
+    ]
+
+    complaint = models.ForeignKey(
+        Complaint,
+        on_delete=models.CASCADE,
+        related_name='appointments'
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='appointments_requested'
+    )
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='appointments_assigned'
+    )
+    scheduled_at = models.DateTimeField()
+    location = models.CharField(max_length=255, blank=True)
+    note = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-scheduled_at']
+
+    def __str__(self):
+        return f"Appointment for {self.complaint.complaint_id} on {self.scheduled_at:%Y-%m-%d %H:%M}"

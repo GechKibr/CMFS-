@@ -1,25 +1,25 @@
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import dj_database_url
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = os.getenv('SECRET_KEY')
-# SECRET_KEY = "django-insecure-$u)x4_iy3uske_fppoj!x(dl3vff03!(k+%bv_=v=24tv0l!ug"
-# DEBUG = os.getenv('DEBUG') == 'True'
-DEBUG = True
+DEBUG = os.getenv('DEBUG')
 
 ALLOWED_HOSTS = [
     "*", 
     "localhost",
     "127.0.0.1",    
     "cmfs.onrender.com",
+    "cmfs.vercel.app",
      ]
 CSRF_TRUSTED_ORIGINS = [
-    "https://localhost:8000",
-    "https://127.0.0.1:5173",
     "http://127.0.0.1:5173",
     "http://localhost:5173",
     "https://cmfs.onrender.com",
+    "https://cmfs.vercel.app",
 ]
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -52,11 +52,8 @@ MIDDLEWARE = [
 
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
     "http://127.0.0.1:5173", 
-    "https://localhost:5173",
-    "https://127.0.0.1:5173",
-    "https://cmfs.onrender.com",
+    "https://cmfs.vercel.app",
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True
@@ -108,10 +105,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'conf.wsgi.application'
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=os.getenv('DATABASE_URL'),
+        conn_max_age=600
+    )
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -201,8 +198,8 @@ SOCIAL_AUTH_PIPELINE = (
     'accounts.pipeline.generate_jwt_token',
 )
 
-SOCIAL_AUTH_URL_NAMESPACE = 'social'
-SOCIAL_AUTH_LOGIN_REDIRECT_URL = 'http://localhost:5173/auth/success'
-SOCIAL_AUTH_NEW_USER_REDIRECT_URL = 'http://localhost:5173/register/complete'
-SOCIAL_AUTH_LOGIN_ERROR_URL = 'http://localhost:5173/auth/error'
+SOCIAL_AUTH_URL_NAMESPACE = os.getenv('SOCIAL_AUTH_URL_NAMESPACE')
+SOCIAL_AUTH_LOGIN_REDIRECT_URL = os.getenv('SOCIAL_AUTH_LOGIN_REDIRECT_URL')
+SOCIAL_AUTH_NEW_USER_REDIRECT_URL = os.getenv('SOCIAL_AUTH_NEW_USER_REDIRECT_URL')
+SOCIAL_AUTH_LOGIN_ERROR_URL = os.getenv('SOCIAL_AUTH_LOGIN_ERROR_URL')
 

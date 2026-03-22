@@ -35,11 +35,10 @@ router.registry.extend(feedback_router.registry)
 
 schema_view = get_schema_view(
     openapi.Info(
-        title="Complaint Management and Feedback TRacking  API",
+        title="Complaint Management and Feedback Tracking  API Documentations ",
         default_version='v1',
         description="API documentation CMFS",
-        terms_of_service="https://www.gondar.edu.et/",
-        contact=openapi.Contact(email="cmfs@gondar.edu.et"),
+        contact=openapi.Contact(email="cmfs@uog.edu.et"),
         license=openapi.License(name="License"),
     ),
     public=True,

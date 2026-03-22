@@ -5,7 +5,7 @@ from rest_framework.exceptions import ValidationError
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 
-from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment, Response, Notification, AISettingsConfig, AIPriorityKeyword
+from .models import Institution, Category, ResolverLevel, CategoryResolver, Complaint, ComplaintAttachment, Comment, Assignment, Response, Notification
 from .serializers import (
     InstitutionSerializer,
     CategorySerializer,
@@ -18,8 +18,6 @@ from .serializers import (
     AssignmentSerializer,
     ResponseSerializer,
     NotificationSerializer,
-    AISettingsConfigSerializer,
-    AIPriorityKeywordSerializer,
 )
 from .service import service
 
@@ -257,88 +255,6 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         comments = Comment.objects.filter(complaint=complaint).order_by('-created_at')
         serializer = CommentSerializer(comments, many=True)
         return DRFResponse(serializer.data, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=["get", "put"], url_path="ai-settings")
-    def ai_settings(self, request):
-        """Get or update AI settings and keywords"""
-        config, _ = AISettingsConfig.objects.get_or_create(pk=1)
-
-        if request.method == "PUT":
-            serializer = AISettingsConfigSerializer(config, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-
-        keywords = AIPriorityKeyword.objects.all()
-        keyword_serializer = AIPriorityKeywordSerializer(keywords, many=True)
-
-        # Build keyword map with IDs for deletion
-        keyword_map = {"urgent": [], "high": [], "medium": [], "low": []}
-        keyword_ids = {"urgent": {}, "high": {}, "medium": {}, "low": {}}
-        for item in keyword_serializer.data:
-            priority = item["priority"]
-            word = item["word"]
-            keyword_map.setdefault(priority, []).append(word)
-            keyword_ids.setdefault(priority, {})[word] = item["id"]
-
-        total_processed = Complaint.objects.count()
-        resolved_count = Complaint.objects.filter(status="resolved").count()
-        avg_resolution_days = 0
-        if resolved_count > 0:
-            resolved = Complaint.objects.filter(status="resolved")
-            avg_resolution_days = round(
-                sum((c.updated_at - c.created_at).days for c in resolved) / resolved_count,
-                2
-            )
-
-        stats = {
-            "totalProcessed": total_processed,
-            "resolvedComplaints": resolved_count,
-            "avgResolutionDays": avg_resolution_days,
-            "modelStatus": "disabled",
-            "lastTrained": config.last_trained.isoformat() if config.last_trained else None,
-        }
-
-        return DRFResponse({
-            "config": AISettingsConfigSerializer(config).data,
-            "stats": stats,
-            "keywords": keyword_map,
-            "keywordIds": keyword_ids,
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=["post"], url_path="ai-settings/keywords")
-    def add_ai_keyword(self, request):
-        serializer = AIPriorityKeywordSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return DRFResponse(serializer.data, status=status.HTTP_201_CREATED)
-
-    @action(detail=False, methods=["delete"], url_path="ai-settings/keywords/(?P<keyword_id>[^/.]+)")
-    def delete_ai_keyword(self, request, keyword_id=None):
-        keyword = get_object_or_404(AIPriorityKeyword, pk=keyword_id)
-        keyword.delete()
-        return DRFResponse(status=status.HTTP_204_NO_CONTENT)
-
-    @action(detail=False, methods=["post"], url_path="ai-settings/retrain")
-    def retrain_ai_model(self, request):
-        config, _ = AISettingsConfig.objects.get_or_create(pk=1)
-        config.last_trained = timezone.now()
-        config.save(update_fields=["last_trained", "updated_at"])
-        return DRFResponse({"message": "Model retraining started"}, status=status.HTTP_200_OK)
-    
-    @action(detail=True, methods=["post"], url_path="ai-categorize")
-    def ai_categorize(self, request, pk=None):
-        """Manually trigger AI categorization"""
-        complaint = self.get_object()
-        result = service.process_complaint(complaint)
-        
-        if result:
-            return DRFResponse({
-                "category": result['category'].name if result['category'] else None,
-                "priority": result['priority'],
-                "assigned_officer": result['assigned_officer'].email if result['assigned_officer'] else None
-            }, status=status.HTTP_200_OK)
-        
-        return DRFResponse({"error": "AI processing failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class CommentViewSet(viewsets.ModelViewSet):

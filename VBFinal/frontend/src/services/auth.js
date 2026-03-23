@@ -1,5 +1,4 @@
-// const AUTH_API_URL = 'https://verbose-fiesta-r4p5rqw5jgw6fgx4-8000.app.github.dev/api/accounts';
-const AUTH_API_URL = "/api/accounts";
+const AUTH_API_URL = `${import.meta.env.VITE_API_URL || "/api"}/accounts`;
 
 class AuthService {
   async login(email, password) {

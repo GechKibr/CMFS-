@@ -1,5 +1,4 @@
-// const API_BASE_URL = 'https://verbose-fiesta-r4p5rqw5jgw6fgx4-8000.app.github.dev/api';
-const API_BASE_URL = "/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 import systemLogger from './systemLogger.js';
 
 class ApiService {

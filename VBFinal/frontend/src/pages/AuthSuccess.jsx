@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
 const AuthSuccess = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -13,10 +15,10 @@ const AuthSuccess = () => {
 
     if (access && refresh) {
       localStorage.setItem('token', access);
-      localStorage.setItem('refreshToken', refresh);
+      localStorage.setItem('refresh', refresh);
 
       // Fetch user data
-      fetch('/api/accounts/me/', {
+      fetch(`${API_BASE}/accounts/me/`, {
         headers: {
           'Authorization': `Bearer ${access}`
         }

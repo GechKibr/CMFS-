@@ -5,7 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import PublicNavbar from '../components/UI/PublicNavbar';
 import PublicFooter from '../components/UI/PublicFooter';
 
-const API = '/api';
+const API = import.meta.env.VITE_API_URL || '/api';
 
 const RegisterComplete = () => {
   const navigate = useNavigate();
@@ -41,7 +41,7 @@ const RegisterComplete = () => {
   useEffect(() => {
     if (accessToken) {
       localStorage.setItem('token', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
+      localStorage.setItem('refresh', refreshToken);
     }
     fetch(`${API}/accounts/campuses/`).then(r => r.json()).then(setCampuses).catch(() => {});
   }, [accessToken, refreshToken]);

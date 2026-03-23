@@ -7,6 +7,8 @@ import authService from '../services/auth';
 import PublicNavbar from '../components/UI/PublicNavbar';
 import PublicFooter from '../components/UI/PublicFooter';
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
 const Login = () => {
   const { isDark } = useTheme();
   const { scheduledMaintenance, isMaintenanceMode } = useMaintenanceMode();
@@ -238,7 +240,7 @@ const Login = () => {
 
               <button
                 type="button"
-                onClick={() => window.location.href = '/api/accounts/microsoft/login/'}
+                onClick={() => window.location.href = `${API_BASE}/accounts/microsoft/login/`}
                 className={`w-full flex items-center justify-center py-3 px-4 rounded-lg border transition-all duration-200 shadow-sm hover:shadow-md group ${isDark
                   ? 'border-gray-600 bg-[#2F2F2F] hover:bg-[#383838] text-white'
                   : 'border-gray-300 bg-white hover:bg-gray-50 text-[#5E5E5E] hover:text-gray-900'

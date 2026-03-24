@@ -5,7 +5,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { FeedbackFormBuilder, FeedbackAnalytics } from '../components/feedback';
 import MaintenanceNotification from '../components/UI/MaintenanceNotification';
+import DashboardNavbar from '../components/UI/DashboardNavbar';
+import Sidebar from '../components/UI/Sidebar';
 import apiService from '../services/api';
+import OfficerSchedule from '../components/Officer/OfficerSchedule';
+import OfficerProfile from '../components/Officer/OfficerProfile';
+import PublicAnnouncementBoard from '../components/Officer/PublicAnnouncementBoard';
 
 const OfficerDashboard = () => {
   const { isDark, toggleTheme } = useTheme();
@@ -13,8 +18,8 @@ const OfficerDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showNavbarDropdown, setShowNavbarDropdown] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -42,6 +47,8 @@ const OfficerDashboard = () => {
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: '📊' },
     { id: 'complaints', name: 'Manage Complaints', icon: '📋' },
+    { id: 'announcements', name: 'Public Announcements', icon: '📢' },
+    { id: 'schedule', name: 'Schedule', icon: '📅' },
     { id: 'create-template', name: 'Create Template', icon: '➕' },
     { id: 'manage-templates', name: 'Manage Templates', icon: '📝' },
     { id: 'analytics', name: 'Analytics', icon: '📈' },
@@ -449,13 +456,6 @@ const OfficerDashboard = () => {
     navigate('/login');
   };
 
-  const getUserInitials = () => {
-    if (!user) return 'O';
-    const firstName = user.first_name || '';
-    const lastName = user.last_name || '';
-    return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'O';
-  };
-
   const filteredTemplates = Array.isArray(templates) ? templates.filter(template => 
     statusFilter === 'all' || template.status === statusFilter
   ).reverse() : [];
@@ -632,7 +632,6 @@ const OfficerDashboard = () => {
                             <div className="space-x-4">
                               <span>ID: {complaint.complaint_id.slice(0, 8)}...</span>
                               <span>Category: {complaint.category?.name || 'Uncategorized'}</span>
-                              <span>Priority: {complaint.priority}</span>
                             </div>
                             <span>Created: {new Date(complaint.created_at).toLocaleDateString()}</span>
                           </div>
@@ -804,473 +803,70 @@ const OfficerDashboard = () => {
           </div>
         );
 
+      case 'schedule':
+        return <OfficerSchedule />;
+
+      case 'announcements':
+        return <PublicAnnouncementBoard />;
+
       case 'profile':
-        return (
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Profile Settings</h2>
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center mb-6">
-                <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center text-white text-2xl font-bold mr-4">
-                  {getUserInitials()}
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold">{user?.first_name} {user?.last_name}</h3>
-                  <p className="text-gray-600">{user?.email}</p>
-                  <p className="text-sm text-gray-500">Officer - {user?.college}</p>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
-                  <input 
-                    type="text" 
-                    value={user?.first_name || ''} 
-                    readOnly
-                    className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-                  <input 
-                    type="text" 
-                    value={user?.last_name || ''} 
-                    readOnly
-                    className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <input 
-                    type="email" 
-                    value={user?.email || ''} 
-                    readOnly
-                    className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">College</label>
-                  <input 
-                    type="text" 
-                    value={user?.college || ''} 
-                    readOnly
-                    className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50"
-                  />
-                </div>
-              </div>
-              
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <p className="text-sm text-gray-600">
-                  Profile information is managed by the system administrator. 
-                  Contact support to update your details.
-                </p>
-              </div>
-            </div>
-          </div>
-        );
+        return <OfficerProfile />;
 
       default:
         return <div>Page not found</div>;
     }
   };
 
+  const handleSidebarToggle = () => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      setIsDesktopSidebarCollapsed((prev) => !prev);
+      return;
+    }
+    setSidebarOpen((prev) => !prev);
+  };
+
   return (
-    <div className={`flex h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'w-64' : 'w-16'} ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg transition-all duration-300 flex flex-col`}>
-        <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-          <div className="flex items-center justify-between">
-            {sidebarOpen && (
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {getUserInitials()}
-                </div>
-                <div>
-                  <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {user?.first_name} {user?.last_name}
-                  </p>
-                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Officer</p>
-                </div>
-              </div>
-            )}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className={`p-1 rounded-lg ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-            >
-              {sidebarOpen ? '←' : '→'}
-            </button>
+    <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <DashboardNavbar onSidebarToggle={handleSidebarToggle} />
+      
+      <div className="flex pt-20">
+        {/* Sidebar */}
+        <Sidebar
+          isOpen={sidebarOpen}
+          isCollapsed={isDesktopSidebarCollapsed}
+          items={menuItems}
+          activeItem={activeTab}
+          onItemClick={(id) => {
+            setActiveTab(id);
+            setSidebarOpen(false);
+          }}
+          onLogout={() => {
+            logout();
+            navigate('/login');
+          }}
+          onProfileClick={() => {
+            setActiveTab('profile');
+            setSidebarOpen(false);
+          }}
+          onHideSidebar={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
+        />
+
+        {/* Mobile Overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-20"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Main Content */}
+        <main className={`flex-1 ${isDesktopSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <MaintenanceNotification />
+            {renderTabContent()}
           </div>
-        </div>
-
-        <nav className="flex-1 p-4 space-y-2">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                activeTab === item.id
-                  ? isDark
-                    ? 'bg-blue-900 text-blue-300'
-                    : 'bg-blue-50 text-blue-700'
-                  : isDark
-                    ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <span className="text-lg flex-shrink-0">{item.icon}</span>
-              {sidebarOpen && <span className="font-medium">{item.name}</span>}
-            </button>
-          ))}
-        </nav>
-
-        <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-          <button
-            onClick={handleLogout}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}
-          >
-            <span className="text-lg">🚪</span>
-            {sidebarOpen && <span className="font-medium">Logout</span>}
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-sm border-b px-6 py-4`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {menuItems.find(item => item.id === activeTab)?.name || 'Dashboard'}
-              </h1>
-              <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Welcome back, {user?.first_name}!
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button 
-                onClick={toggleTheme}
-                className={`p-2 rounded-lg transition-colors ${isDark ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
-              >
-                {isDark ? '☀️' : '🌙'}
-              </button>
-              <div className="relative">
-                <button
-                  onClick={() => setShowNavbarDropdown(!showNavbarDropdown)}
-                  className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold hover:bg-blue-600 transition-colors"
-                >
-                  {getUserInitials()}
-                </button>
-                {showNavbarDropdown && (
-                  <div className={`absolute right-0 mt-2 w-48 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg z-50`}>
-                    <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                      <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {user?.first_name} {user?.last_name}
-                      </p>
-                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {user?.email}
-                      </p>
-                    </div>
-                    <div className="py-1">
-                      <button
-                        onClick={() => {
-                          setActiveTab('profile');
-                          setShowNavbarDropdown(false);
-                        }}
-                        className={`w-full text-left px-4 py-2 text-sm ${isDark ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-700 hover:bg-gray-100'} transition-colors`}
-                      >
-                        👤 Edit Profile
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowNavbarDropdown(false);
-                          handleLogout();
-                        }}
-                        className={`w-full text-left px-4 py-2 text-sm ${isDark ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-700 hover:bg-gray-100'} transition-colors`}
-                      >
-                        🚪 Logout
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <main className={`flex-1 overflow-auto p-6 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-          <MaintenanceNotification />
-          {renderTabContent()}
         </main>
       </div>
-
-      {/* Comprehensive Complaint Management Modal */}
-      {showComplaintModal && selectedComplaint && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-4/5 max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-semibold">Complaint Management</h3>
-              <button 
-                onClick={() => setShowComplaintModal(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Complaint Details Section */}
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-              <h4 className="font-semibold mb-3">Complaint Details</h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <p><strong>ID:</strong> {selectedComplaint.complaint_id}</p>
-                <p><strong>Status:</strong> <span className={`px-2 py-1 rounded text-xs ${
-                  selectedComplaint.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                  selectedComplaint.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                  selectedComplaint.status === 'resolved' ? 'bg-green-100 text-green-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>{selectedComplaint.status}</span></p>
-                <p><strong>Priority:</strong> {selectedComplaint.priority}</p>
-                <p><strong>Category:</strong> {selectedComplaint.category?.name || 'Uncategorized'}</p>
-                <p><strong>Created:</strong> {new Date(selectedComplaint.created_at).toLocaleString()}</p>
-              </div>
-              <div className="mt-3">
-                <p><strong>Title:</strong> {selectedComplaint.title}</p>
-                <p><strong>Description:</strong> {selectedComplaint.description}</p>
-              </div>
-            </div>
-
-            {/* Status Update Section */}
-            <div className="mb-6 p-4 border rounded-lg">
-              <h4 className="font-semibold mb-3">Update Status</h4>
-              <div className="flex items-center space-x-3">
-                <select 
-                  value={newStatus} 
-                  onChange={(e) => setNewStatus(e.target.value)}
-                  className="p-2 border border-gray-300 rounded"
-                >
-                  <option value="pending">Pending</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="resolved">Resolved</option>
-                  <option value="closed">Closed</option>
-                </select>
-                <button 
-                  onClick={handleUpdateStatus}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                >
-                  Update Status
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowReassignModal(true);
-                    fetchOfficers();
-                  }}
-                  className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
-                  title="Reassign this complaint to another officer"
-                >
-                  🔄 Reassign
-                </button>
-              </div>
-            </div>
-
-            {/* Add Response Section */}
-            <div className="mb-6 p-4 border rounded-lg">
-              <h4 className="font-semibold mb-3">Add Response</h4>
-              <textarea 
-                value={responseText}
-                onChange={(e) => setResponseText(e.target.value)}
-                placeholder="Enter your response to this complaint..."
-                className="w-full p-3 border border-gray-300 rounded mb-3 h-24"
-              />
-              <button 
-                onClick={handleAddResponse}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Send Response
-              </button>
-            </div>
-
-            {/* Existing Responses Section */}
-            <div className="mb-6 p-4 border rounded-lg">
-              <h4 className="font-semibold mb-3">Officer Responses</h4>
-              {responses.length > 0 ? (
-                <div className="space-y-3">
-                  {responses.map((response) => (
-                    <div key={response.id} className="p-3 bg-gray-50 rounded border">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="text-sm text-gray-600">
-                          <strong>{response.officer?.first_name} {response.officer?.last_name}</strong>
-                          <span className="ml-2">{new Date(response.created_at).toLocaleString()}</span>
-                        </div>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => setEditingResponse(response.id)}
-                            className="text-blue-600 hover:text-blue-800 text-sm"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteResponse(response.id)}
-                            className="text-red-600 hover:text-red-800 text-sm"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                      {editingResponse === response.id ? (
-                        <div className="space-y-2">
-                          <textarea
-                            defaultValue={response.message}
-                            className="w-full p-2 border rounded text-sm"
-                            rows={3}
-                            id={`edit-response-${response.id}`}
-                          />
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => {
-                                const newMessage = document.getElementById(`edit-response-${response.id}`).value;
-                                handleEditResponse(response.id, newMessage);
-                              }}
-                              className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setEditingResponse(null)}
-                              className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-gray-800">{response.message}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-sm">No responses yet.</p>
-              )}
-            </div>
-
-            {/* Client Comments and Rating Section */}
-            <div className="mb-6 p-4 border rounded-lg">
-              <h4 className="font-semibold mb-3">Client Comments & Rating</h4>
-              {comments.length > 0 ? (
-                <div className="space-y-3">
-                  {comments.map((comment) => (
-                    <div key={comment.id} className="p-3 bg-blue-50 rounded border">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="text-sm text-gray-600">
-                          <strong>{comment.user?.first_name} {comment.user?.last_name}</strong>
-                          <span className="ml-2">{new Date(comment.created_at).toLocaleString()}</span>
-                        </div>
-                        {comment.rating && (
-                          <div className="flex items-center">
-                            <span className="text-sm text-gray-600 mr-1">Rating:</span>
-                            <div className="flex">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <span
-                                  key={star}
-                                  className={`text-lg ${star <= comment.rating ? 'text-yellow-400' : 'text-gray-300'}`}
-                                >
-                                  ⭐
-                                </span>
-                              ))}
-                            </div>
-                            <span className="ml-1 text-sm text-gray-600">({comment.rating}/5)</span>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-gray-800">{comment.message}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-sm">No client comments yet.</p>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-end space-x-3">
-              <button 
-                onClick={() => setShowComplaintModal(false)}
-                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reassign Modal */}
-      {showReassignModal && selectedComplaint && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-xl font-semibold mb-4">Reassign Complaint</h3>
-            <p className="text-gray-600 mb-4">
-              Reassigning: <strong>{selectedComplaint.title}</strong>
-            </p>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Officer *
-              </label>
-              <select
-                value={reassignOfficerId}
-                onChange={(e) => setReassignOfficerId(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded"
-              >
-                <option value="">Select an officer...</option>
-                {officers
-                  .filter(officer => officer.id !== user?.id)
-                  .map(officer => (
-                    <option key={officer.id} value={officer.id}>
-                      {officer.first_name} {officer.last_name} ({officer.email})
-                    </option>
-                  ))}
-              </select>
-              {officers.length === 0 && (
-                <p className="mt-2 text-xs text-gray-500">
-                  No officers available. Please try again or contact an admin.
-                </p>
-              )}
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Reason (Optional)
-              </label>
-              <textarea
-                value={reassignReason}
-                onChange={(e) => setReassignReason(e.target.value)}
-                placeholder="Enter reason for reassignment..."
-                className="w-full p-2 border border-gray-300 rounded h-20"
-              />
-            </div>
-
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => {
-                  setShowReassignModal(false);
-                  setReassignOfficerId('');
-                  setReassignReason('');
-                }}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReassign}
-                disabled={!reassignOfficerId}
-                className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Reassign Complaint
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

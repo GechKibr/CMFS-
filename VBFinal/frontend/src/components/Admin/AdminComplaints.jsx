@@ -17,7 +17,6 @@ const AdminComplaints = () => {
   const [responseType, setResponseType] = useState('update');
   const [filters, setFilters] = useState({
     status: 'all',
-    priority: 'all',
     category: 'all',
     institution: 'all'
   });
@@ -80,7 +79,6 @@ const AdminComplaints = () => {
       const officerUsers = allUsers.filter(user => user.role === 'officer' || user.is_staff);
       setOfficers(officerUsers);
       
-      console.log('Loaded categories:', allCategories.length);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -93,9 +91,6 @@ const AdminComplaints = () => {
     
     if (filters.status !== 'all') {
       filtered = filtered.filter(c => c.status === filters.status);
-    }
-    if (filters.priority !== 'all') {
-      filtered = filtered.filter(c => c.priority === filters.priority);
     }
     if (filters.category !== 'all') {
       filtered = filtered.filter(c => c.category?.category_id === filters.category);
@@ -316,15 +311,7 @@ const AdminComplaints = () => {
     return badges[status] || 'bg-gray-100 text-gray-800';
   };
 
-  const getPriorityBadge = (priority) => {
-    const badges = {
-      low: 'bg-green-500 text-white',
-      medium: 'bg-yellow-500 text-white',
-      high: 'bg-orange-500 text-white',
-      urgent: 'bg-red-500 text-white'
-    };
-    return badges[priority] || 'bg-gray-500 text-white';
-  };
+
 
   const getStats = () => {
     const total = complaints.length;
@@ -332,6 +319,7 @@ const AdminComplaints = () => {
     const inProgress = complaints.filter(c => c.status === 'in_progress').length;
     const resolved = complaints.filter(c => c.status === 'resolved').length;
     const urgent = complaints.filter(c => c.priority === 'urgent').length;
+    
     
     return { total, pending, inProgress, resolved, urgent };
   };
@@ -369,10 +357,6 @@ const AdminComplaints = () => {
           <div className="text-2xl font-bold text-green-500">{stats.resolved}</div>
           <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Resolved</div>
         </div>
-        <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
-          <div className="text-2xl font-bold text-red-500">{stats.urgent}</div>
-          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Urgent</div>
-        </div>
       </div>
 
       {/* Filters */}
@@ -393,22 +377,6 @@ const AdminComplaints = () => {
               <option value="resolved">Resolved</option>
               <option value="closed">Closed</option>
               <option value="escalated">Escalated</option>
-            </select>
-          </div>
-          <div>
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-              Priority
-            </label>
-            <select
-              value={filters.priority}
-              onChange={(e) => setFilters({...filters, priority: e.target.value})}
-              className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-            >
-              <option value="all">All Priorities</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
             </select>
           </div>
           <div>
@@ -467,9 +435,7 @@ const AdminComplaints = () => {
                   <th className={`px-6 py-3 text-left text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
                     Status
                   </th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                    Priority
-                  </th>
+          
                   <th className={`px-6 py-3 text-left text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
                     Category
                   </th>
@@ -509,11 +475,6 @@ const AdminComplaints = () => {
                         <option value="closed">Closed</option>
                         <option value="escalated">Escalated</option>
                       </select>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 rounded text-xs ${getPriorityBadge(complaint.priority)}`}>
-                        {complaint.priority.toUpperCase()}
-                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {complaint.category?.name || 'Uncategorized'}
@@ -567,9 +528,6 @@ const AdminComplaints = () => {
                 <div className="flex items-center space-x-2 mb-4">
                   <span className={`px-3 py-1 rounded-full text-sm ${getStatusBadge(selectedComplaint.status)}`}>
                     {selectedComplaint.status.replace('_', ' ').toUpperCase()}
-                  </span>
-                  <span className={`px-3 py-1 rounded text-sm ${getPriorityBadge(selectedComplaint.priority)}`}>
-                    {selectedComplaint.priority.toUpperCase()}
                   </span>
                 </div>
                 <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} mb-4`}>
@@ -774,9 +732,6 @@ const AdminComplaints = () => {
               <div className="flex items-center space-x-4 mt-2 text-sm">
                 <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
                   Current Category: <strong>{selectedComplaint.category?.name || 'None'}</strong>
-                </span>
-                <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
-                  Priority: <strong className="text-orange-600">{selectedComplaint.priority?.toUpperCase()}</strong>
                 </span>
               </div>
             </div>

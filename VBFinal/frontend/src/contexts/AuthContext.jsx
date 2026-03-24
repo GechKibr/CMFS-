@@ -44,9 +44,9 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   };
 
-  const login = async (email, password) => {
+  const login = async (identifier, password) => {
     try {
-      const response = await authService.login(email, password);
+      const response = await authService.login(identifier, password);
       setUser(response.user);
       apiService.setToken(response.access);
       return response;

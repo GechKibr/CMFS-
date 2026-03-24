@@ -100,7 +100,6 @@ const SubmitComplaint = ({ institutions, setSubmitSuccess }) => {
       formData.append('description', complaintForm.description);
       formData.append('institution', complaintForm.institution);
       formData.append('category', complaintForm.category);
-      formData.append('priority', 'medium');
 
       // CC emails as JSON
       if (ccEmails.length > 0) {

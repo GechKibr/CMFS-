@@ -21,12 +21,33 @@ const Notifications = ({ setUnreadCount }) => {
 
   const loadNotifications = async () => {
     try {
-      const complaintsData = await apiService.getComplaints();
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [complaintsData, apptsRes] = await Promise.all([
+        apiService.getComplaints(),
+        fetch('/api/appointments/', { headers }).then(r => r.json()),
+      ]);
+
       const userComplaints = (complaintsData.results || complaintsData).filter(
         complaint => complaint.submitted_by?.id === user?.id
       );
 
-      const mockNotifications = [
+      // Build appointment notifications from real data
+      const appts = (apptsRes.results ?? apptsRes);
+      const apptNotifications = Array.isArray(appts)
+        ? appts.map((appt, idx) => ({
+            id: `appt-${appt.id}`,
+            type: 'appointment',
+            title: appt.status === 'confirmed' ? '📅 Appointment Confirmed' : appt.status === 'cancelled' ? '❌ Appointment Cancelled' : '📅 Appointment Scheduled',
+            message: `An appointment has been ${appt.status} for your complaint "${appt.complaint_title}". Scheduled: ${new Date(appt.scheduled_at).toLocaleString()}${appt.location ? ` at ${appt.location}` : ''}.`,
+            complaint_id: appt.complaint,
+            read: appt.status === 'completed',
+            created_at: appt.created_at || new Date().toISOString(),
+          }))
+        : [];
+
+      const staticNotifications = [
         {
           id: 1,
           type: 'status_update',
@@ -65,7 +86,7 @@ const Notifications = ({ setUnreadCount }) => {
         }
       ].filter(n => n.complaint_id);
 
-      setNotifications(mockNotifications);
+      setNotifications([...apptNotifications, ...staticNotifications]);
     } catch (error) {
       console.error('Failed to load notifications:', error);
       setNotifications([]);
@@ -101,6 +122,7 @@ const Notifications = ({ setUnreadCount }) => {
       resolved: '✅',
       escalated: '⬆️',
       reminder: '⏰',
+      appointment: '📅',
       default: '📢'
     };
     return icons[type] || icons.default;
@@ -113,6 +135,7 @@ const Notifications = ({ setUnreadCount }) => {
       resolved: 'text-green-600',
       escalated: 'text-orange-500',
       reminder: 'text-purple-500',
+      appointment: 'text-blue-600',
       default: 'text-gray-500'
     };
     return colors[type] || colors.default;

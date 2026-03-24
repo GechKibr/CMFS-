@@ -1,14 +1,14 @@
 const AUTH_API_URL = `${import.meta.env.VITE_API_URL || "/api"}/accounts`;
 
 class AuthService {
-  async login(email, password) {
+  async login(identifier, password) {
     try {
       const response = await fetch(`${AUTH_API_URL}/login/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ identifier: email, password }),
+        body: JSON.stringify({ identifier, password }),
       });
 
       const data = await response.json();

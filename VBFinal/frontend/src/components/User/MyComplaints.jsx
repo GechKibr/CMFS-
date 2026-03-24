@@ -4,7 +4,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import apiService from '../../services/api';
 
-const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
+const MyComplaints = ({ getStatusBadge }) => {
   const { isDark } = useTheme();
   const { language, t } = useLanguage();
   const { user } = useAuth();
@@ -13,8 +13,7 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
   const [categories, setCategories] = useState([]);
   const [filters, setFilters] = useState({
     status: 'all',
-    category: 'all',
-    priority: 'all'
+    category: 'all'
   });
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -74,9 +73,6 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
     }
     if (filters.category !== 'all') {
       filtered = filtered.filter(c => c.category?.category_id === filters.category);
-    }
-    if (filters.priority !== 'all') {
-      filtered = filtered.filter(c => c.priority === filters.priority);
     }
     
     setFilteredComplaints(filtered);
@@ -246,7 +242,7 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
             🔄 Refresh
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
               Status
@@ -278,22 +274,6 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
               ))}
             </select>
           </div>
-          <div>
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-              Priority
-            </label>
-            <select
-              value={filters.priority}
-              onChange={(e) => setFilters({...filters, priority: e.target.value})}
-              className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-            >
-              <option value="all">All Priorities</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
-          </div>
         </div>
       </div>
 
@@ -323,9 +303,6 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
                       </h4>
                       <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadge(complaint.status)}`}>
                         {complaint.status.replace('_', ' ').toUpperCase()}
-                      </span>
-                      <span className={`px-2 py-1 rounded text-xs ${getPriorityBadge(complaint.priority)}`}>
-                        {complaint.priority.toUpperCase()}
                       </span>
                     </div>
                     <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-2`}>
@@ -399,9 +376,6 @@ const MyComplaints = ({ getStatusBadge, getPriorityBadge }) => {
                 <div className="flex items-center space-x-2 mb-4">
                   <span className={`px-3 py-1 rounded-full text-sm ${getStatusBadge(selectedComplaint.status)}`}>
                     {selectedComplaint.status.replace('_', ' ').toUpperCase()}
-                  </span>
-                  <span className={`px-3 py-1 rounded text-sm ${getPriorityBadge(selectedComplaint.priority)}`}>
-                    {selectedComplaint.priority.toUpperCase()}
                   </span>
                 </div>
                 <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} mb-4`}>

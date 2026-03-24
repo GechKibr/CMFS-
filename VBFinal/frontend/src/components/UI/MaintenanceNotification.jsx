@@ -3,75 +3,75 @@ import { useTheme } from '../../contexts/ThemeContext';
 
 const MaintenanceNotification = () => {
   const { isDark } = useTheme();
-  const [notification, setNotification] = useState(null);
+  const [maintenance, setMaintenance] = useState(null);
   const [dismissed, setDismissed] = useState(false);
+  const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
-    checkMaintenanceSchedule();
-    const interval = setInterval(checkMaintenanceSchedule, 60000); // Check every minute
+    const check = () => {
+      try {
+        const data = localStorage.getItem('scheduled_maintenance');
+        if (!data) return setMaintenance(null);
+        const parsed = JSON.parse(data);
+        const scheduledTime = new Date(parsed.scheduled_time);
+        const diff = scheduledTime - new Date();
+        if (diff > 0 && diff <= 24 * 60 * 60 * 1000) {
+          setMaintenance({ scheduledTime, message: parsed.message || '' });
+        } else {
+          setMaintenance(null);
+        }
+      } catch { setMaintenance(null); }
+    };
+    check();
+    const interval = setInterval(check, 60000);
     return () => clearInterval(interval);
   }, []);
 
-  const checkMaintenanceSchedule = () => {
-    try {
-      const maintenanceData = localStorage.getItem('scheduled_maintenance');
-      if (maintenanceData) {
-        const maintenance = JSON.parse(maintenanceData);
-        const scheduledTime = new Date(maintenance.scheduled_time);
-        const now = new Date();
-        const timeDiff = scheduledTime - now;
-        
-        // Show notification if maintenance is within 24 hours
-        if (timeDiff > 0 && timeDiff <= 24 * 60 * 60 * 1000) {
-          setNotification({
-            scheduledTime,
-            message: maintenance.message || 'Scheduled maintenance',
-            timeUntil: formatTimeUntil(timeDiff)
-          });
-        } else {
-          setNotification(null);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking maintenance schedule:', error);
-    }
-  };
+  useEffect(() => {
+    if (!maintenance) return;
+    const tick = () => {
+      const diff = maintenance.scheduledTime - new Date();
+      if (diff <= 0) { setMaintenance(null); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${h > 0 ? `${h}h ` : ''}${m}m ${s}s`);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [maintenance]);
 
-  const formatTimeUntil = (milliseconds) => {
-    const hours = Math.floor(milliseconds / (1000 * 60 * 60));
-    const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
-
-  if (!notification || dismissed) return null;
+  if (!maintenance || dismissed) return null;
 
   return (
-    <div className={`${isDark ? 'bg-yellow-900 border-yellow-700' : 'bg-yellow-50 border-yellow-200'} border-l-4 p-4 mb-4`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <div className="flex-shrink-0">
-            <span className="text-yellow-600 text-xl">⚠️</span>
-          </div>
-          <div className="ml-3">
-            <p className={`text-sm font-medium ${isDark ? 'text-yellow-200' : 'text-yellow-800'}`}>
-              Scheduled Maintenance Notice
+    <div className={`rounded-xl border-2 p-5 mb-6 shadow-md ${isDark ? 'bg-yellow-900/30 border-yellow-600' : 'bg-yellow-50 border-yellow-400'}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="text-3xl mt-0.5">🔧</span>
+          <div>
+            <p className={`text-base font-bold ${isDark ? 'text-yellow-200' : 'text-yellow-800'}`}>
+              Scheduled Maintenance Announcement
             </p>
-            <p className={`text-sm ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
-              System maintenance scheduled for {notification.scheduledTime.toLocaleString()}
-              {' '}(in {notification.timeUntil})
+            <p className={`text-sm mt-1 ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
+              The system will undergo maintenance on{' '}
+              <span className="font-semibold">{maintenance.scheduledTime.toLocaleString()}</span>
             </p>
-            <p className={`text-xs mt-1 ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
-              {notification.message}
-            </p>
+            {maintenance.message && (
+              <p className={`text-sm mt-1 ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                {maintenance.message}
+              </p>
+            )}
+            <div className={`inline-flex items-center gap-2 mt-3 px-3 py-1.5 rounded-lg text-sm font-mono font-semibold ${isDark ? 'bg-yellow-800 text-yellow-100' : 'bg-yellow-200 text-yellow-900'}`}>
+              <span>⏱</span>
+              <span>Starts in: {timeLeft}</span>
+            </div>
           </div>
         </div>
         <button
           onClick={() => setDismissed(true)}
-          className={`${isDark ? 'text-yellow-300 hover:text-yellow-100' : 'text-yellow-500 hover:text-yellow-700'} text-lg`}
+          className={`text-xl leading-none mt-0.5 ${isDark ? 'text-yellow-400 hover:text-yellow-100' : 'text-yellow-500 hover:text-yellow-800'}`}
+          title="Dismiss"
         >
           ×
         </button>

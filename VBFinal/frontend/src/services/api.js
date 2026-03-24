@@ -1,5 +1,4 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
-import systemLogger from './systemLogger.js';
 
 class ApiService {
   constructor() {
@@ -53,21 +52,15 @@ class ApiService {
       ...options,
     };
 
-    const method = options.method || 'GET';
-    systemLogger.info(`API ${method} request to ${endpoint}`, 'API');
-
     try {
       let response = await fetch(url, config);
 
-      // If token expired, try to refresh and retry
       if (response.status === 401 && this.token) {
         try {
           await this.refreshToken();
           config.headers = this.getHeaders(options.isFormData);
           response = await fetch(url, config);
-          systemLogger.info('Token refreshed successfully', 'AUTH');
         } catch (refreshError) {
-          systemLogger.error('Token refresh failed', 'AUTH');
           window.location.href = '/login';
           throw refreshError;
         }
@@ -75,22 +68,16 @@ class ApiService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        systemLogger.error(`API ${method} ${endpoint} failed: ${response.status} ${response.statusText}`, 'API');
         throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
 
-      systemLogger.success(`API ${method} ${endpoint} completed successfully`, 'API');
-
-      // Handle empty responses (like DELETE requests)
       const contentType = response.headers.get('content-type');
       if (response.status === 204 || !contentType?.includes('application/json')) {
-        return {}; // Return empty object for successful requests with no content
+        return {};
       }
 
-      const data = await response.json();
-      return data;
+      return await response.json();
     } catch (error) {
-      systemLogger.error(`API request failed: ${error.message}`, 'API');
       throw error;
     }
   }
@@ -151,6 +138,11 @@ class ApiService {
     return this.request('/accounts/token/check-expiry/', {
       method: 'POST',
     });
+  }
+
+  // Active Sessions
+  async getActiveSessions() {
+    return this.request('/system/active-sessions/');
   }
   async getComplaints() {
     return this.request('/complaints/');
@@ -332,6 +324,11 @@ class ApiService {
     return { results: allUsers, count: allUsers.length };
   }
 
+  // Contact
+  async sendContact(data) {
+    return this.request('/contact/', { method: 'POST', body: JSON.stringify(data) });
+  }
+
   // Institutions
   async getInstitutions() {
     return this.request('/institutions/');
@@ -356,6 +353,30 @@ class ApiService {
       method: 'DELETE',
     });
   }
+
+  // Colleges
+  async getColleges(campusId = null) {
+    const url = campusId ? `/colleges/?campus=${campusId}` : '/colleges/';
+    return this.request(url);
+  }
+  async createCollege(data) { return this.request('/colleges/', { method: 'POST', body: JSON.stringify(data) }); }
+  async updateCollege(id, data) { return this.request(`/colleges/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async deleteCollege(id) { return this.request(`/colleges/${id}/`, { method: 'DELETE' }); }
+
+  // Departments
+  async getDepartments(collegeId = null) {
+    const url = collegeId ? `/departments/?college=${collegeId}` : '/departments/';
+    return this.request(url);
+  }
+  async createDepartment(data) { return this.request('/departments/', { method: 'POST', body: JSON.stringify(data) }); }
+  async updateDepartment(id, data) { return this.request(`/departments/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async deleteDepartment(id) { return this.request(`/departments/${id}/`, { method: 'DELETE' }); }
+
+  // Campuses
+  async getCampuses() { return this.request('/campuses/'); }
+  async createCampus(data) { return this.request('/campuses/', { method: 'POST', body: JSON.stringify(data) }); }
+  async updateCampus(id, data) { return this.request(`/campuses/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async deleteCampus(id) { return this.request(`/campuses/${id}/`, { method: 'DELETE' }); }
 
   // Categories
   async getCategories(page = null) {
@@ -510,6 +531,31 @@ class ApiService {
       urgent: complaints.filter(c => c.priority === 'urgent').length,
     };
     return stats;
+  }
+
+  // Public Announcements
+  async getPublicAnnouncements() {
+    return this.request('/announcements/');
+  }
+
+  async createPublicAnnouncement(data) {
+    return this.request('/announcements/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePublicAnnouncement(id, data) {
+    return this.request(`/announcements/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePublicAnnouncement(id) {
+    return this.request(`/announcements/${id}/`, {
+      method: 'DELETE',
+    });
   }
 }
 

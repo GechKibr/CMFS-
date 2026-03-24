@@ -115,7 +115,6 @@ const CategoryResolverManagement = () => {
         page++;
       }
       
-      console.log('All categories loaded:', allCategories);
       setCategories(allCategories);
     } catch (error) {
       console.error('Failed to load categories:', error);

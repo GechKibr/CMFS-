@@ -67,7 +67,6 @@ const FeedbackFormBuilder = ({ onSave }) => {
     };
 
     try {
-      console.log('Sending template data:', templateData);
       
       const response = await fetch('/api/feedback/templates/', {
         method: 'POST',
@@ -78,8 +77,6 @@ const FeedbackFormBuilder = ({ onSave }) => {
         body: JSON.stringify(templateData)
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
 
       if (response.ok) {
         onSave && onSave();

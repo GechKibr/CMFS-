@@ -31,22 +31,17 @@ const UserManagement = () => {
     totalPages: 0
   });
 
-  const colleges = [
-    { value: 'CMHS', label: 'College of Medicine and Health Sciences' },
-    { value: 'CNCS', label: 'College of Natural and Computational Sciences' },
-    { value: 'CBE', label: 'College of Business and Economics' },
-    { value: 'CSSH', label: 'College of Social Sciences and Humanities' },
-    { value: 'CVMAS', label: 'College of Veterinary Medicine and Animal Sciences' },
-    { value: 'CAES', label: 'College of Agriculture and Environmental Sciences' },
-    { value: 'COI', label: 'College of Informatics' },
-    { value: 'COE', label: 'College of Education' },
-    { value: 'IOT', label: 'Institute of Technology' },
-    { value: 'IOB', label: 'Institute of Biotechnology' },
-    { value: 'SOL', label: 'School of Law' },
-  ];
+  const [colleges, setColleges] = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({
+    first_name: '', last_name: '', email: '', phone: '',
+    college: '', role: 'user', password: '', confirm_password: '', campus_id: ''
+  });
+  const [addError, setAddError] = useState('');
 
   useEffect(() => {
     loadUsers();
+    apiService.getColleges().then(d => setColleges(d.results ?? d)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -59,11 +54,8 @@ const UserManagement = () => {
 
   const loadUsers = async () => {
     try {
-      console.log('Loading users...');
       const data = await apiService.getAllUsers();
-      console.log('Users data received:', data);
       const usersList = data.results || data;
-      console.log('Users list:', usersList);
       setUsers(usersList);
     } catch (error) {
       console.error('Failed to load users:', error);
@@ -113,20 +105,6 @@ const UserManagement = () => {
 
   const handlePageChange = (page) => {
     setPagination(prev => ({ ...prev, currentPage: page }));
-  };
-
-  const updateUserRole = async (userId, newRole) => {
-    try {
-      await apiService.updateUser(userId, { role: newRole });
-      setUsers(prev =>
-        prev.map(user =>
-          user.id === userId ? { ...user, role: newRole } : user
-        )
-      );
-    } catch (error) {
-      console.error('Failed to update user role:', error);
-      alert('Failed to update user role');
-    }
   };
 
   const toggleUserStatus = async (userId, currentStatus) => {
@@ -189,6 +167,23 @@ const UserManagement = () => {
     }
   };
 
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    setAddError('');
+    if (addForm.password !== addForm.confirm_password) {
+      setAddError('Passwords do not match.');
+      return;
+    }
+    try {
+      await apiService.createUser(addForm);
+      setShowAddModal(false);
+      setAddForm({ first_name: '', last_name: '', email: '', phone: '', college: '', role: 'user', password: '', confirm_password: '', campus_id: '' });
+      loadUsers();
+    } catch (err) {
+      setAddError('Failed to create user. Check the details and try again.');
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -212,6 +207,17 @@ const UserManagement = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`}>User Management</h2>
+        <button
+          onClick={() => { setAddError(''); setShowAddModal(true); }}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium"
+        >
+          + Add User
+        </button>
+      </div>
+
       {/* Filters */}
       <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow`}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -417,6 +423,82 @@ const UserManagement = () => {
         </div>
       </div>
 
+      {/* Add User Modal */}
+      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add New User">
+        <form onSubmit={handleAddUser} className="space-y-4">
+          {addError && <p className="text-red-500 text-sm">{addError}</p>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>First Name *</label>
+              <input required type="text" value={addForm.first_name} onChange={e => setAddForm(p => ({ ...p, first_name: e.target.value }))}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`} />
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Last Name *</label>
+              <input required type="text" value={addForm.last_name} onChange={e => setAddForm(p => ({ ...p, last_name: e.target.value }))}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`} />
+            </div>
+          </div>
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Email *</label>
+            <input required type="email" value={addForm.email} onChange={e => setAddForm(p => ({ ...p, email: e.target.value }))}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Phone</label>
+              <input type="text" value={addForm.phone} onChange={e => setAddForm(p => ({ ...p, phone: e.target.value }))}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`} />
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Campus ID</label>
+              <input type="text" value={addForm.campus_id} onChange={e => setAddForm(p => ({ ...p, campus_id: e.target.value }))}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>College</label>
+              <select value={addForm.college} onChange={e => setAddForm(p => ({ ...p, college: e.target.value }))}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}>
+                <option value="">Select College</option>
+                {colleges.map(c => <option key={c.id} value={c.id}>{c.college_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Role *</label>
+              <select required value={addForm.role} onChange={e => setAddForm(p => ({ ...p, role: e.target.value }))}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}>
+                <option value="user">User</option>
+                <option value="officer">Officer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Password *</label>
+              <input required type="password" minLength={8} value={addForm.password} onChange={e => setAddForm(p => ({ ...p, password: e.target.value }))}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`} />
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Confirm Password *</label>
+              <input required type="password" minLength={8} value={addForm.confirm_password} onChange={e => setAddForm(p => ({ ...p, confirm_password: e.target.value }))}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`} />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2 pt-2">
+            <button type="button" onClick={() => setShowAddModal(false)}
+              className={`px-4 py-2 border rounded-md ${isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
+              Cancel
+            </button>
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+              Create User
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Edit User Modal */}
       <Modal
         isOpen={showEditModal}
@@ -495,8 +577,8 @@ const UserManagement = () => {
               >
                 <option value="">Select College</option>
                 {colleges.map(college => (
-                  <option key={college.value} value={college.value}>
-                    {college.label}
+                  <option key={college.id} value={college.id}>
+                    {college.college_name}
                   </option>
                 ))}
               </select>

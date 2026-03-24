@@ -14,7 +14,7 @@ const Login = () => {
   const { scheduledMaintenance, isMaintenanceMode } = useMaintenanceMode();
   const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
-    email: '',
+    identifier: '',
     password: '',
     rememberMe: false
   });
@@ -54,14 +54,14 @@ const Login = () => {
 
     try {
       // Check if maintenance mode is enabled and user is not admin
-      if (isMaintenanceMode && !formData.email.includes('admin@')) {
+      const loginId = formData.identifier.trim().toLowerCase();
+      const isAdminIdentifier = loginId.includes('admin@') || loginId === 'admin';
+      if (isMaintenanceMode && !isAdminIdentifier) {
         setError('System is currently under maintenance. Only administrators can access the system.');
         setLoading(false);
         return;
       }
 
-      const userData = await login(formData.email, formData.password);
-      // Navigate based on user role
       const roleRoute = authService.getRoleBasedRoute();
       navigate(roleRoute);
     } catch (error) {
@@ -143,18 +143,18 @@ const Login = () => {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label htmlFor="email" className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Email Address
+                <label htmlFor="identifier" className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Email or Username
                 </label>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
+                  id="identifier"
+                  name="identifier"
+                  type="text"
                   required
-                  value={formData.email}
+                  value={formData.identifier}
                   onChange={handleChange}
                   className={`mt-1 block w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'}`}
-                  placeholder="Enter your email"
+                  placeholder="Enter email or username"
                 />
               </div>
 

@@ -1,20 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import apiService from '../../services/api';
 
-const UserProfile = ({ user: propUser }) => {
+const OfficerProfile = ({ user: propUser }) => {
   const { isDark } = useTheme();
-  const { user: authUser, login, setAuth } = useAuth();
+  const { user: authUser, setAuth } = useAuth();
   const user = propUser || authUser;
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Campus, College, Department data
-  const [campuses, setCampuses] = useState([]);
-  const [colleges, setColleges] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [fetchingData, setFetchingData] = useState(true);
 
   // Password change state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -29,107 +23,14 @@ const UserProfile = ({ user: propUser }) => {
     first_name: user?.first_name || '',
     last_name: user?.last_name || '',
     username: user?.username || '',
-    campus_id: user?.campus_id || '',
-    user_campus: user?.user_campus || null,
-    college: user?.college || null,
-    department: user?.department || null,
     phone: user?.phone || ''
   });
-
-  // Fetch campuses on mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setFetchingData(true);
-        // Fetch all campuses
-        const campusesData = await apiService.getCampuses();
-        const campusList = Array.isArray(campusesData) ? campusesData : campusesData.results || [];
-        setCampuses(campusList);
-
-        // If user has a campus, fetch colleges for that campus
-        if (user?.user_campus) {
-          const collegesData = await apiService.getColleges(user.user_campus);
-          const collegesList = Array.isArray(collegesData) ? collegesData : collegesData.results || [];
-          setColleges(collegesList);
-
-          // If user has a college, fetch departments for that college
-          if (user?.college) {
-            const departmentsData = await apiService.getDepartments(user.college);
-            const departmentsList = Array.isArray(departmentsData) ? departmentsData : departmentsData.results || [];
-            setDepartments(departmentsList);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch campus/college/department data:', error);
-      } finally {
-        setFetchingData(false);
-      }
-    };
-
-    fetchData();
-  }, [user?.user_campus, user?.college]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
-    }));
-  };
-
-  const handleCampusChange = async (e) => {
-    const campusId = e.target.value ? parseInt(e.target.value) : null;
-    setFormData(prev => ({
-      ...prev,
-      user_campus: campusId,
-      college: null,
-      department: null
-    }));
-
-    // Fetch colleges for selected campus
-    if (campusId) {
-      try {
-        const collegesData = await apiService.getColleges(campusId);
-        const collegesList = Array.isArray(collegesData) ? collegesData : collegesData.results || [];
-        setColleges(collegesList);
-      } catch (error) {
-        console.error('Failed to fetch colleges:', error);
-        setColleges([]);
-      }
-    } else {
-      setColleges([]);
-    }
-    setDepartments([]);
-  };
-
-  const handleCollegeChange = async (e) => {
-    const collegeId = e.target.value ? parseInt(e.target.value) : null;
-    setFormData(prev => ({
-      ...prev,
-      college: collegeId,
-      department: null
-    }));
-
-    // Fetch departments for selected college
-    if (collegeId) {
-      try {
-        const departmentsData = await apiService.getDepartments(collegeId);
-        const departmentsList = Array.isArray(departmentsData) ? departmentsData : departmentsData.results || [];
-        setDepartments(departmentsList);
-      } catch (error) {
-        console.error('Failed to fetch departments:', error);
-        setDepartments([]);
-      }
-    } else {
-      setDepartments([]);
-    }
-  };
-
-  const handleDepartmentChange = (e) => {
-    const departmentId = e.target.value ? parseInt(e.target.value) : null;
-    setFormData(prev => ({
-      ...prev,
-      department: departmentId
     }));
   };
 
@@ -140,10 +41,6 @@ const UserProfile = ({ user: propUser }) => {
         first_name: formData.first_name,
         last_name: formData.last_name,
         username: formData.username,
-        campus_id: formData.campus_id,
-        user_campus: formData.user_campus,
-        college: formData.college,
-        department: formData.department,
         phone: formData.phone
       };
 
@@ -169,10 +66,6 @@ const UserProfile = ({ user: propUser }) => {
       first_name: user?.first_name || '',
       last_name: user?.last_name || '',
       username: user?.username || '',
-      campus_id: user?.campus_id || '',
-      user_campus: user?.user_campus || null,
-      college: user?.college || null,
-      department: user?.department || null,
       phone: user?.phone || ''
     });
     setIsEditing(false);
@@ -219,24 +112,6 @@ const UserProfile = ({ user: propUser }) => {
       setLoading(false);
     }
   };
-
-  const getCampusName = (campusId) => {
-    if (!campusId) return 'Not specified';
-    const campus = campuses.find(c => c.id === campusId);
-    return campus?.campus_name || 'Unknown Campus';
-  };
-
-  const getCollegeName = (collegeId) => {
-    if (!collegeId) return 'Not specified';
-    const college = colleges.find(c => c.id === collegeId);
-    return college?.college_name || 'Unknown College';
-  };
-
-  const getDepartmentName = (deptId) => {
-    if (!deptId) return 'Not specified';
-    const dept = departments.find(d => d.id === deptId);
-    return dept?.department_name || 'Unknown Department';
-  }
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -364,7 +239,7 @@ const UserProfile = ({ user: propUser }) => {
 
         <div className="p-6">
           <div className="flex items-center mb-6">
-            <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+            <div className="w-20 h-20 bg-orange-500 rounded-full flex items-center justify-center text-white text-2xl font-bold">
               {(formData.first_name?.charAt(0) || user?.first_name?.charAt(0) || '').toUpperCase()}
               {(formData.last_name?.charAt(0) || user?.last_name?.charAt(0) || '').toUpperCase()}
             </div>
@@ -375,50 +250,13 @@ const UserProfile = ({ user: propUser }) => {
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 {user?.email}
               </p>
-              <span className={`inline-block px-2 py-1 text-xs rounded-full mt-1 ${user?.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-                user?.role === 'officer' ? 'bg-blue-100 text-blue-800' :
-                  'bg-green-100 text-green-800'
-                }`}>
-                {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1)}
+              <span className={`inline-block px-2 py-1 text-xs rounded-full mt-1 bg-orange-100 text-orange-800`}>
+                Officer
               </span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                Username
-              </label>
-              <input
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleInputChange}
-                readOnly={!isEditing}
-                className={`w-full px-3 py-2 border rounded-lg ${isEditing
-                  ? isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
-                  : isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
-                  } ${!isEditing ? 'cursor-not-allowed' : ''} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
-              />
-            </div>
-
-            <div>
-              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                Campus ID
-              </label>
-              <input
-                type="text"
-                name="campus_id"
-                value={formData.campus_id}
-                onChange={handleInputChange}
-                readOnly={!isEditing}
-                className={`w-full px-3 py-2 border rounded-lg ${isEditing
-                  ? isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
-                  : isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
-                  } ${!isEditing ? 'cursor-not-allowed' : ''} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
-              />
-            </div>
-
             <div>
               <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                 First Name
@@ -453,110 +291,21 @@ const UserProfile = ({ user: propUser }) => {
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div>
               <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                Email Address
+                Username
               </label>
               <input
-                type="email"
-                value={user?.email || ''}
-                readOnly
-                className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
+                type="text"
+                name="username"
+                value={formData.username}
+                onChange={handleInputChange}
+                readOnly={!isEditing}
+                className={`w-full px-3 py-2 border rounded-lg ${isEditing
+                  ? isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
+                  : isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
+                  } ${!isEditing ? 'cursor-not-allowed' : ''} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
               />
-              <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Email cannot be changed. Contact admin if needed.
-              </p>
-            </div>
-
-            <div>
-              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                Campus
-              </label>
-              {isEditing ? (
-                <select
-                  value={formData.user_campus || ''}
-                  onChange={handleCampusChange}
-                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
-                >
-                  <option value="">Select Campus</option>
-                  {campuses.map(campus => (
-                    <option key={campus.id} value={campus.id}>
-                      {campus.campus_name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={getCampusName(user?.user_campus)}
-                  readOnly
-                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
-                />
-              )}
-            </div>
-
-            <div>
-              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                College
-              </label>
-              {isEditing ? (
-                <select
-                  value={formData.college || ''}
-                  onChange={handleCollegeChange}
-                  disabled={!formData.user_campus}
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    !formData.user_campus
-                      ? isDark ? 'bg-gray-600 border-gray-600 text-gray-400' : 'bg-gray-100 border-gray-300 text-gray-500'
-                      : isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
-                  } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
-                >
-                  <option value="">Select College</option>
-                  {colleges.map(college => (
-                    <option key={college.id} value={college.id}>
-                      {college.college_name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={getCollegeName(user?.college)}
-                  readOnly
-                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
-                />
-              )}
-            </div>
-
-            <div>
-              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                Department
-              </label>
-              {isEditing ? (
-                <select
-                  value={formData.department || ''}
-                  onChange={handleDepartmentChange}
-                  disabled={!formData.college}
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    !formData.college
-                      ? isDark ? 'bg-gray-600 border-gray-600 text-gray-400' : 'bg-gray-100 border-gray-300 text-gray-500'
-                      : isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
-                  } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
-                >
-                  <option value="">Select Department</option>
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.department_name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={getDepartmentName(user?.department)}
-                  readOnly
-                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
-                />
-              )}
             </div>
 
             <div>
@@ -576,6 +325,21 @@ const UserProfile = ({ user: propUser }) => {
                   } ${!isEditing ? 'cursor-not-allowed' : ''} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
               />
             </div>
+
+            <div className="md:col-span-2">
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                Email Address
+              </label>
+              <input
+                type="email"
+                value={user?.email || ''}
+                readOnly
+                className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
+              />
+              <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Email cannot be changed. Contact system admin if needed.
+              </p>
+            </div>
           </div>
 
           <div className={`mt-6 p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-blue-50'} border ${isDark ? 'border-gray-600' : 'border-blue-200'}`}>
@@ -585,7 +349,7 @@ const UserProfile = ({ user: propUser }) => {
             <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-blue-800'}`}>
               {isEditing
                 ? 'You can edit your personal information. Email address cannot be changed for security reasons.'
-                : 'Click "Edit Profile" to update your personal information. Some fields may require admin approval.'
+                : 'Click "Edit Profile" to update your personal information.'
               }
             </p>
           </div>
@@ -595,4 +359,4 @@ const UserProfile = ({ user: propUser }) => {
   );
 };
 
-export default UserProfile;
+export default OfficerProfile;

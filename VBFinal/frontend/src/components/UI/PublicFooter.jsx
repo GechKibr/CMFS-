@@ -1,10 +1,7 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 
 const PublicFooter = () => {
   const { isDark } = useTheme();
-  const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
 
   const footerLinks = {

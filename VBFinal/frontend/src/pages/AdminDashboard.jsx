@@ -3,21 +3,24 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../services/api';
+import DashboardNavbar from '../components/UI/DashboardNavbar';
+import Sidebar from '../components/UI/Sidebar';
 import InstitutionManagement from '../components/Admin/InstitutionManagement';
 import CategoryManagementWithAssignments from '../components/Admin/CategoryManagement';
 import UserManagement from '../components/Admin/UserManagement';
 import SystemManagement from '../components/Admin/SystemManagement';
 import FeedbackTemplateManagement from '../components/Admin/FeedbackTemplateManagement';
 import AdminComplaints from '../components/Admin/AdminComplaints';
+import ContactManagement from '../components/Admin/ContactManagement';
+import AdminProfile from '../components/Admin/AdminProfile';
 
 const AdminDashboard = () => {
   const { isDark, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showNavbarDropdown, setShowNavbarDropdown] = useState(false);
-  const [showSidebarDropdown, setShowSidebarDropdown] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [institutions, setInstitutions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [stats, setStats] = useState({
@@ -27,18 +30,6 @@ const AdminDashboard = () => {
     urgent: 0
   });
   const [loading, setLoading] = useState(true);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  const getUserInitials = () => {
-    if (!user) return 'A';
-    const firstName = user.first_name || '';
-    const lastName = user.last_name || '';
-    return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'A';
-  };
 
   useEffect(() => {
     loadData();
@@ -84,17 +75,6 @@ const AdminDashboard = () => {
     }
   };
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (!event.target.closest('.dropdown-container')) {
-        setShowNavbarDropdown(false);
-        setShowSidebarDropdown(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
-
   const loadData = async () => {
     try {
       setLoading(true);
@@ -121,7 +101,9 @@ const AdminDashboard = () => {
     { id: 'categories', name: 'Categories', icon: '📂' },
     { id: 'users', name: 'Users', icon: '👤' },
     { id: 'feedback-templates', name: 'Feedback Templates', icon: '📋' },
-    { id: 'system', name: 'System', icon: '⚙️' }
+    { id: 'contact', name: 'Contact', icon: '✉️' },
+    { id: 'system', name: 'System', icon: '⚙️' },
+    { id: 'profile', name: 'Profile', icon: '👤' }
   ];
 
   const [systemStats, setSystemStats] = useState({
@@ -279,8 +261,12 @@ const AdminDashboard = () => {
         return <UserManagement />;
       case 'feedback-templates':
         return <FeedbackTemplateManagement />;
+      case 'contact':
+        return <ContactManagement />;
       case 'system':
         return <SystemManagement />;
+      case 'profile':
+        return <AdminProfile />;
       default:
         return (
           <div className="bg-white p-6 rounded-lg shadow">
@@ -291,169 +277,63 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleSidebarToggle = () => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      setIsDesktopSidebarCollapsed((prev) => !prev);
+      return;
+    }
+    setSidebarOpen((prev) => !prev);
+  };
+
   return (
-    <div className={`flex h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
-      {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'w-64' : 'w-16'} ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg transition-all duration-300 flex flex-col`}>
-        {/* Header */}
-        <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
-          {sidebarOpen && (
-            <div className="flex-1">
-              <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>Admin Panel</h2>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Complaint System</p>
-            </div>
-          )}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'} ${!sidebarOpen ? 'mx-auto' : ''}`}
-          >
-            {sidebarOpen ? '◀' : '▶'}
-          </button>
-        </div>
+    <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <DashboardNavbar onSidebarToggle={handleSidebarToggle} />
+      
+      <div className="flex pt-20">
+        {/* Sidebar */}
+        <Sidebar
+          isOpen={sidebarOpen}
+          isCollapsed={isDesktopSidebarCollapsed}
+          items={menuItems}
+          activeItem={activeTab}
+          onItemClick={(id) => {
+            setActiveTab(id);
+            setSidebarOpen(false);
+          }}
+          onLogout={() => {
+            logout();
+            navigate('/login');
+          }}
+          onProfileClick={() => {
+            setActiveTab('profile');
+            setSidebarOpen(false);
+          }}
+          onHideSidebar={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
+          showBottomSection={false}
+        />
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                activeTab === item.id
-                  ? isDark 
-                    ? 'bg-blue-900 text-blue-300'
-                    : 'bg-blue-50 text-blue-700'
-                  : isDark
-                    ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <span className="text-lg flex-shrink-0">{item.icon}</span>
-              {sidebarOpen && <span className="font-medium">{item.name}</span>}
-            </button>
-          ))}
-        </nav>
+        {/* Mobile Overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-20"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
-        {/* Footer */}
-        <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-          {sidebarOpen ? (
-            <div className="relative dropdown-container">
-              <button
-                onClick={() => setShowSidebarDropdown(!showSidebarDropdown)}
-                className="w-full flex items-center space-x-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg p-2 transition-colors"
-              >
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                  {getUserInitials()}
+        {/* Main Content */}
+        <main className={`flex-1 ${isDesktopSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {loading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse"></div>
+                  <div className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</div>
                 </div>
-                <div className="flex-1 text-left">
-                  <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {user?.first_name} {user?.last_name}
-                  </p>
-                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {user?.email}
-                  </p>
-                </div>
-                <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>⋮</span>
-              </button>
-              {showSidebarDropdown && (
-                <div className={`absolute bottom-full left-0 right-0 mb-2 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg z-50`}>
-                  <button
-                    onClick={handleLogout}
-                    className={`w-full text-left px-4 py-2 text-sm ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'} transition-colors rounded-lg`}
-                  >
-                    🚪 Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="relative dropdown-container">
-              <button
-                onClick={() => setShowSidebarDropdown(!showSidebarDropdown)}
-                className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold mx-auto hover:bg-blue-600 transition-colors"
-              >
-                {getUserInitials()}
-              </button>
-              {showSidebarDropdown && (
-                <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg z-50 w-32`}>
-                  <button
-                    onClick={handleLogout}
-                    className={`w-full text-left px-4 py-2 text-sm ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'} transition-colors rounded-lg`}
-                  >
-                    🚪 Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Navigation Bar */}
-        <header className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-sm border-b px-6 py-4`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {menuItems.find(item => item.id === activeTab)?.name || 'Dashboard'}
-              </h1>
-              <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Manage your complaint management system
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button 
-                onClick={toggleTheme}
-                className={`p-2 rounded-lg transition-colors ${isDark ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
-                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-              >
-                {isDark ? '☀️' : '🌙'}
-              </button>
-              <button className={`p-2 transition-colors ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-400 hover:text-gray-600'}`}>
-                🔔
-              </button>
-              <div className="relative dropdown-container">
-                <button
-                  onClick={() => setShowNavbarDropdown(!showNavbarDropdown)}
-                  className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold hover:bg-blue-600 transition-colors"
-                >
-                  {getUserInitials()}
-                </button>
-                {showNavbarDropdown && (
-                  <div className={`absolute right-0 mt-2 w-48 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg z-50`}>
-                    <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                      <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {user?.first_name} {user?.last_name}
-                      </p>
-                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {user?.email}
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleLogout}
-                      className={`w-full text-left px-4 py-2 text-sm ${isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'} transition-colors`}
-                    >
-                      🚪 Logout
-                    </button>
-                  </div>
-                )}
               </div>
-            </div>
+            ) : (
+              renderTabContent()
+            )}
           </div>
-        </header>
-
-        {/* Content Area */}
-        <main className={`flex-1 overflow-y-auto px-6 py-6 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse"></div>
-                <div className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</div>
-              </div>
-            </div>
-          ) : (
-            renderTabContent()
-          )}
         </main>
       </div>
     </div>

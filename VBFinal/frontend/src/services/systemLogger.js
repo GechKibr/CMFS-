@@ -33,9 +33,6 @@ class SystemLogger {
 
     this.logs.unshift(logEntry);
     this.saveLogs();
-    
-    // Also log to console for debugging
-    console.log(`[${level}] ${category}: ${message}`);
   }
 
   getCurrentUser() {

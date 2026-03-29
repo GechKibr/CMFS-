@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
@@ -6,13 +7,27 @@ import { MaintenanceProvider, useMaintenanceMode } from './contexts/MaintenanceC
 import ProtectedRoute from './components/ProtectedRoute';
 import TokenInterceptor from './components/TokenInterceptor';
 import MaintenancePage from './components/MaintenancePage';
-import LandingPage from './pages/LandingPage';
-import Login from './pages/Login';
-import RegisterComplete from './pages/RegisterComplete';
-import AuthSuccess from './pages/AuthSuccess';
-import AdminDashboard from './pages/AdminDashboard';
-import OfficerDashboard from './pages/OfficerDashboard';
-import UserDashboard from './pages/UserDashboard';
+
+// Lazy-load heavy route components for code splitting
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const Login = lazy(() => import('./pages/Login'));
+const RegisterComplete = lazy(() => import('./pages/RegisterComplete'));
+const AuthSuccess = lazy(() => import('./pages/AuthSuccess'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const OfficerDashboard = lazy(() => import('./pages/OfficerDashboard'));
+const UserDashboard = lazy(() => import('./pages/UserDashboard'));
+
+// Simple loading fallback
+const RouteLoadingFallback = () => (
+  <div className="flex items-center justify-center h-screen bg-gray-100">
+    <div className="text-center">
+      <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <p className="mt-4 text-gray-600">Loading...</p>
+    </div>
+  </div>
+);
 
 
 // Component to handle root redirect based on auth status
@@ -25,6 +40,8 @@ const RootRedirect = () => {
 
   const role = getUserRole();
   switch (role) {
+    case 'super_admin':
+      return <Navigate to="/super-admin" replace />;
     case 'admin':
       return <Navigate to="/admin" replace />;
     case 'officer':
@@ -41,47 +58,59 @@ const AppContent = () => {
   const { user, getUserRole } = useAuth();
 
   // Show maintenance page if maintenance mode is enabled and user is not admin
-  if (isMaintenanceMode && (!user || getUserRole() !== 'admin')) {
+  if (isMaintenanceMode && (!user || !['admin', 'super_admin'].includes(getUserRole()))) {
     return <MaintenancePage message={maintenanceMessage} />;
   }
 
   return (
-    <Routes>
-      {/* Public Routes */}
-      <Route path="/landing" element={<LandingPage />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register/complete" element={<RegisterComplete />} />
-      <Route path="/auth/success" element={<AuthSuccess />} />
+    <Suspense fallback={<RouteLoadingFallback />}>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/landing" element={<LandingPage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register/complete" element={<RegisterComplete />} />
+        <Route path="/auth/success" element={<AuthSuccess />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
-      {/* Protected Routes */}
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute requiredRole="admin">
-            <AdminDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/officer"
-        element={
-          <ProtectedRoute requiredRole="officer">
-            <OfficerDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/user"
-        element={
-          <ProtectedRoute requiredRole="user">
-            <UserDashboard />
-          </ProtectedRoute>
-        }
-      />
+        {/* Protected Routes */}
+        <Route
+          path="/super-admin"
+          element={
+            <ProtectedRoute requiredRole="super_admin">
+              <AdminDashboard initialTab="roles" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/officer"
+          element={
+            <ProtectedRoute requiredRole="officer">
+              <OfficerDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user"
+          element={
+            <ProtectedRoute requiredRole="user">
+              <UserDashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* Default Route */}
-      <Route path="/" element={<RootRedirect />} />
-    </Routes>
+        {/* Default Route */}
+        <Route path="/" element={<RootRedirect />} />
+      </Routes>
+    </Suspense>
   );
 };
 
@@ -93,7 +122,7 @@ function App() {
           <AuthProvider>
             <TokenInterceptor>
               <Router>
-                <div className="App">
+                <div className="App pt-20 pb-56">
                   <AppContent />
                 </div>
               </Router>

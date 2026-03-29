@@ -20,6 +20,7 @@ const PublicNavbar = () => {
 
   const getDashboardPath = () => {
     const role = getUserRole();
+    if (role === 'super_admin') return '/super-admin';
     if (role === 'admin') return '/admin';
     if (role === 'officer') return '/officer';
     return '/user';
@@ -38,7 +39,7 @@ const PublicNavbar = () => {
   };
 
   return (
-    <header className={`${isDark ? 'bg-gray-900/95 border-gray-700' : 'bg-white/95 border-gray-100'} backdrop-blur-md shadow-md border-b sticky top-0 z-50`}>
+    <header className={`${isDark ? 'bg-gray-900/95 border-gray-700' : 'bg-white/95 border-gray-100'} backdrop-blur-md shadow-md border-b fixed top-0 left-0 right-0 z-50`}>
       <nav className="px-6 sm:px-8 lg:px-12 h-20 flex items-center justify-between">
         {/* Logo */}
         <div className="flex items-center space-x-6 min-w-0">

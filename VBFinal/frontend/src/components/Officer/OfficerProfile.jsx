@@ -23,6 +23,7 @@ const OfficerProfile = ({ user: propUser }) => {
     first_name: user?.first_name || '',
     last_name: user?.last_name || '',
     username: user?.username || '',
+    gmail_account: user?.gmail_account || '',
     phone: user?.phone || ''
   });
 
@@ -41,6 +42,7 @@ const OfficerProfile = ({ user: propUser }) => {
         first_name: formData.first_name,
         last_name: formData.last_name,
         username: formData.username,
+        gmail_account: formData.gmail_account?.trim() ? formData.gmail_account.trim().toLowerCase() : null,
         phone: formData.phone
       };
 
@@ -66,6 +68,7 @@ const OfficerProfile = ({ user: propUser }) => {
       first_name: user?.first_name || '',
       last_name: user?.last_name || '',
       username: user?.username || '',
+      gmail_account: user?.gmail_account || '',
       phone: user?.phone || ''
     });
     setIsEditing(false);
@@ -338,6 +341,27 @@ const OfficerProfile = ({ user: propUser }) => {
               />
               <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 Email cannot be changed. Contact system admin if needed.
+              </p>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                Gmail Account (Reset + Notifications)
+              </label>
+              <input
+                type="email"
+                name="gmail_account"
+                value={formData.gmail_account || ''}
+                onChange={handleInputChange}
+                readOnly={!isEditing}
+                placeholder={isEditing ? 'example@gmail.com' : 'Not provided'}
+                className={`w-full px-3 py-2 border rounded-lg ${isEditing
+                  ? isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
+                  : isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
+                  } ${!isEditing ? 'cursor-not-allowed' : ''} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+              />
+              <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Must be a valid @gmail.com address.
               </p>
             </div>
           </div>

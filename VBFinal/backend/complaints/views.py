@@ -430,8 +430,8 @@ class PublicAnnouncementViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         if self.action in ['list', 'retrieve']:
-            if user.is_authenticated and getattr(user, 'role', None) in ('officer', 'admin'):
-                if user.role == 'admin':
+            if user.is_authenticated and getattr(user, 'role', None) in ('officer', 'admin', 'super_admin'):
+                if user.role in ('admin', 'super_admin'):
                     return queryset
                 return queryset.filter(created_by=user)
 
@@ -443,7 +443,7 @@ class PublicAnnouncementViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return PublicAnnouncement.objects.none()
 
-        if getattr(user, 'role', None) == 'admin':
+        if getattr(user, 'role', None) in ('admin', 'super_admin'):
             return queryset
 
         if getattr(user, 'role', None) == 'officer':
@@ -452,7 +452,7 @@ class PublicAnnouncementViewSet(viewsets.ModelViewSet):
         return PublicAnnouncement.objects.none()
 
     def create(self, request, *args, **kwargs):
-        if getattr(request.user, 'role', None) not in ('officer', 'admin'):
+        if getattr(request.user, 'role', None) not in ('officer', 'admin', 'super_admin'):
             return DRFResponse(
                 {'error': 'Only officers and admins can create announcements.'},
                 status=status.HTTP_403_FORBIDDEN

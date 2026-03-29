@@ -1,7 +1,5 @@
 from django.core.mail import send_mail
 from django.conf import settings
-from django.template.loader import render_to_string
-from .models import EmailLog
 from .utils import log_email
 
 
@@ -43,7 +41,8 @@ class EmailService:
 
     @staticmethod
     def send_verification_email(user, token):
-        verify_url = f"{settings.FRONTEND_URL}/verify-email?token={token.token}" if hasattr(settings, 'FRONTEND_URL') else f"http://localhost:3000/verify-email?token={token.token}"
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        verify_url = f"{frontend_url}/verify-email?token={token.token}"
         
         subject = "Verify Your Email"
         message = f"Click the link to verify your email: {verify_url}"
@@ -58,7 +57,9 @@ class EmailService:
 
     @staticmethod
     def send_password_reset_email(user, token):
-        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token.token}" if hasattr(settings, 'FRONTEND_URL') else f"http://localhost:3000/reset-password?token={token.token}"
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        reset_url = f"{frontend_url}/reset-password?token={token.token}"
+        destination = getattr(user, 'preferred_notification_email', None) or user.email
         
         subject = "Reset Your Password"
         message = f"Click the link to reset your password: {reset_url}"
@@ -66,7 +67,7 @@ class EmailService:
         return EmailService.send_email(
             subject=subject,
             message=message,
-            recipient_list=[user.email],
+            recipient_list=[destination],
             email_type='password_reset',
             recipient_user=user
         )
@@ -75,11 +76,12 @@ class EmailService:
     def send_complaint_notification(user, complaint):
         subject = f"Complaint Update: {complaint.title}"
         message = f"Your complaint (ID: {complaint.complaint_id}) status: {complaint.status}"
+        destination = getattr(user, 'preferred_notification_email', None) or user.email
         
         return EmailService.send_email(
             subject=subject,
             message=message,
-            recipient_list=[user.email],
+            recipient_list=[destination],
             email_type='complaint_notification',
             recipient_user=user
         )

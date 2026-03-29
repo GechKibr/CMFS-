@@ -12,5 +12,26 @@ export default defineConfig({
         secure: false,
       }
     }
+  },
+  build: {
+    // Increase chunk size warning limit (we reduce via lazy loading instead)
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        // Manual chunking to split vendor dependencies
+        manualChunks: (id) => {
+          // Split react ecosystem into vendor chunk
+          if (id.includes('node_modules')) {
+            if (id.includes('react')) {
+              return 'react-vendor';
+            }
+            // Split larger vendor libraries
+            if (id.includes('node_modules')) {
+              return 'vendor';
+            }
+          }
+        }
+      }
+    }
   }
 })

@@ -8,17 +8,19 @@ import Sidebar from '../components/UI/Sidebar';
 import InstitutionManagement from '../components/Admin/InstitutionManagement';
 import CategoryManagementWithAssignments from '../components/Admin/CategoryManagement';
 import UserManagement from '../components/Admin/UserManagement';
+import GroupManagement from '../components/Admin/GroupManagement';
 import SystemManagement from '../components/Admin/SystemManagement';
 import FeedbackTemplateManagement from '../components/Admin/FeedbackTemplateManagement';
 import AdminComplaints from '../components/Admin/AdminComplaints';
 import ContactManagement from '../components/Admin/ContactManagement';
 import AdminProfile from '../components/Admin/AdminProfile';
+import SuperAdminRoleManagement from '../components/Admin/SuperAdminRoleManagement';
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ initialTab = 'overview' }) => {
   const { isDark, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [institutions, setInstitutions] = useState([]);
@@ -35,6 +37,10 @@ const AdminDashboard = () => {
     loadData();
     loadSystemStats();
   }, []);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const loadSystemStats = async () => {
     try {
@@ -94,12 +100,16 @@ const AdminDashboard = () => {
     }
   };
 
+  const isSuperAdmin = user?.is_superuser || user?.role === 'super_admin';
+
   const menuItems = [
     { id: 'overview', name: 'Dashboard', icon: '📊' },
     { id: 'complaints', name: 'Complaints', icon: '📝' },
     { id: 'institutions', name: 'Institutions', icon: '🏛️' },
     { id: 'categories', name: 'Categories', icon: '📂' },
     { id: 'users', name: 'Users', icon: '👤' },
+    { id: 'groups', name: 'Groups & Permissions', icon: '🔐' },
+    ...(isSuperAdmin ? [{ id: 'roles', name: 'Role Center', icon: '🛡️' }] : []),
     { id: 'feedback-templates', name: 'Feedback Templates', icon: '📋' },
     { id: 'contact', name: 'Contact', icon: '✉️' },
     { id: 'system', name: 'System', icon: '⚙️' },
@@ -259,6 +269,10 @@ const AdminDashboard = () => {
         return <CategoryManagementWithAssignments />;
       case 'users':
         return <UserManagement />;
+      case 'groups':
+        return <GroupManagement />;
+      case 'roles':
+        return isSuperAdmin ? <SuperAdminRoleManagement /> : renderOverview();
       case 'feedback-templates':
         return <FeedbackTemplateManagement />;
       case 'contact':

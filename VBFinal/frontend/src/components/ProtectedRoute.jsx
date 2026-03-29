@@ -10,9 +10,19 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
   }
 
   if (requiredRole && getUserRole() !== requiredRole) {
+    const role = getUserRole();
+    const isSuperAdmin = user?.is_superuser || role === 'super_admin';
+    const canAccessAdmin = requiredRole === 'admin' && (role === 'admin' || isSuperAdmin);
+    const canAccessSuperAdmin = requiredRole === 'super_admin' && isSuperAdmin;
+
+    if (canAccessAdmin || canAccessSuperAdmin) {
+      return children;
+    }
+
     // Redirect to appropriate dashboard based on user role
-    const userRole = getUserRole();
-    switch (userRole) {
+    switch (role) {
+      case 'super_admin':
+        return <Navigate to="/super-admin" replace />;
       case 'admin':
         return <Navigate to="/admin" replace />;
       case 'officer':

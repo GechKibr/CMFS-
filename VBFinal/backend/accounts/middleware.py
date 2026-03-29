@@ -1,7 +1,3 @@
-import threading
-
-_local = threading.local()
-
 SKIP_PATHS = ['/swagger/', '/redoc/', '/static/', '/admin/jsi18n/']
 
 

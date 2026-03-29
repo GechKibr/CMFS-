@@ -10,12 +10,12 @@ class ApiService {
     localStorage.setItem('token', token);
   }
 
-  getHeaders(isFormData = false) {
+  getHeaders(isFormData = false, skipAuth = false) {
     const headers = {};
     if (!isFormData) {
       headers['Content-Type'] = 'application/json';
     }
-    if (this.token) {
+    if (this.token && !skipAuth) {
       headers.Authorization = `Bearer ${this.token}`;
     }
     return headers;
@@ -48,7 +48,7 @@ class ApiService {
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
-      headers: this.getHeaders(options.isFormData),
+      headers: this.getHeaders(options.isFormData, options.skipAuth),
       ...options,
     };
 
@@ -487,6 +487,89 @@ class ApiService {
   async deleteCategoryResolver(id) {
     return this.request(`/resolver-assignments/${id}/`, {
       method: 'DELETE',
+    });
+  }
+
+  // Roles (Super Admin)
+  async getRoles() {
+    return this.request('/roles/');
+  }
+
+  async createRole(data) {
+    return this.request('/roles/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateRole(id, data) {
+    return this.request(`/roles/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteRole(id) {
+    return this.request(`/roles/${id}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async assignRoleToUser(roleId, userId) {
+    return this.request(`/roles/${roleId}/assign-user/`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    });
+  }
+
+  // Group and Permission Management
+  async getGroups() {
+    return this.request('/groups/');
+  }
+
+  async createGroup(data) {
+    return this.request('/groups/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateGroup(id, data) {
+    return this.request(`/groups/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteGroup(id) {
+    return this.request(`/groups/${id}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getPermissions(appLabel = null) {
+    const url = appLabel ? `/permissions/?app_label=${appLabel}` : '/permissions/';
+    return this.request(url);
+  }
+
+  async getSystemEndpoints(includeNonApi = false) {
+    const suffix = includeNonApi ? '?include_non_api=true' : '';
+    return this.request(`/permissions/endpoints/${suffix}`);
+  }
+
+  // Password reset
+  async requestPasswordReset(identifier) {
+    return this.request('/accounts/request-password-reset/', {
+      method: 'POST',
+      body: JSON.stringify({ identifier }),
+    });
+  }
+
+  async resetPassword(token, password) {
+    return this.request('/accounts/reset-password/', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+      skipAuth: true,
     });
   }
 

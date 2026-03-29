@@ -32,6 +32,7 @@ const UserManagement = () => {
   });
 
   const [colleges, setColleges] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({
     first_name: '', last_name: '', email: '', phone: '',
@@ -42,6 +43,7 @@ const UserManagement = () => {
   useEffect(() => {
     loadUsers();
     apiService.getColleges().then(d => setColleges(d.results ?? d)).catch(() => {});
+    apiService.getRoles().then(d => setRoles(d.results ?? d)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -192,6 +194,26 @@ const UserManagement = () => {
     }));
   };
 
+  const availableRoleCodes = React.useMemo(() => {
+    const fromRoles = (roles || []).map(r => r.code).filter(Boolean);
+    if (fromRoles.length > 0) {
+      return fromRoles;
+    }
+
+    // Fallback for environments where /roles is unavailable.
+    const fromUsers = Array.from(new Set((users || []).map(u => u.role).filter(Boolean)));
+    return fromUsers.length > 0 ? fromUsers : ['user', 'officer', 'admin'];
+  }, [roles, users]);
+
+  const getRoleLabel = (code) => {
+    const roleObj = (roles || []).find(r => r.code === code);
+    if (roleObj?.name) return roleObj.name;
+    if (!code) return 'Unknown';
+    return code
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -243,9 +265,9 @@ const UserManagement = () => {
               className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
             >
               <option value="all">All Roles</option>
-              <option value="user">User</option>
-              <option value="officer">Officer</option>
-              <option value="admin">Admin</option>
+              {availableRoleCodes.map((roleCode) => (
+                <option key={roleCode} value={roleCode}>{getRoleLabel(roleCode)}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -469,9 +491,9 @@ const UserManagement = () => {
               <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Role *</label>
               <select required value={addForm.role} onChange={e => setAddForm(p => ({ ...p, role: e.target.value }))}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}>
-                <option value="user">User</option>
-                <option value="officer">Officer</option>
-                <option value="admin">Admin</option>
+                {availableRoleCodes.map((roleCode) => (
+                  <option key={roleCode} value={roleCode}>{getRoleLabel(roleCode)}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -597,9 +619,9 @@ const UserManagement = () => {
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
                 required
               >
-                <option value="user">User</option>
-                <option value="officer">Officer</option>
-                <option value="admin">Admin</option>
+                {availableRoleCodes.map((roleCode) => (
+                  <option key={roleCode} value={roleCode}>{getRoleLabel(roleCode)}</option>
+                ))}
               </select>
             </div>
             <div className="flex items-center pt-6">

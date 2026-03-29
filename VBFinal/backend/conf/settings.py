@@ -6,6 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",    

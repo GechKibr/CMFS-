@@ -94,7 +94,7 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('role', User.ROLE_ADMIN)
+        extra_fields.setdefault('role', User.ROLE_SUPER_ADMIN)
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
@@ -140,22 +140,56 @@ class Department(models.Model):
     def __str__(self):
         return self.department_name or ''
 
+class Role(models.Model):
+    SYSTEM_ROLE_USER = 'user'
+    SYSTEM_ROLE_OFFICER = 'officer'
+    SYSTEM_ROLE_ADMIN = 'admin'
+    SYSTEM_ROLE_SUPER_ADMIN = 'super_admin'
 
+    name = models.CharField(max_length=50, unique=True)
+    code = models.CharField(max_length=30, unique=True, db_index=True)
+    description = models.TextField(blank=True, null=True)
+    level = models.PositiveSmallIntegerField(default=1, db_index=True)
+    is_system = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    permissions = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['level', 'name']
+        indexes = [
+            models.Index(fields=['code']),
+            models.Index(fields=['level', 'is_active']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.code:
+            self.code = self.code.strip().lower()
+        if self.name:
+            self.name = self.name.strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+        
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_USER = 'user'  # Complainter
     ROLE_OFFICER = 'officer'  # Resolver
     ROLE_ADMIN = 'admin'  # System Admin
+    ROLE_SUPER_ADMIN = 'super_admin'  # Platform Owner
 
     ROLE_CHOICES = [
         (ROLE_USER, 'User (Complainter)'),
         (ROLE_OFFICER, 'Officer (Resolver)'),
         (ROLE_ADMIN, 'Admin (System Admin)'),
+        (ROLE_SUPER_ADMIN, 'Super Admin (Platform Owner)'),
     ]
 
     ROLE_LEVEL = {
         ROLE_USER: 1,
         ROLE_OFFICER: 2,
         ROLE_ADMIN: 3,
+        ROLE_SUPER_ADMIN: 4,
     }
    
     
@@ -165,6 +199,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
 
     email = models.EmailField(unique=True, db_index=True)
+    gmail_account = models.EmailField(unique=True, null=True, blank=True, db_index=True)
     username = models.CharField(max_length=150, unique=True, null=True, blank=True, db_index=True)
     campus_id = models.CharField(max_length=20, unique=True, null=True, blank=True, db_index=True)
      
@@ -202,12 +237,21 @@ class User(AbstractBaseUser, PermissionsMixin):
         default=ROLE_USER,
         db_index=True
     )
+    role_ref = models.ForeignKey(
+        Role,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='users'
+    )
 
     AUTH_LOCAL = 'local'
     AUTH_MICROSOFT = 'microsoft'
+    AUTH_GOOGLE = 'google'
     AUTH_PROVIDER_CHOICES = [
         (AUTH_LOCAL, 'Local'),
         (AUTH_MICROSOFT, 'Microsoft'),
+        (AUTH_GOOGLE, 'Google'),
     ]
 
     auth_provider = models.CharField(
@@ -217,6 +261,13 @@ class User(AbstractBaseUser, PermissionsMixin):
         db_index=True
     )
     microsoft_id = models.CharField(
+        max_length=255,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True
+    )
+    google_id = models.CharField(
         max_length=255,
         unique=True,
         null=True,
@@ -263,9 +314,39 @@ class User(AbstractBaseUser, PermissionsMixin):
     def clean(self):
         if self.auth_provider == self.AUTH_MICROSOFT and not self.microsoft_id:
             raise ValidationError("Microsoft ID is required for Microsoft auth provider")
+
+        if self.gmail_account and not self.gmail_account.lower().endswith('@gmail.com'):
+            raise ValidationError("Gmail account must be a valid @gmail.com address")
         
         if self.role == self.ROLE_OFFICER and not self.college:
             raise ValidationError("Officers must be assigned to a college")
+
+        if self.role_ref and self.role_ref.code != self.role:
+            raise ValidationError("Selected role and role reference must match")
+
+    def save(self, *args, **kwargs):
+        if self.gmail_account:
+            self.gmail_account = self.gmail_account.strip().lower()
+
+        if self.role_ref and self.role_ref.code != self.role:
+            self.role = self.role_ref.code
+        elif self.role:
+            role_obj, _ = Role.objects.get_or_create(
+                code=self.role,
+                defaults={
+                    'name': self.role.replace('_', ' ').title(),
+                    'description': f"System role for {self.role.replace('_', ' ')} users.",
+                    'level': self.ROLE_LEVEL.get(self.role, 1),
+                    'is_system': True,
+                    'is_active': True,
+                },
+            )
+            self.role_ref = role_obj
+
+        if self.role in [self.ROLE_ADMIN, self.ROLE_SUPER_ADMIN] and not self.is_staff:
+            self.is_staff = True
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.full_name} | {self.role.upper()}"
@@ -285,7 +366,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.role == self.ROLE_OFFICER
 
     def is_admin(self):
-        return self.role == self.ROLE_ADMIN
+        return self.role in [self.ROLE_ADMIN, self.ROLE_SUPER_ADMIN]
+
+    def is_super_admin(self):
+        return self.role == self.ROLE_SUPER_ADMIN
 
     def is_officer(self):
         return self.role == self.ROLE_OFFICER
@@ -308,13 +392,23 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.role == self.ROLE_OFFICER
 
     def can_assign_complaints(self):
-        return self.role in [self.ROLE_OFFICER, self.ROLE_ADMIN]
+        return self.role in [self.ROLE_OFFICER, self.ROLE_ADMIN, self.ROLE_SUPER_ADMIN]
     
     def can_escalate_complaints(self):
-        return self.role in [self.ROLE_OFFICER, self.ROLE_ADMIN]
+        return self.role in [self.ROLE_OFFICER, self.ROLE_ADMIN, self.ROLE_SUPER_ADMIN]
     
     def can_view_all_complaints(self):
-        return self.role in [self.ROLE_OFFICER, self.ROLE_ADMIN]
+        return self.role in [self.ROLE_OFFICER, self.ROLE_ADMIN, self.ROLE_SUPER_ADMIN]
+
+    def mark_password_as_local_auth(self):
+        # Once password is set/reset, allow direct local login for social users too.
+        if self.auth_provider in [self.AUTH_MICROSOFT, self.AUTH_GOOGLE]:
+            self.auth_provider = self.AUTH_LOCAL
+            self.save(update_fields=['auth_provider'])
+
+    @property
+    def preferred_notification_email(self):
+        return self.gmail_account or self.email
     
     def get_accessible_complaints(self):
         from complaints.models import Complaint

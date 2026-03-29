@@ -22,6 +22,7 @@ const RegisterComplete = () => {
   const [formData, setFormData] = useState({
     first_name: firstName,
     last_name: lastName,
+    gmail_account: '',
     campus_id: '',
     phone: '',
     user_campus: '',
@@ -97,6 +98,7 @@ const RegisterComplete = () => {
       };
       if (formData.department) payload.department = formData.department;
       if (formData.phone?.trim()) payload.phone = formData.phone;
+      if (formData.gmail_account?.trim()) payload.gmail_account = formData.gmail_account.trim().toLowerCase();
       if (formData.first_name && formData.first_name !== firstName) payload.first_name = formData.first_name;
       if (formData.last_name && formData.last_name !== lastName) payload.last_name = formData.last_name;
       if (formData.password) {
@@ -117,7 +119,8 @@ const RegisterComplete = () => {
         setSuccess('Profile updated successfully! Redirecting...');
         setTimeout(() => {
           const role = userData.role;
-          if (role === 'admin') navigate('/admin');
+          if (role === 'super_admin') navigate('/super-admin');
+          else if (role === 'admin') navigate('/admin');
           else if (role === 'officer') navigate('/officer');
           else navigate('/user');
         }, 1500);
@@ -200,6 +203,18 @@ const RegisterComplete = () => {
                   <input type="tel" name="phone" value={formData.phone} onChange={handleChange}
                     placeholder="+251..." className={inputCls} />
                 </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Gmail Account (for reset + notifications)</label>
+                <input
+                  type="email"
+                  name="gmail_account"
+                  value={formData.gmail_account}
+                  onChange={handleChange}
+                  placeholder="example@gmail.com"
+                  className={inputCls}
+                />
               </div>
 
               {/* Campus */}

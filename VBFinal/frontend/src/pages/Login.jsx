@@ -31,11 +31,11 @@ const Login = () => {
 
     if (urlError) {
       const errorMessages = {
-        'auth_failed': 'Microsoft authentication failed. Please try again.',
+        'auth_failed': 'Social authentication failed. Please try again.',
         'token_exchange_failed': 'Failed to exchange authorization code. Please try again.',
-        'user_info_failed': 'Failed to get user information from Microsoft.',
-        'no_email': 'No email found in Microsoft account.',
-        'no_code': 'No authorization code received from Microsoft.'
+        'user_info_failed': 'Failed to get user information from provider.',
+        'no_email': 'No email found in social account.',
+        'no_code': 'No authorization code received from provider.'
       };
 
       let errorMsg = errorMessages[urlError] || 'Authentication failed. Please try again.';
@@ -258,6 +258,10 @@ const Login = () => {
                   <span>Sign in with Microsoft</span>
                 </div>
               </button>
+
+              <p className={`text-xs text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Use your Gmail on the Forgot Password page for reset and notification emails.
+              </p>
             </form>
 
           </div>

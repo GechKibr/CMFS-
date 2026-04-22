@@ -24,7 +24,6 @@ complaint_attachments/
 # Environment variables
 .env
 .env.local
-.env.example
 .env.*.local
 *.egg
 docs/

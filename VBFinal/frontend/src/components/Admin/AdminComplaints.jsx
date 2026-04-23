@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import apiService from '../../services/api';
 
 const AdminComplaints = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [complaints, setComplaints] = useState([]);
   const [filteredComplaints, setFilteredComplaints] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -14,6 +15,7 @@ const AdminComplaints = () => {
     category: 'all'
   });
   const [loading, setLoading] = useState(true);
+  const focusedComplaintId = new URLSearchParams(location.search).get('complaintId');
 
   useEffect(() => {
     loadData();
@@ -169,7 +171,10 @@ const AdminComplaints = () => {
               </thead>
               <tbody className={`${isDark ? 'bg-gray-800' : 'bg-white'} divide-y divide-gray-200`}>
                 {filteredComplaints.map((complaint) => (
-                  <tr key={complaint.complaint_id} className={`${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                  <tr
+                    key={complaint.complaint_id}
+                    className={`${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} ${focusedComplaintId === complaint.complaint_id ? (isDark ? 'bg-blue-900/30' : 'bg-blue-50') : ''}`}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>

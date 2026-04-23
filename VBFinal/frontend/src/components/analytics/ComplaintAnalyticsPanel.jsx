@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import apiService from '../../services/api';
 import { openRealtimeSocket } from '../../services/realtime';
 
@@ -27,12 +28,81 @@ const normalizeSummary = (data) => ({
   recent_complaints: Array.isArray(data?.recent_complaints) ? data.recent_complaints : [],
 });
 
+const buildSummaryFromComplaints = (complaints = [], scope = 'officer') => {
+  const normalizedList = Array.isArray(complaints) ? complaints : [];
+  const statusCounts = Object.keys(statusLabels).reduce((accumulator, key) => {
+    accumulator[key] = 0;
+    return accumulator;
+  }, {});
+
+  normalizedList.forEach((item) => {
+    const status = item?.status;
+    if (status && Object.prototype.hasOwnProperty.call(statusCounts, status)) {
+      statusCounts[status] += 1;
+    }
+  });
+
+  const today = new Date();
+  const dailyTrend = [];
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const day = new Date(today);
+    day.setDate(today.getDate() - offset);
+    const dayKey = day.toISOString().slice(0, 10);
+
+    const dayCount = normalizedList.filter((item) => {
+      const createdAt = item?.created_at ? new Date(item.created_at) : null;
+      if (!createdAt || Number.isNaN(createdAt.getTime())) return false;
+      return createdAt.toISOString().slice(0, 10) === dayKey;
+    }).length;
+
+    dailyTrend.push({
+      date: dayKey,
+      label: day.toLocaleDateString(undefined, { month: 'short', day: '2-digit' }),
+      count: dayCount,
+    });
+  }
+
+  const categoryCountMap = normalizedList.reduce((accumulator, item) => {
+    const label = item?.category?.office_name || item?.category?.name || 'Uncategorized';
+    accumulator[label] = (accumulator[label] || 0) + 1;
+    return accumulator;
+  }, {});
+
+  const categoryBreakdown = Object.entries(categoryCountMap)
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => right.count - left.count)
+    .slice(0, 6);
+
+  const recentComplaints = normalizedList
+    .slice()
+    .sort((left, right) => new Date(right.updated_at || right.created_at) - new Date(left.updated_at || left.created_at))
+    .slice(0, 5)
+    .map((item) => ({
+      complaint_id: item.complaint_id,
+      title: item.title,
+      status: item.status,
+      category: item?.category?.office_name || item?.category?.name || 'Uncategorized',
+      created_at: item.created_at,
+      updated_at: item.updated_at || item.created_at,
+    }));
+
+  return {
+    scope,
+    total: normalizedList.length,
+    status_counts: statusCounts,
+    daily_trend: dailyTrend,
+    category_breakdown: categoryBreakdown,
+    recent_complaints: recentComplaints,
+  };
+};
+
 const ComplaintAnalyticsPanel = ({
   title = 'Complaint Analytics',
   subtitle = '',
   accent = 'blue',
   analyticsScope = null,
   officerId = null,
+  recentComplaintLinkBuilder = null,
 }) => {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -59,11 +129,40 @@ const ComplaintAnalyticsPanel = ({
         data = await apiService.getComplaintAnalytics();
       }
 
-      setSummary(normalizeSummary(data));
+      const normalized = normalizeSummary(data);
+      const hasNoCounts = Object.values(normalized.status_counts || {}).every((count) => Number(count || 0) === 0);
+
+      if (analyticsScope === 'officer' && normalized.total === 0 && hasNoCounts) {
+        const complaintsData = await apiService.getComplaints();
+        const complaintList = Array.isArray(complaintsData?.results)
+          ? complaintsData.results
+          : Array.isArray(complaintsData)
+            ? complaintsData
+            : [];
+        setSummary(buildSummaryFromComplaints(complaintList, 'officer'));
+      } else {
+        setSummary(normalized);
+      }
       setError('');
     } catch (err) {
-      setError(err.message || 'Failed to load complaint analytics');
-      setSummary(null);
+      if (analyticsScope === 'officer') {
+        try {
+          const complaintsData = await apiService.getComplaints();
+          const complaintList = Array.isArray(complaintsData?.results)
+            ? complaintsData.results
+            : Array.isArray(complaintsData)
+              ? complaintsData
+              : [];
+          setSummary(buildSummaryFromComplaints(complaintList, 'officer'));
+          setError('');
+        } catch {
+          setError(err.message || 'Failed to load complaint analytics');
+          setSummary(null);
+        }
+      } else {
+        setError(err.message || 'Failed to load complaint analytics');
+        setSummary(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -213,19 +312,43 @@ const ComplaintAnalyticsPanel = ({
           {(summary?.recent_complaints || []).length === 0 ? (
             <p className="text-sm text-gray-500">No complaints to show yet.</p>
           ) : (
-            summary.recent_complaints.map((item) => (
-              <div key={item.complaint_id} className="flex items-start justify-between gap-4 rounded-lg bg-gray-50 px-4 py-3">
-                <div>
-                  <p className="font-medium text-gray-900">{item.title}</p>
-                  <p className="text-xs text-gray-500">
-                    {item.category} | {new Date(item.updated_at).toLocaleString()}
-                  </p>
+            summary.recent_complaints.map((item) => {
+              const complaintLink = recentComplaintLinkBuilder
+                ? recentComplaintLinkBuilder(item)
+                : null;
+
+              const content = (
+                <>
+                  <div>
+                    <p className="font-medium text-gray-900">{item.title}</p>
+                    <p className="text-xs text-gray-500">
+                      {item.category} | {new Date(item.updated_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
+                    {statusLabels[item.status] || item.status}
+                  </span>
+                </>
+              );
+
+              if (complaintLink) {
+                return (
+                  <Link
+                    key={item.complaint_id}
+                    to={complaintLink}
+                    className="flex items-start justify-between gap-4 rounded-lg bg-gray-50 px-4 py-3 transition-colors hover:bg-blue-50"
+                  >
+                    {content}
+                  </Link>
+                );
+              }
+
+              return (
+                <div key={item.complaint_id} className="flex items-start justify-between gap-4 rounded-lg bg-gray-50 px-4 py-3">
+                  {content}
                 </div>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
-                  {statusLabels[item.status] || item.status}
-                </span>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

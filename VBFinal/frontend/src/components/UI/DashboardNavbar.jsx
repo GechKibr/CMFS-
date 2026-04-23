@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -32,7 +32,7 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
   };
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     if (!shouldShowNotifications) return;
 
     setNotificationsLoading(true);
@@ -51,7 +51,7 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
     } finally {
       setNotificationsLoading(false);
     }
-  };
+  }, [shouldShowNotifications]);
 
   useEffect(() => {
     if (!shouldShowNotifications) return;
@@ -59,7 +59,7 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
     loadNotifications();
     const interval = window.setInterval(loadNotifications, 30000);
     return () => window.clearInterval(interval);
-  }, [shouldShowNotifications]);
+  }, [loadNotifications, shouldShowNotifications]);
 
   const handleMarkNotificationRead = async (notificationId) => {
     try {

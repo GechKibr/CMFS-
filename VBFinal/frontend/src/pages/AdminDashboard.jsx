@@ -120,6 +120,7 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
           title="University of Gondar Complaint Overview"
           subtitle="Live complaint counts, daily volume, and category mix."
           accent="blue"
+          recentComplaintLinkBuilder={(item) => `/admin?tab=complaints&complaintId=${item.complaint_id}`}
         />
 
         {/* Performance Metrics */}

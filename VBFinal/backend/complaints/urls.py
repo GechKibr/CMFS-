@@ -11,6 +11,7 @@ from .views import (
     ResponseViewSet,
     NotificationViewSet,
     PublicAnnouncementViewSet,
+    AppointmentAvailabilityViewSet,
     AppointmentViewSet,
 )
 
@@ -26,5 +27,6 @@ router.register(r'assignments', AssignmentViewSet, basename='assignment')
 router.register(r'responses', ResponseViewSet, basename='response')
 router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'announcements', PublicAnnouncementViewSet, basename='announcement')
+router.register(r'appointment-availabilities', AppointmentAvailabilityViewSet, basename='appointment-availability')
 router.register(r'appointments', AppointmentViewSet, basename='appointment')
 urlpatterns = router.urls

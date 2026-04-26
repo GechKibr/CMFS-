@@ -14,6 +14,7 @@ from .models import (
     AnnouncementComment,
     AnnouncementLike,
     Appointment,
+    AppointmentAvailability,
     Assignment,
     Category,
     CategoryResolver,
@@ -29,6 +30,7 @@ from .models import (
 from .serializers import (
     AnnouncementCommentSerializer,
     AppointmentSerializer,
+    AppointmentAvailabilitySerializer,
     AssignmentSerializer,
     CategoryResolverSerializer,
     CategorySerializer,
@@ -96,6 +98,61 @@ def can_manage_complaint(user, complaint):
             or is_category_resolver
         )
     )
+
+
+def _appointment_notification_title(status):
+    return {
+        'pending': 'Appointment Request Submitted',
+        'confirmed': 'Appointment Confirmed',
+        'rejected': 'Appointment Rejected',
+        'completed': 'Appointment Completed',
+        'canceled': 'Appointment Canceled',
+    }.get(status, 'Appointment Updated')
+
+
+def _appointment_notification_message(appointment, status):
+    slot_text = ''
+    if appointment.scheduled_at:
+        slot_text = f" for {appointment.scheduled_at:%Y-%m-%d %H:%M}"
+
+    if status == 'pending':
+        return f"Your appointment request{slot_text} has been submitted and is awaiting officer review."
+    if status == 'confirmed':
+        return f"Your appointment{slot_text} has been confirmed by the officer."
+    if status == 'rejected':
+        reason_text = f" Reason: {appointment.rejection_reason}" if appointment.rejection_reason else ''
+        return f"Your appointment{slot_text} has been rejected.{reason_text}"
+    if status == 'completed':
+        return f"Your appointment{slot_text} has been marked as completed."
+    if status == 'canceled':
+        return f"Your appointment{slot_text} has been canceled."
+    return f"Your appointment{slot_text} has been updated."
+
+
+def _send_appointment_notifications(appointment, status, actor=None):
+    recipients = []
+    if appointment.requested_by_id:
+        recipients.append(appointment.requested_by)
+    if appointment.officer_id and appointment.officer_id != appointment.requested_by_id:
+        recipients.append(appointment.officer)
+
+    recipient_ids = set()
+    for recipient in recipients:
+        if not recipient or recipient.id in recipient_ids:
+            continue
+        recipient_ids.add(recipient.id)
+
+        if status == 'pending' and recipient.id != appointment.officer_id:
+            continue
+
+        Notification.objects.create(
+            user=recipient,
+            complaint=appointment.complaint,
+            notification_type='appointment',
+            title=_appointment_notification_title(status),
+            message=_appointment_notification_message(appointment, status),
+        )
+        broadcast_notification_update(recipient.id)
 
 
 class CategoryViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelViewSet):
@@ -797,6 +854,54 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminRole]
 
 
+class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
+    serializer_class = AppointmentAvailabilitySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return AppointmentAvailability.objects.none()
+
+        queryset = AppointmentAvailability.objects.select_related('officer').all()
+        user = self.request.user
+        if user.is_admin():
+            return queryset
+        if user.is_officer():
+            return queryset.filter(officer=user)
+
+        active_statuses = ['pending', 'confirmed', 'completed']
+        return queryset.filter(is_active=True).exclude(appointments__status__in=active_statuses).distinct()
+
+    @action(detail=False, methods=['get'], url_path='available')
+    def available(self, request):
+        queryset = AppointmentAvailability.objects.select_related('officer').filter(is_active=True)
+        preferred_date = request.query_params.get('preferred_date')
+        officer_id = request.query_params.get('officer_id')
+
+        if preferred_date:
+            queryset = queryset.filter(available_date=preferred_date)
+        if officer_id:
+            queryset = queryset.filter(officer_id=officer_id)
+
+        queryset = queryset.exclude(appointments__status__in=['pending', 'confirmed', 'completed']).distinct()
+        serializer = self.get_serializer(queryset, many=True)
+        return DRFResponse(serializer.data, status=status.HTTP_200_OK)
+
+    def create(self, request, *args, **kwargs):
+        if request.user.role not in ('officer', 'admin'):
+            return DRFResponse(
+                {'error': 'Only officers and admins can define appointment availability.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        if self.request.user.is_officer() and not self.request.user.is_admin():
+            serializer.save(officer=self.request.user)
+            return
+        serializer.save()
+
+
 class AppointmentViewSet(viewsets.ModelViewSet):
     serializer_class = AppointmentSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -812,26 +917,27 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             return Appointment.objects.filter(
                 models.Q(officer=user) | models.Q(requested_by=user)
             ).distinct()
-        return Appointment.objects.filter(
-            complaint__submitted_by=user,
-            requested_by__role__in=('officer', 'admin'),
-        )
+        return Appointment.objects.filter(requested_by=user)
 
     def create(self, request, *args, **kwargs):
-        if request.user.role not in ('officer', 'admin'):
-            return DRFResponse(
-                {'error': 'Only officers and admins can schedule appointments.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        complaint = serializer.validated_data['complaint']
-        if not accessible_complaints_for(self.request.user).filter(pk=complaint.pk).exists():
+        complaint = serializer.validated_data.get('complaint')
+        if complaint and not accessible_complaints_for(self.request.user).filter(pk=complaint.pk).exists():
             raise PermissionDenied('You do not have access to this complaint.')
 
-        officer = serializer.validated_data.get('officer') or complaint.assigned_officer
-        serializer.save(requested_by=self.request.user, officer=officer)
+        if complaint and not (self.request.user.is_admin() or self.request.user.is_officer()):
+            if complaint.submitted_by_id != self.request.user.id:
+                raise PermissionDenied('You can only request appointments for your own complaints.')
+
+        appointment = serializer.save(requested_by=self.request.user)
+        if appointment.status != 'pending':
+            appointment.status = 'pending'
+            appointment.save(update_fields=['status', 'updated_at'])
+
+        if appointment.officer_id:
+            _send_appointment_notifications(appointment, 'pending', actor=self.request.user)
 
     @action(detail=True, methods=['patch'], url_path='status')
     def update_status(self, request, pk=None):
@@ -840,18 +946,22 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         if new_status not in dict(Appointment.STATUS_CHOICES):
             return DRFResponse({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if request.user.role in ('officer', 'admin'):
+        if request.user.is_admin() or request.user.id == appointment.officer_id:
+            if new_status not in {'confirmed', 'rejected', 'completed', 'canceled'}:
+                return DRFResponse({'error': 'Officers can only confirm, reject, complete, or cancel appointments.'}, status=status.HTTP_400_BAD_REQUEST)
+            if new_status == 'rejected' and not request.data.get('rejection_reason'):
+                return DRFResponse({'error': 'rejection_reason is required when rejecting an appointment.'}, status=status.HTTP_400_BAD_REQUEST)
+            appointment.status = new_status
+            if request.data.get('rejection_reason') is not None:
+                appointment.rejection_reason = request.data.get('rejection_reason', '')
+            appointment.save()
+            _send_appointment_notifications(appointment, new_status, actor=request.user)
+            return DRFResponse(AppointmentSerializer(appointment, context={'request': request}).data)
+
+        if request.user.id == appointment.requested_by_id and new_status == 'canceled' and appointment.status in {'pending', 'confirmed'}:
             appointment.status = new_status
             appointment.save()
-            return DRFResponse(AppointmentSerializer(appointment).data)
+            _send_appointment_notifications(appointment, new_status, actor=request.user)
+            return DRFResponse(AppointmentSerializer(appointment, context={'request': request}).data)
 
-        if (
-            appointment.complaint.submitted_by_id != request.user.id
-            or appointment.status != 'pending'
-            or new_status not in {'confirmed', 'cancelled'}
-        ):
-            return DRFResponse({'error': 'You do not have permission to update this appointment.'}, status=status.HTTP_403_FORBIDDEN)
-
-        appointment.status = new_status
-        appointment.save()
-        return DRFResponse(AppointmentSerializer(appointment).data)
+        return DRFResponse({'error': 'You do not have permission to update this appointment.'}, status=status.HTTP_403_FORBIDDEN)

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
@@ -245,9 +247,7 @@ class Complaint(models.Model):
         blank=True,
         related_name="active_complaints"
     )
-# escalation deadline will be removed 
     escalation_deadline = models.DateTimeField(null=True, blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -419,7 +419,7 @@ class Assignment(models.Model):
         on_delete=models.CASCADE,
         related_name="assignments"
     )
-    # under review 
+    
     officer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -547,6 +547,7 @@ class Notification(models.Model):
         ('escalation_update', 'Escalation Update'),
         ('max_escalation', 'Max Escalation'),
         ('complaint_update', 'Complaint Update'),
+        ('appointment', 'Appointment'),
         ('helpdesk_invitation', 'Helpdesk Invitation'),
         ('new_assignment', 'New Assignment'),
         ('resolution_reminder', 'Resolution Reminder'),
@@ -613,6 +614,58 @@ class Notification(models.Model):
         )
 
 
+class AppointmentAvailability(models.Model):
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='appointment_availabilities'
+    )
+    available_date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['available_date', 'start_time']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['officer', 'available_date', 'start_time', 'end_time'],
+                name='unique_officer_availability_slot',
+            ),
+        ]
+
+    def clean(self):
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            raise ValidationError('Availability end time must be after start time.')
+
+        if not self.officer_id or not self.available_date or not self.start_time or not self.end_time:
+            return
+
+        overlapping = AppointmentAvailability.objects.filter(
+            officer_id=self.officer_id,
+            available_date=self.available_date,
+            is_active=True,
+        ).exclude(pk=self.pk)
+
+        for slot in overlapping:
+            if self.start_time < slot.end_time and self.end_time > slot.start_time:
+                raise ValidationError('Availability overlaps with an existing slot.')
+
+    @property
+    def is_free(self):
+        active_statuses = ['pending', 'confirmed', 'completed']
+        return not self.appointments.filter(status__in=active_statuses).exists()
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.officer} - {self.available_date} {self.start_time:%H:%M}"
+
+
 class PublicAnnouncement(models.Model):
     title = models.CharField(max_length=200)
     message = models.TextField()
@@ -677,17 +730,28 @@ class AnnouncementComment(models.Model):
 
 
 class Appointment(models.Model):
+    ISSUE_TYPE_CHOICES = [
+        ('complaint', 'Complaint'),
+        ('support', 'Support'),
+        ('inquiry', 'Inquiry'),
+        ('service_request', 'Service Request'),
+        ('other', 'Other'),
+    ]
+
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('confirmed', 'Confirmed'),
-        ('cancelled', 'Cancelled'),
+        ('rejected', 'Rejected'),
         ('completed', 'Completed'),
+        ('canceled', 'Canceled'),
     ]
 
     complaint = models.ForeignKey(
         Complaint,
         on_delete=models.CASCADE,
-        related_name='appointments'
+        related_name='appointments',
+        null=True,
+        blank=True,
     )
     requested_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -701,15 +765,62 @@ class Appointment(models.Model):
         blank=True,
         related_name='appointments_assigned'
     )
-    scheduled_at = models.DateTimeField()
+    availability_slot = models.ForeignKey(
+        AppointmentAvailability,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='appointments'
+    )
+    issue_type = models.CharField(max_length=30, choices=ISSUE_TYPE_CHOICES, default='complaint')
+    description = models.TextField()
+    preferred_date = models.DateField(null=True, blank=True)
+    scheduled_at = models.DateTimeField(null=True, blank=True)
     location = models.CharField(max_length=255, blank=True)
     note = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    rejection_reason = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-scheduled_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['requested_by', 'status']),
+            models.Index(fields=['officer', 'status']),
+        ]
+
+    def clean(self):
+        if self.availability_slot_id:
+            slot = self.availability_slot
+            if self.officer_id and slot.officer_id != self.officer_id:
+                raise ValidationError('Selected availability slot does not belong to the assigned officer.')
+            if not self.officer_id:
+                self.officer = slot.officer
+            if self.scheduled_at is None:
+                self.scheduled_at = datetime.combine(slot.available_date, slot.start_time)
+                if timezone.is_naive(self.scheduled_at):
+                    self.scheduled_at = timezone.make_aware(self.scheduled_at)
+
+            active_appointments = Appointment.objects.filter(
+                availability_slot=slot,
+                status__in=['pending', 'confirmed', 'completed'],
+            ).exclude(pk=self.pk)
+            if active_appointments.exists():
+                raise ValidationError('Selected time slot is no longer available.')
+
+        if self.complaint_id is None and not self.description:
+            raise ValidationError({'description': 'Description is required for appointment requests.'})
+
+        if self.preferred_date and self.availability_slot_id and self.availability_slot.available_date < self.preferred_date:
+            raise ValidationError({'preferred_date': 'Preferred date cannot be after the selected slot date.'})
+
+        if self.status == 'rejected' and not self.rejection_reason:
+            self.rejection_reason = 'Request rejected by officer.'
 
     def __str__(self):
-        return f"Appointment for {self.complaint.complaint_id} on {self.scheduled_at:%Y-%m-%d %H:%M}"
+        target = self.complaint.complaint_id if self.complaint_id else self.issue_type
+        if self.scheduled_at:
+            return f"Appointment for {target} on {self.scheduled_at:%Y-%m-%d %H:%M}"
+        return f"Appointment for {target}"

@@ -76,8 +76,8 @@ const FeedbackFormBuilder = ({ onSave }) => {
     try {
       const regex = new RegExp(targetUserSearchRegex.trim(), 'i');
       filteredUsers = normalizedUsers.filter((user) => regex.test(`${user.label} ${user.email}`.trim()));
-    } catch (_error) {
-      regexSearchError = 'Invalid regex pattern. Example: john|mary';
+    } catch {
+      regexSearchError = 'Invalid regex pattern. Example: Abebe|@school\.edu';
       filteredUsers = [];
     }
   }

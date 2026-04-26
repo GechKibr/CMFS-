@@ -6,6 +6,7 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from accounts.models import User
 from .models import FeedbackAnswer, FeedbackResponse, FeedbackTemplate, TemplateField
 from .notification_service import notify_users_about_template
 from .serializers import (
@@ -73,6 +74,27 @@ class FeedbackTemplateViewSet(viewsets.ModelViewSet):
         if not self._can_manage_template(self.request.user, instance):
             raise permissions.PermissionDenied('You do not have permission to delete this template')
         instance.delete()
+
+    @action(detail=False, methods=['get'], url_path='target-users')
+    def target_users(self, request):
+        user = request.user
+        if not (user.is_admin() or user.is_officer()):
+            return Response({'error': 'Only officers and admins can list target users.'}, status=status.HTTP_403_FORBIDDEN)
+
+        queryset = User.objects.filter(is_active=True).exclude(id=user.id).order_by('first_name', 'last_name', 'email')
+        payload = [
+            {
+                'id': item.id,
+                'email': item.email,
+                'first_name': item.first_name,
+                'last_name': item.last_name,
+                'full_name': item.full_name,
+                'role': item.role,
+                'is_active': item.is_active,
+            }
+            for item in queryset
+        ]
+        return Response(payload, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):

@@ -27,7 +27,7 @@ const UserDashboard = () => {
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [institutions, setInstitutions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(3);
+  const [unreadCount, setUnreadCount] = useState();
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -136,7 +136,7 @@ const UserDashboard = () => {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <DashboardNavbar onSidebarToggle={handleSidebarToggle} />
+      <DashboardNavbar onSidebarToggle={handleSidebarToggle} showOfficerNotifications />
 
       <div className="flex pt-20">
         <Sidebar

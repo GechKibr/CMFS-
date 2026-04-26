@@ -2,6 +2,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from complaints.models import Notification
 from .models import HelpdeskMessage, HelpdeskSession, HelpdeskSessionParticipant
 
 User = get_user_model()
@@ -104,6 +105,17 @@ class HelpdeskService:
                 )
             )
         HelpdeskSessionParticipant.objects.bulk_create(participants)
+
+        invitees = User.objects.filter(id__in=participant_ids - {creator.id}, is_active=True)
+        for invitee in invitees:
+            Notification.objects.create(
+                user=invitee,
+                notification_type='helpdesk_invitation',
+                helpdesk_session_id=session.id,
+                title='Helpdesk invitation',
+                message=f"You were invited to a helpdesk {session.get_kind_display().lower()} session{f' titled \"{session.title}\"' if session.title else ''}.",
+            )
+
         return session
 
     @staticmethod

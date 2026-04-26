@@ -547,6 +547,7 @@ class Notification(models.Model):
         ('escalation_update', 'Escalation Update'),
         ('max_escalation', 'Max Escalation'),
         ('complaint_update', 'Complaint Update'),
+        ('helpdesk_invitation', 'Helpdesk Invitation'),
         ('new_assignment', 'New Assignment'),
         ('resolution_reminder', 'Resolution Reminder'),
         ('general', 'General'),
@@ -564,6 +565,7 @@ class Notification(models.Model):
         blank=True,
         related_name='notifications'
     )
+    helpdesk_session_id = models.UUIDField(null=True, blank=True)
     notification_type = models.CharField(
         max_length=30,
         choices=NOTIFICATION_TYPE_CHOICES,

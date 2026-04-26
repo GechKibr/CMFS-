@@ -191,24 +191,6 @@ const OfficerSchedule = () => {
                   <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[appointment.status] || 'bg-gray-100 text-gray-700'}`}>
                     {appointment.status}
                   </span>
-                  {appointment.status === 'pending' && (
-                    <div className="flex gap-1">
-                      <button
-                        disabled={updatingId === appointment.id}
-                        onClick={() => updateStatus(appointment.id, 'confirmed')}
-                        className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50"
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        disabled={updatingId === appointment.id}
-                        onClick={() => updateStatus(appointment.id, 'cancelled')}
-                        className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded disabled:opacity-50"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
                   {appointment.status === 'confirmed' && (
                     <button
                       disabled={updatingId === appointment.id}

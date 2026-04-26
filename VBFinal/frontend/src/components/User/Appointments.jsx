@@ -15,21 +15,36 @@ const Appointments = () => {
   const { t } = useLanguage();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState(null);
+
+  const loadAppointments = async () => {
+    try {
+      const appts = await apiService.getAppointments();
+      setAppointments(appts.results ?? appts ?? []);
+    } catch {
+      setAppointments([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadAppointments = async () => {
-      try {
-        const appts = await apiService.getAppointments();
-        setAppointments(appts.results ?? appts ?? []);
-      } catch {
-        setAppointments([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadAppointments();
   }, []);
+
+  const updateStatus = async (appointmentId, status) => {
+    setUpdatingId(appointmentId);
+    try {
+      const updated = await apiService.updateAppointmentStatus(appointmentId, status);
+      setAppointments((prev) => prev.map((appointment) => (
+        appointment.id === appointmentId ? updated : appointment
+      )));
+    } catch (error) {
+      console.error('Failed to update appointment status:', error);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const cardCls = `${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl border shadow-sm p-5`;
 
@@ -71,9 +86,31 @@ const Appointments = () => {
                   </div>
                   {appointment.note && <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{appointment.note}</p>}
                 </div>
-                <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[appointment.status]}`}>
-                  {appointment.status}
-                </span>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[appointment.status]}`}>
+                    {appointment.status}
+                  </span>
+                  {appointment.status === 'pending' && (
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        disabled={updatingId === appointment.id}
+                        onClick={() => updateStatus(appointment.id, 'confirmed')}
+                        className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        type="button"
+                        disabled={updatingId === appointment.id}
+                        onClick={() => updateStatus(appointment.id, 'cancelled')}
+                        className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

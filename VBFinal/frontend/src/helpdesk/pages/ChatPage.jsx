@@ -42,7 +42,7 @@ const DEFAULT_LIVEKIT_FALLBACK_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0', '::
 const parseHostList = (rawValue, fallbackHosts) => {
   const source = (rawValue || '').trim();
   const hosts = source ? source.split(',') : fallbackHosts;
-  return hosts.map((host) => host.trim()).filter(Boolean);
+  return hosts.map((host) => host.trim().toLowerCase()).filter(Boolean);
 };
 
 const LOCAL_HOSTNAMES = new Set(
@@ -52,6 +52,11 @@ const LIVEKIT_FALLBACK_HOSTS = parseHostList(
   import.meta.env.VITE_LIVEKIT_FALLBACK_HOSTS,
   DEFAULT_LIVEKIT_FALLBACK_HOSTS,
 );
+
+const isLoopbackHost = (hostname) => {
+  const normalizedHost = (hostname || '').toLowerCase();
+  return LOCAL_HOSTNAMES.has(normalizedHost);
+};
 
 const resolveLivekitConnectUrl = (rawUrl) => {
   if (!rawUrl) {
@@ -65,7 +70,7 @@ const resolveLivekitConnectUrl = (rawUrl) => {
     }
 
     const currentHost = window.location.hostname;
-    if (LOCAL_HOSTNAMES.has(livekitUrl.hostname) && currentHost) {
+    if (isLoopbackHost(livekitUrl.hostname) && currentHost) {
       livekitUrl.hostname = currentHost;
     }
 
@@ -83,7 +88,7 @@ const buildLocalHostFallbackUrls = (connectUrl) => {
   const fallbacks = [];
   try {
     const parsed = new URL(connectUrl);
-    if (!LOCAL_HOSTNAMES.has(parsed.hostname)) {
+    if (!isLoopbackHost(parsed.hostname)) {
       return fallbacks;
     }
 

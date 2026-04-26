@@ -9,6 +9,23 @@ const FIELD_TYPES = [
   { type: 'checkbox', label: 'Checkboxes' }
 ];
 
+const getEntityId = (item, fallbackKeys = []) => {
+  if (!item || typeof item !== 'object') return null;
+  if (item.id != null) return item.id;
+  for (const key of fallbackKeys) {
+    if (item[key] != null) return item[key];
+  }
+  return null;
+};
+
+const getEntityLabel = (item, fallbackKeys = []) => {
+  if (!item || typeof item !== 'object') return '';
+  for (const key of fallbackKeys) {
+    if (item[key]) return item[key];
+  }
+  return String(getEntityId(item) || 'Unknown');
+};
+
 const FeedbackFormBuilder = ({ onSave }) => {
   const [formTitle, setFormTitle] = useState('');
   const [formDescription, setFormDescription] = useState('');
@@ -18,29 +35,97 @@ const FeedbackFormBuilder = ({ onSave }) => {
   const [targetCollege, setTargetCollege] = useState('');
   const [targetDepartment, setTargetDepartment] = useState('');
   const [targetUserIds, setTargetUserIds] = useState([]);
+  const [targetUserSearchRegex, setTargetUserSearchRegex] = useState('');
   const [campuses, setCampuses] = useState([]);
   const [colleges, setColleges] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [users, setUsers] = useState([]);
 
+  const normalizedCampuses = campuses
+    .map((campus) => ({
+      id: getEntityId(campus, ['campus_id']),
+      label: getEntityLabel(campus, ['campus_name', 'name']),
+    }))
+    .filter((campus) => campus.id != null);
+
+  const normalizedColleges = colleges
+    .map((college) => ({
+      id: getEntityId(college, ['college_id']),
+      label: getEntityLabel(college, ['college_name', 'name']),
+    }))
+    .filter((college) => college.id != null);
+
+  const normalizedDepartments = departments
+    .map((department) => ({
+      id: getEntityId(department, ['department_id']),
+      label: getEntityLabel(department, ['department_name', 'name']),
+    }))
+    .filter((department) => department.id != null);
+
+  const normalizedUsers = users
+    .map((user) => ({
+      id: String(getEntityId(user, ['user_id'])),
+      label: (user.full_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'Unknown User').trim(),
+      email: user.email || '',
+    }))
+    .filter((user) => user.id !== 'null');
+
+  let filteredUsers = normalizedUsers;
+  let regexSearchError = '';
+  if (targetUserSearchRegex.trim()) {
+    try {
+      const regex = new RegExp(targetUserSearchRegex.trim(), 'i');
+      filteredUsers = normalizedUsers.filter((user) => regex.test(`${user.label} ${user.email}`.trim()));
+    } catch (_error) {
+      regexSearchError = 'Invalid regex pattern. Example: john|mary';
+      filteredUsers = [];
+    }
+  }
+
   useEffect(() => {
     const loadTargetOptions = async () => {
-      try {
-        const [campusesData, collegesData, departmentsData, usersData] = await Promise.all([
-          apiService.getCampuses(),
-          apiService.getColleges(),
-          apiService.getDepartments(),
-          apiService.getAllUsers(),
-        ]);
-        setCampuses(campusesData.results || campusesData || []);
-        setColleges(collegesData.results || collegesData || []);
-        setDepartments(departmentsData.results || departmentsData || []);
+      const [campusesResult, collegesResult, departmentsResult, usersResult] = await Promise.allSettled([
+        apiService.getCampuses(),
+        apiService.getColleges(),
+        apiService.getDepartments(),
+        apiService.getFeedbackTargetUsers(),
+      ]);
 
-        const fetchedUsers = usersData.results || usersData || [];
+      if (campusesResult.status === 'fulfilled') {
+        setCampuses(campusesResult.value.results || campusesResult.value || []);
+      } else {
+        console.error('Failed to load campuses:', campusesResult.reason);
+        setCampuses([]);
+      }
+
+      if (collegesResult.status === 'fulfilled') {
+        setColleges(collegesResult.value.results || collegesResult.value || []);
+      } else {
+        console.error('Failed to load colleges:', collegesResult.reason);
+        setColleges([]);
+      }
+
+      if (departmentsResult.status === 'fulfilled') {
+        setDepartments(departmentsResult.value.results || departmentsResult.value || []);
+      } else {
+        console.error('Failed to load departments:', departmentsResult.reason);
+        setDepartments([]);
+      }
+
+      if (usersResult.status === 'fulfilled') {
+        const fetchedUsers = usersResult.value.results || usersResult.value || [];
         // Some API responses omit is_active; keep users selectable unless explicitly inactive.
         setUsers(fetchedUsers.filter((user) => user.is_active !== false));
-      } catch (error) {
-        console.error('Failed to load audience options:', error);
+      } else {
+        console.error('Failed to load feedback target users, trying fallback accounts API:', usersResult.reason);
+        try {
+          const fallbackUsers = await apiService.getAllUsers();
+          const fetchedUsers = fallbackUsers.results || fallbackUsers || [];
+          setUsers(fetchedUsers.filter((user) => user.is_active !== false));
+        } catch (fallbackError) {
+          console.error('Failed to load users for targeting:', fallbackError);
+          setUsers([]);
+        }
       }
     };
 
@@ -164,7 +249,10 @@ const FeedbackFormBuilder = ({ onSave }) => {
                 if (nextScope !== 'campus') setTargetCampus('');
                 if (nextScope !== 'college') setTargetCollege('');
                 if (nextScope !== 'department') setTargetDepartment('');
-                if (nextScope !== 'users') setTargetUserIds([]);
+                if (nextScope !== 'users') {
+                  setTargetUserIds([]);
+                  setTargetUserSearchRegex('');
+                }
               }}
               className="w-full p-2 border-2 border-gray-300 rounded-lg"
             >
@@ -181,8 +269,8 @@ const FeedbackFormBuilder = ({ onSave }) => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Target Campus</label>
               <select value={targetCampus} onChange={(e) => setTargetCampus(e.target.value)} className="w-full p-2 border-2 border-gray-300 rounded-lg">
                 <option value="">Select campus</option>
-                {campuses.map((campus) => (
-                  <option key={campus.id} value={campus.id}>{campus.campus_name}</option>
+                {normalizedCampuses.map((campus) => (
+                  <option key={campus.id} value={campus.id}>{campus.label}</option>
                 ))}
               </select>
             </div>
@@ -193,8 +281,8 @@ const FeedbackFormBuilder = ({ onSave }) => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Target College</label>
               <select value={targetCollege} onChange={(e) => setTargetCollege(e.target.value)} className="w-full p-2 border-2 border-gray-300 rounded-lg">
                 <option value="">Select college</option>
-                {colleges.map((college) => (
-                  <option key={college.id} value={college.id}>{college.college_name}</option>
+                {normalizedColleges.map((college) => (
+                  <option key={college.id} value={college.id}>{college.label}</option>
                 ))}
               </select>
             </div>
@@ -205,8 +293,8 @@ const FeedbackFormBuilder = ({ onSave }) => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Target Department</label>
               <select value={targetDepartment} onChange={(e) => setTargetDepartment(e.target.value)} className="w-full p-2 border-2 border-gray-300 rounded-lg">
                 <option value="">Select department</option>
-                {departments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.department_name}</option>
+                {normalizedDepartments.map((department) => (
+                  <option key={department.id} value={department.id}>{department.label}</option>
                 ))}
               </select>
             </div>
@@ -215,14 +303,24 @@ const FeedbackFormBuilder = ({ onSave }) => {
           {audienceScope === 'users' && (
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Target Users</label>
+              <input
+                type="text"
+                value={targetUserSearchRegex}
+                onChange={(e) => setTargetUserSearchRegex(e.target.value)}
+                placeholder="Search users (regex), e.g. john|mary|@school.edu"
+                className="w-full p-2 mb-2 border-2 border-gray-300 rounded-lg"
+              />
+              {regexSearchError && (
+                <p className="text-sm text-red-600 mb-2">{regexSearchError}</p>
+              )}
               <div className="max-h-40 overflow-y-auto border-2 border-gray-300 rounded-lg p-3 bg-white">
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <label key={user.id} className="flex items-center gap-2 text-sm mb-1">
                     <input
                       type="checkbox"
-                      checked={targetUserIds.includes(String(user.id))}
+                      checked={targetUserIds.includes(user.id)}
                       onChange={(e) => {
-                        const userId = String(user.id);
+                        const userId = user.id;
                         if (e.target.checked) {
                           setTargetUserIds((prev) => (prev.includes(userId) ? prev : [...prev, userId]));
                         } else {
@@ -230,10 +328,10 @@ const FeedbackFormBuilder = ({ onSave }) => {
                         }
                       }}
                     />
-                    <span>{user.first_name} {user.last_name} ({user.email})</span>
+                    <span>{user.label}{user.email ? ` (${user.email})` : ''}</span>
                   </label>
                 ))}
-                {users.length === 0 && (
+                {filteredUsers.length === 0 && !regexSearchError && (
                   <p className="text-sm text-gray-500">No active users available for targeting.</p>
                 )}
               </div>

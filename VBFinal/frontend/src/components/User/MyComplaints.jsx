@@ -4,6 +4,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../../services/api';
 
+const STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'escalated', label: 'Escalated' },
+  { value: 'resolved', label: 'Resolved' },
+  { value: 'closed', label: 'Closed' },
+];
+
 const MyComplaints = ({ getStatusBadge }) => {
   const { isDark } = useTheme();
   const { user } = useAuth();
@@ -70,11 +78,12 @@ const MyComplaints = ({ getStatusBadge }) => {
 
   const getStats = () => {
     const total = complaints.length;
-    const pending = complaints.filter(c => c.status === 'pending').length;
-    const inProgress = complaints.filter(c => c.status === 'in_progress').length;
-    const resolved = complaints.filter(c => c.status === 'resolved').length;
+    const statusCounts = STATUS_OPTIONS.reduce((counts, option) => {
+      counts[option.value] = complaints.filter((complaint) => complaint.status === option.value).length;
+      return counts;
+    }, {});
 
-    return { total, pending, inProgress, resolved };
+    return { total, ...statusCounts };
   };
 
   const handleDeleteComplaint = async (complaintId) => {
@@ -107,23 +116,21 @@ const MyComplaints = ({ getStatusBadge }) => {
   return (
     <div className="space-y-6">
       {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
         <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
           <div className="text-2xl font-bold text-blue-500">{stats.total}</div>
           <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Complaints</div>
         </div>
-        <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
-          <div className="text-2xl font-bold text-yellow-500">{stats.pending}</div>
-          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending</div>
-        </div>
-        <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
-          <div className="text-2xl font-bold text-blue-500">{stats.inProgress}</div>
-          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>In Progress</div>
-        </div>
-        <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
-          <div className="text-2xl font-bold text-green-500">{stats.resolved}</div>
-          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Resolved</div>
-        </div>
+        {STATUS_OPTIONS.map((option) => (
+          <div key={option.value} className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
+            <div className="text-2xl font-bold text-blue-500">
+              {stats[option.value]}
+            </div>
+            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              {option.label}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Filters */}
@@ -151,10 +158,11 @@ const MyComplaints = ({ getStatusBadge }) => {
               className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
             >
               <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="in_progress">In Progress</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
           <div>

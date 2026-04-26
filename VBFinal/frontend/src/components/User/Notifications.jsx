@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import apiService from '../../services/api';
 import { openRealtimeSocket } from '../../services/realtime';
 
 const Notifications = ({ setUnreadCount }) => {
+  const navigate = useNavigate();
   const { isDark } = useTheme();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -121,10 +123,18 @@ const Notifications = ({ setUnreadCount }) => {
     );
   };
 
-  const deleteNotification = (notificationId) => {
-    setNotifications(prev =>
-      prev.filter(notification => notification.id !== notificationId)
-    );
+  const deleteNotification = async (notificationId) => {
+    if (`${notificationId}`.startsWith('appt-')) {
+      setNotifications((prev) => prev.filter((notification) => notification.id !== notificationId));
+      return;
+    }
+
+    try {
+      await apiService.deleteNotification(notificationId);
+      setNotifications((prev) => prev.filter((notification) => notification.id !== notificationId));
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+    }
   };
 
   const filteredNotifications = notifications.filter(notification => {
@@ -141,6 +151,32 @@ const Notifications = ({ setUnreadCount }) => {
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
+
+  const getNotificationTarget = (notification) => {
+    if (notification.helpdesk_session_id) {
+      return `/helpdesk/${notification.helpdesk_session_id}`;
+    }
+
+    if (notification.type === 'appointment') {
+      return '/user?tab=appointments';
+    }
+
+    if (notification.complaint_id) {
+      return `/user/complaints/${notification.complaint_id}`;
+    }
+
+    return null;
+  };
+
+  const handleNotificationClick = async (notification) => {
+    const target = getNotificationTarget(notification);
+    if (!notification.read) {
+      await markAsRead(notification.id);
+    }
+    if (target) {
+      navigate(target);
+    }
   };
 
   if (loading) {
@@ -211,10 +247,21 @@ const Notifications = ({ setUnreadCount }) => {
             {filteredNotifications.map((notification) => (
               <div
                 key={notification.id}
+                role={getNotificationTarget(notification) ? 'button' : undefined}
+                tabIndex={getNotificationTarget(notification) ? 0 : undefined}
+                onClick={() => getNotificationTarget(notification) && handleNotificationClick(notification)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    if (getNotificationTarget(notification)) {
+                      handleNotificationClick(notification);
+                    }
+                  }
+                }}
                 className={`p-4 transition-colors ${!notification.read
                   ? isDark ? 'bg-gray-750 hover:bg-gray-700' : 'bg-blue-50 hover:bg-blue-100'
                   : isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
-                  }`}
+                  } ${getNotificationTarget(notification) ? 'cursor-pointer' : ''}`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-3 flex-1">
@@ -241,7 +288,10 @@ const Notifications = ({ setUnreadCount }) => {
                   <div className="flex items-center space-x-2 ml-4">
                     {!notification.read && (
                       <button
-                        onClick={() => markAsRead(notification.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          markAsRead(notification.id);
+                        }}
                         className="p-1 text-blue-500 hover:text-blue-700 transition-colors"
                         title="Mark as read"
                       >
@@ -249,7 +299,10 @@ const Notifications = ({ setUnreadCount }) => {
                       </button>
                     )}
                     <button
-                      onClick={() => deleteNotification(notification.id)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteNotification(notification.id);
+                      }}
                       className="p-1 text-red-500 hover:text-red-700 transition-colors"
                       title="Delete notification"
                     >

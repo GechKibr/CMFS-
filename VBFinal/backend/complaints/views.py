@@ -836,12 +836,22 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['patch'], url_path='status')
     def update_status(self, request, pk=None):
         appointment = self.get_object()
-        if request.user.role not in ('officer', 'admin'):
-            return DRFResponse({'error': 'Only officers and admins can update appointment status.'}, status=status.HTTP_403_FORBIDDEN)
-
         new_status = request.data.get('status')
         if new_status not in dict(Appointment.STATUS_CHOICES):
             return DRFResponse({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.user.role in ('officer', 'admin'):
+            appointment.status = new_status
+            appointment.save()
+            return DRFResponse(AppointmentSerializer(appointment).data)
+
+        if (
+            appointment.complaint.submitted_by_id != request.user.id
+            or appointment.status != 'pending'
+            or new_status not in {'confirmed', 'cancelled'}
+        ):
+            return DRFResponse({'error': 'You do not have permission to update this appointment.'}, status=status.HTTP_403_FORBIDDEN)
+
         appointment.status = new_status
         appointment.save()
         return DRFResponse(AppointmentSerializer(appointment).data)

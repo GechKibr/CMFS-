@@ -209,3 +209,84 @@ class MicrosoftAuthCallbackTests(APITestCase):
         self.assertEqual(query.get('is_new'), ['true'])
         self.assertEqual(query.get('email'), ['new.user@example.com'])
         self.assertTrue(User.objects.filter(email='new.user@example.com').exists())
+
+
+class MicrosoftMobileAuthTests(APITestCase):
+    def _mock_graph_user_response(self, email='mobile.user@example.com', microsoft_id='mobile-ms-uid'):
+        class MockResponse:
+            status_code = 200
+
+            @staticmethod
+            def json():
+                return {
+                    'mail': email,
+                    'userPrincipalName': email,
+                    'id': microsoft_id,
+                    'givenName': 'Mobile',
+                    'surname': 'User',
+                }
+
+        return MockResponse()
+
+    @patch('accounts.microsoft_auth.requests.get')
+    def test_mobile_auth_existing_user_returns_jwt(self, mock_get):
+        existing_user = User.objects.create_user(
+            email='mobile.user@example.com',
+            password='Password123!',
+            first_name='Mobile',
+            last_name='Existing',
+            role=User.ROLE_USER,
+        )
+        mock_get.return_value = self._mock_graph_user_response()
+
+        response = self.client.post(
+            reverse('microsoft-mobile-auth'),
+            {'access_token': 'valid-mobile-graph-token'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('access', response.data)
+        self.assertIn('refresh', response.data)
+        self.assertFalse(response.data['is_new'])
+
+        existing_user.refresh_from_db()
+        self.assertEqual(existing_user.microsoft_id, 'mobile-ms-uid')
+        self.assertEqual(existing_user.auth_provider, User.AUTH_MICROSOFT)
+
+    @patch('accounts.microsoft_auth.requests.get')
+    def test_mobile_auth_creates_new_user(self, mock_get):
+        mock_get.return_value = self._mock_graph_user_response(
+            email='new.mobile.user@example.com',
+            microsoft_id='mobile-ms-uid-new',
+        )
+
+        response = self.client.post(
+            reverse('microsoft-mobile-auth'),
+            {'access_token': 'valid-mobile-graph-token'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['is_new'])
+        self.assertTrue(User.objects.filter(email='new.mobile.user@example.com').exists())
+
+    @patch('accounts.microsoft_auth.requests.get')
+    def test_mobile_auth_rejects_invalid_or_expired_token(self, mock_get):
+        class UnauthorizedResponse:
+            status_code = 401
+
+            @staticmethod
+            def json():
+                return {'error': {'message': 'Invalid authentication token'}}
+
+        mock_get.return_value = UnauthorizedResponse()
+
+        response = self.client.post(
+            reverse('microsoft-mobile-auth'),
+            {'access_token': 'invalid-token'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.data['error'], 'Invalid or expired Microsoft access token.')

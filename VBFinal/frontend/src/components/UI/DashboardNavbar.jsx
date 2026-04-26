@@ -15,7 +15,7 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
   const [notificationsLoading, setNotificationsLoading] = useState(false);
 
   const currentRole = (getUserRole?.() || user?.role || '').toLowerCase();
-  const shouldShowNotifications = showOfficerNotifications && currentRole === 'officer';
+  const shouldShowNotifications = showOfficerNotifications && (currentRole === 'officer' || currentRole === 'user');
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.is_read).length,
@@ -100,6 +100,24 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
     const firstName = user?.first_name || '';
     const lastName = user?.last_name || '';
     return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U';
+  };
+
+  const getNotificationTarget = (notification) => {
+    if (notification.helpdesk_session_id) {
+      return `/helpdesk/${notification.helpdesk_session_id}`;
+    }
+
+    if (notification.notification_type === 'appointment' || notification.type === 'appointment') {
+      return currentRole === 'officer' ? '/officer?tab=schedule' : '/user?tab=appointments';
+    }
+
+    if (notification.complaint_id) {
+      return currentRole === 'officer'
+        ? `/officer/complaints/${notification.complaint_id}`
+        : `/user/complaints/${notification.complaint_id}`;
+    }
+
+    return null;
   };
 
   const headerClasses = isDark
@@ -238,12 +256,13 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
                           key={notification.id}
                           type="button"
                           onClick={async () => {
+                            const target = getNotificationTarget(notification);
                             if (!notification.is_read) {
                               await handleMarkNotificationRead(notification.id);
                             }
                             setNotificationsOpen(false);
-                            if (notification.complaint_id) {
-                              navigate(`/officer/complaints/${notification.complaint_id}`);
+                            if (target) {
+                              navigate(target);
                             }
                           }}
                           className={`w-full text-left px-4 py-3 border-b last:border-b-0 transition-colors ${isDark ? 'border-gray-700 hover:bg-gray-700' : 'border-gray-100 hover:bg-gray-50'} ${!notification.is_read ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}

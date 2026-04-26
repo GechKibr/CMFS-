@@ -206,6 +206,10 @@ class ApiService {
     });
   }
 
+  async getFeedbackTargetUsers() {
+    return this.request('/feedback/templates/target-users/');
+  }
+
   async approveFeedbackTemplate(templateId) {
     return this.request(`/feedback/templates/${templateId}/approve/`, {
       method: 'POST'
@@ -797,6 +801,12 @@ class ApiService {
   async markAllNotificationsAsRead() {
     return this.request('/notifications/mark-all-as-read/', {
       method: 'POST',
+    });
+  }
+
+  async deleteNotification(id) {
+    return this.request(`/notifications/${id}/`, {
+      method: 'DELETE',
     });
   }
 

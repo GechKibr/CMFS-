@@ -102,6 +102,7 @@ def serialize_notification(notification):
         'complaint': notification.complaint_id,
         'complaint_id': str(notification.complaint_id) if notification.complaint_id else None,
         'complaint_title': notification.complaint.title if notification.complaint_id else None,
+        'helpdesk_session_id': str(notification.helpdesk_session_id) if getattr(notification, 'helpdesk_session_id', None) else None,
         'notification_type': notification.notification_type,
         'title': notification.title,
         'message': notification.message,

@@ -206,15 +206,17 @@ const ComplaintAnalyticsPanel = ({
     };
   }, [loadAnalytics]);
 
+  const safeSummary = useMemo(() => summary || normalizeSummary({}), [summary]);
+
   const trendMax = useMemo(() => {
-    if (!summary?.daily_trend?.length) return 0;
-    return Math.max(...summary.daily_trend.map((item) => item.count), 1);
-  }, [summary]);
+    if (!safeSummary?.daily_trend?.length) return 0;
+    return Math.max(...safeSummary.daily_trend.map((item) => item.count), 1);
+  }, [safeSummary]);
 
   const statusEntries = Object.keys(statusLabels).map((key) => ({
     key,
     label: statusLabels[key],
-    count: summary?.status_counts?.[key] || 0,
+    count: safeSummary?.status_counts?.[key] || 0,
     color: statusColors[key] || 'bg-gray-500',
   }));
 
@@ -231,7 +233,7 @@ const ComplaintAnalyticsPanel = ({
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${accent === 'emerald' ? 'text-emerald-600' : 'text-blue-600'}`}>
-            {summary?.scope === 'officer' ? 'Assigned Complaints' : 'Campus-wide Complaints'}
+            {safeSummary?.scope === 'officer' ? 'Assigned Complaints' : 'Campus-wide Complaints'}
           </p>
           <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
           {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
@@ -248,7 +250,7 @@ const ComplaintAnalyticsPanel = ({
       )}
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <MetricCard label="Total" value={summary?.total || 0} accentClass={accent === 'emerald' ? 'bg-emerald-600' : 'bg-blue-600'} />
+        <MetricCard label="Total" value={safeSummary?.total || 0} accentClass={accent === 'emerald' ? 'bg-emerald-600' : 'bg-blue-600'} />
         {statusEntries.map((entry) => (
           <MetricCard key={entry.key} label={entry.label} value={entry.count} accentClass={entry.color} />
         ))}
@@ -261,7 +263,7 @@ const ComplaintAnalyticsPanel = ({
             <span className="text-xs text-gray-500">Last 7 days</span>
           </div>
           <div className="flex h-48 items-end gap-2">
-            {(summary?.daily_trend || []).map((item) => (
+            {(safeSummary?.daily_trend || []).map((item) => (
               <div key={item.date} className="flex flex-1 flex-col items-center gap-2">
                 <div className="flex h-36 w-full items-end">
                   <div
@@ -281,10 +283,10 @@ const ComplaintAnalyticsPanel = ({
             <span className="text-xs text-gray-500">Top categories</span>
           </div>
           <div className="space-y-3">
-            {(summary?.category_breakdown || []).length === 0 ? (
+            {(safeSummary?.category_breakdown || []).length === 0 ? (
               <p className="text-sm text-gray-500">No category data yet.</p>
             ) : (
-              summary.category_breakdown.map((item) => (
+              safeSummary.category_breakdown.map((item) => (
                 <div key={item.label}>
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className="font-medium text-gray-700">{item.label}</span>
@@ -293,7 +295,7 @@ const ComplaintAnalyticsPanel = ({
                   <div className="h-2 overflow-hidden rounded-full bg-gray-200">
                     <div
                       className={`h-full rounded-full ${accent === 'emerald' ? 'bg-emerald-500' : 'bg-blue-500'}`}
-                      style={{ width: `${Math.max((item.count / Math.max(summary.total || 1, 1)) * 100, 8)}%` }}
+                      style={{ width: `${Math.max((item.count / Math.max(safeSummary.total || 1, 1)) * 100, 8)}%` }}
                     />
                   </div>
                 </div>
@@ -309,10 +311,10 @@ const ComplaintAnalyticsPanel = ({
           <span className="text-xs text-gray-500">Auto refreshed</span>
         </div>
         <div className="space-y-3">
-          {(summary?.recent_complaints || []).length === 0 ? (
+          {(safeSummary?.recent_complaints || []).length === 0 ? (
             <p className="text-sm text-gray-500">No complaints to show yet.</p>
           ) : (
-            summary.recent_complaints.map((item) => {
+            safeSummary.recent_complaints.map((item) => {
               const complaintLink = recentComplaintLinkBuilder
                 ? recentComplaintLinkBuilder(item)
                 : null;

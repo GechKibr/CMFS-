@@ -87,74 +87,6 @@ class SystemMonitor:
                 'cache_stats': {'backend': 'unknown', 'location': 'unknown'}
             }
     
-    @staticmethod
-    def get_system_info():
-        """Get real system information"""
-        try:
-            import django
-            import sys
-            import platform
-            from django.db import connection
-            
-            # Get Django version
-            django_version = django.get_version()
-            
-            # Get Python version
-            python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-            
-            # Get OS information
-            os_info = f"{platform.system()} {platform.release()}"
-            
-            # Get database info
-            db_vendor = connection.vendor
-            db_version = "Unknown"
-            try:
-                with connection.cursor() as cursor:
-                    if db_vendor == 'postgresql':
-                        cursor.execute("SELECT version()")
-                        db_version = cursor.fetchone()[0].split()[1]
-                    elif db_vendor == 'sqlite':
-                        cursor.execute("SELECT sqlite_version()")
-                        db_version = cursor.fetchone()[0]
-                    elif db_vendor == 'mysql':
-                        cursor.execute("SELECT VERSION()")
-                        db_version = cursor.fetchone()[0]
-            except:
-                pass
-            
-            # Get server uptime
-            try:
-                import psutil
-                boot_time = psutil.boot_time()
-                uptime_seconds = time.time() - boot_time
-                uptime_days = int(uptime_seconds // 86400)
-                uptime_hours = int((uptime_seconds % 86400) // 3600)
-                uptime_str = f"{uptime_days} days, {uptime_hours} hours"
-            except:
-                uptime_str = "Unknown"
-            
-            return {
-                'django_version': django_version,
-                'python_version': python_version,
-                'os_info': os_info,
-                'database': {
-                    'vendor': db_vendor.title(),
-                    'version': db_version
-                },
-                'uptime': uptime_str,
-                'environment': settings.DEBUG and 'Development' or 'Production'
-            }
-        except Exception as e:
-            logger.error(f"System info error: {e}")
-            return {
-                'django_version': 'Unknown',
-                'python_version': 'Unknown', 
-                'os_info': 'Unknown',
-                'database': {'vendor': 'Unknown', 'version': 'Unknown'},
-                'uptime': 'Unknown',
-                'environment': 'Unknown'
-            }
-
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_system_stats(request):
@@ -186,7 +118,6 @@ def get_system_stats(request):
                 },
                 'database': monitor.get_database_stats(),
                 'django': monitor.get_django_stats(),
-                'system_info': monitor.get_system_info(),
                 'timestamp': time.time(),
                 'mock': True,
                 'cached': False
@@ -213,7 +144,6 @@ def get_system_stats(request):
                 },
                 'database': monitor.get_database_stats(),
                 'django': monitor.get_django_stats(),
-                'system_info': monitor.get_system_info(),
                 'timestamp': time.time(),
                 'mock': False,
                 'cached': False

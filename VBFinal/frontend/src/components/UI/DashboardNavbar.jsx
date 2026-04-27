@@ -182,30 +182,6 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
           >
             Dashboard
           </Link>
-          <Link
-            to="/landing"
-            className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${defaultLinkClasses}`}
-          >
-            Home
-          </Link>
-          <Link
-            to="/landing#features"
-            className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${defaultLinkClasses}`}
-          >
-            Features
-          </Link>
-          <Link
-            to="/landing#about"
-            className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${defaultLinkClasses}`}
-          >
-            About
-          </Link>
-          <Link
-            to="/landing#contact"
-            className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${defaultLinkClasses}`}
-          >
-            Contact
-          </Link>
         </div>
 
         {/* Right: Theme Toggle and User Menu */}

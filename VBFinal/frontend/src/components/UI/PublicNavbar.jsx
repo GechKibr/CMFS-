@@ -18,6 +18,7 @@ const PublicNavbar = () => {
     { name: 'About', path: '/landing#about' },
     { name: 'Contact', path: '/landing#contact' },
   ];
+  const showPublicLinks = !user;
 
   const getDashboardPath = () => {
     const role = getUserRole();
@@ -86,17 +87,19 @@ const PublicNavbar = () => {
         </div>
 
         {/* Navigation Items */}
-        <div className="hidden lg:flex items-center space-x-1">
-          {navItems.map((item) => (
-            <a key={item.name} href={item.path}
-              className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${location.pathname === item.path || (item.path.includes('#') && location.pathname === '/landing')
-                ? activeLinkClasses
-                : defaultLinkClasses
-                }`}>
-              {item.name}
-            </a>
-          ))}
-        </div>
+        {showPublicLinks && (
+          <div className="hidden lg:flex items-center space-x-1">
+            {navItems.map((item) => (
+              <a key={item.name} href={item.path}
+                className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${location.pathname === item.path || (item.path.includes('#') && location.pathname === '/landing')
+                  ? activeLinkClasses
+                  : defaultLinkClasses
+                  }`}>
+                {item.name}
+              </a>
+            ))}
+          </div>
+        )}
 
         {/* Right Side */}
         <div className="flex items-center space-x-3">
@@ -195,20 +198,22 @@ const PublicNavbar = () => {
       </nav>
 
       {/* Mobile Menu */}
-      <div className={`lg:hidden absolute top-full left-0 right-0 px-6 sm:px-8 pb-4 border-t shadow-md ${isDark ? 'border-slate-700 bg-slate-950/95' : 'border-blue-100 bg-white/95'} ${mobileMenuOpen ? 'block' : 'hidden'}`}>
-        <div className="flex flex-col space-y-2">
-          {navItems.map((item) => (
-            <a key={item.name} href={item.path}
-              onClick={() => setMobileMenuOpen(false)}
-              className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-150 ${location.pathname === item.path
-                ? activeLinkClasses
-                : defaultLinkClasses
-                }`}>
-              {item.name}
-            </a>
-          ))}
+      {showPublicLinks && (
+        <div className={`lg:hidden absolute top-full left-0 right-0 px-6 sm:px-8 pb-4 border-t shadow-md ${isDark ? 'border-slate-700 bg-slate-950/95' : 'border-blue-100 bg-white/95'} ${mobileMenuOpen ? 'block' : 'hidden'}`}>
+          <div className="flex flex-col space-y-2">
+            {navItems.map((item) => (
+              <a key={item.name} href={item.path}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-150 ${location.pathname === item.path
+                  ? activeLinkClasses
+                  : defaultLinkClasses
+                  }`}>
+                {item.name}
+              </a>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </header>
   );
 };

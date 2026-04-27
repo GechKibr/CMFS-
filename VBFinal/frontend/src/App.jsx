@@ -62,7 +62,14 @@ const AppContent = () => {
   const { isMaintenanceMode, maintenanceMessage } = useMaintenanceMode();
   const { user, getUserRole } = useAuth();
 
-  // Show maintenance page if maintenance mode is enabled and user is not admin
+  const getDashboardPath = () => {
+    const role = getUserRole();
+    if (role === 'admin') return '/admin';
+    if (role === 'officer') return '/officer';
+    return '/user';
+  };
+
+ 
   if (isMaintenanceMode && (!user || getUserRole() !== 'admin')) {
     return <MaintenancePage message={maintenanceMessage} />;
   }
@@ -71,7 +78,10 @@ const AppContent = () => {
     <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
         {/* Public Routes */}
-        <Route path="/landing" element={<LandingPage />} />
+        <Route
+          path="/landing"
+          element={user ? <Navigate to={getDashboardPath()} replace /> : <LandingPage />}
+        />
         <Route path="/login" element={<Login />} />
         <Route path="/register/complete" element={<RegisterComplete />} />
         <Route path="/auth/success" element={<AuthSuccess />} />

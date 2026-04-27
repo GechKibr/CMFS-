@@ -89,11 +89,11 @@ const Login = () => {
 
   return (
     <div className={`min-h-screen flex ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-white">
         <img
           src="/uog.png"
           alt="University of Gondar"
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-contain object-center"
         />
         <div className="absolute inset-0 bg-slate-900/45" />
         <div className="relative z-10 p-12 flex flex-col justify-end text-white">
@@ -146,8 +146,14 @@ const Login = () => {
 
           <div className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} p-8 rounded-2xl shadow-2xl border`}>
             <div className="text-center mb-8">
-              <div className="mx-auto h-16 w-16 rounded-2xl overflow-hidden border border-gray-200 shadow-lg">
-                <img src="/uog.png" alt="UoG" className="h-full w-full object-cover" width={250} height={162} />
+              <div className="mx-auto h-20 w-20 sm:h-24 sm:w-24 rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white">
+                <img
+                  src="/uog.png"
+                  alt="University of Gondar"
+                  className="h-full w-full object-contain"
+                  width={250}
+                  height={162}
+                />
               </div>
               <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>Welcome Back</h2>
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Sign in to University of Gondar CMFS</p>
@@ -275,9 +281,6 @@ const Login = () => {
                 </div>
               </button>
 
-              <p className={`text-xs text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Use  Gmail on the Forgot Password page for reset and notification emails.
-              </p>
             </form>
           </div>
         </div>

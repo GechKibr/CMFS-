@@ -844,6 +844,18 @@ class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
         active_statuses = ['pending', 'confirmed', 'completed']
         return queryset.filter(is_active=True).exclude(appointments__status__in=active_statuses).distinct()
 
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.is_officer():
+            serializer.save(officer=user)
+            return
+        if user.is_admin():
+            if not serializer.validated_data.get('officer'):
+                raise ValidationError({'officer_id': 'Officer is required for availability slots.'})
+            serializer.save()
+            return
+        raise PermissionDenied('Only officers can create availability slots.')
+
     @action(detail=False, methods=['get'], url_path='available')
     def available(self, request):
         queryset = AppointmentAvailability.objects.select_related('officer').filter(is_active=True)

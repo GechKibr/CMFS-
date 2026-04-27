@@ -5,14 +5,6 @@ import apiService from '../services/api';
 import PublicNavbar from '../components/UI/PublicNavbar';
 import PublicFooter from '../components/UI/PublicFooter';
 
-const developers = [
-  { name: 'student ', role: 'Full Stack Developer', email: 'test@uog.edu.et', github: 'https://github.com/gechkibr', avatar: '👨‍💻' },
-  { name: 'student', role: 'Backend Developer', email: 'test@uog.edu.et', github: 'https://github.com/gechkibr', avatar: '🧑‍💻' },
-  { name: 'student', role: 'Frontend Developer', email: 'test@uog.edu.et', github: 'https://github.com/gechkibr', avatar: '👩‍💻' },
-  { name: 'student', role: 'Backend Developer', email: 'test@uog.edu.et', github: 'https://github.com/gechkibr', avatar: '🧑‍💻' },
-  { name: 'student', role: 'Frontend Developer', email: 'test@uog.edu.et', github: 'https://github.com/gechkibr', avatar: '👩‍💻' },
-];
-
 const LandingPage = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
@@ -268,29 +260,6 @@ const LandingPage = () => {
       {/* Contact Section */}
       <section id="contact" className={`py-20 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Meet the Developers</h2>
-            <p className={`mt-3 text-lg ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Built with University of Gondar</p>
-          </div>
-
-          {/* Developer Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-            {developers.map(dev => (
-              <div key={dev.name} className={`rounded-xl p-6 text-center shadow-md ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                <div className="text-5xl mb-3">{dev.avatar}</div>
-                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{dev.name}</h3>
-                <p className="text-blue-500 text-sm font-medium mb-2">{dev.role}</p>
-                <a href={`mailto:${dev.email}`} className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} hover:text-blue-500`}>{dev.email}</a>
-                <div className="mt-3">
-                  <a href={dev.github} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline">
-                    GitHub →
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
-
           {/* Contact Form */}
           <div className="max-w-2xl mx-auto">
             <h3 className={`text-2xl font-bold text-center mb-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>Send Us a Message</h3>

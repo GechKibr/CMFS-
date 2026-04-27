@@ -14,8 +14,6 @@ const PublicNavbar = () => {
   const navItems = [
     { name: 'Home', path: '/landing' },
     { name: 'Announcements', path: '/landing#announcements' },
-    { name: 'Features', path: '/landing#features' },
-    { name: 'About', path: '/landing#about' },
     { name: 'Contact', path: '/landing#contact' },
   ];
   const showPublicLinks = !user;

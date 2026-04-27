@@ -16,7 +16,6 @@ from .models import (
     Complaint,
     ComplaintAttachment,
     ComplaintCC,
-    Notification,
     PublicAnnouncement,
     ResolverLevel,
     Response,
@@ -391,20 +390,6 @@ class AssignmentSerializer(serializers.ModelSerializer):
         fields = ["id", "complaint", "officer", "level", "assigned_at", "ended_at", "reason"]
 
 
-class NotificationSerializer(serializers.ModelSerializer):
-    complaint_title = serializers.CharField(source="complaint.title", read_only=True, allow_null=True)
-    complaint_id = serializers.CharField(source="complaint.complaint_id", read_only=True, allow_null=True)
-
-    class Meta:
-        model = Notification
-        fields = [
-            "id", "user", "complaint", "complaint_id", "complaint_title",
-            "helpdesk_session_id", "notification_type", "title", "message", "is_read",
-            "read_at", "created_at",
-        ]
-        read_only_fields = ["id", "user", "created_at"]
-
-
 class PublicAnnouncementSerializer(serializers.ModelSerializer):
     created_by_name = serializers.SerializerMethodField(read_only=True)
     likes_count = serializers.SerializerMethodField(read_only=True)
@@ -508,6 +493,12 @@ class AppointmentSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         request = self.context.get("request")
+        if request and getattr(request, "user", None) and request.user.is_authenticated:
+            if not (request.user.is_officer() or request.user.is_admin()):
+                if not attrs.get("availability_slot"):
+                    raise serializers.ValidationError({
+                        "availability_slot_id": "Selecting a time slot is required."
+                    })
         appointment = Appointment(**attrs)
         if request and getattr(request, "user", None) and request.user.is_authenticated:
             appointment.requested_by = request.user

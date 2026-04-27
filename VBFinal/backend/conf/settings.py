@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'social_django',
     "helpdesk",
+    "notifications",
 ]
 
 if CHANNELS_AVAILABLE:

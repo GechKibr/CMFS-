@@ -7,7 +7,7 @@ from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
-from .models import Comment, Complaint, Notification, Response
+from .models import Comment, Complaint, Response
 
 try:
     from channels.layers import get_channel_layer
@@ -40,10 +40,6 @@ def _send(group_name, event_type, payload):
 
 def complaint_thread_group_name(complaint_id):
     return f'complaint-thread-{complaint_id}'
-
-
-def notification_group_name(user_id):
-    return f'notifications-user-{user_id}'
 
 
 def analytics_group_name(scope, user_id=None):
@@ -95,23 +91,6 @@ def serialize_response(response):
     }
 
 
-def serialize_notification(notification):
-    return {
-        'id': notification.id,
-        'user': notification.user_id,
-        'complaint': notification.complaint_id,
-        'complaint_id': str(notification.complaint_id) if notification.complaint_id else None,
-        'complaint_title': notification.complaint.title if notification.complaint_id else None,
-        'helpdesk_session_id': str(notification.helpdesk_session_id) if getattr(notification, 'helpdesk_session_id', None) else None,
-        'notification_type': notification.notification_type,
-        'title': notification.title,
-        'message': notification.message,
-        'is_read': notification.is_read,
-        'read_at': notification.read_at.isoformat() if notification.read_at else None,
-        'created_at': notification.created_at.isoformat(),
-    }
-
-
 def build_thread_snapshot(complaint):
     responses = Response.objects.filter(complaint=complaint).select_related('responder').order_by('created_at')
     comments = Comment.objects.filter(complaint=complaint).select_related('author').order_by('created_at')
@@ -119,15 +98,6 @@ def build_thread_snapshot(complaint):
         'complaint_id': str(complaint.complaint_id),
         'responses': [serialize_response(item) for item in responses],
         'comments': [serialize_comment(item) for item in comments],
-    }
-
-
-def build_notification_snapshot(user):
-    notifications = Notification.objects.filter(user=user).select_related('complaint').order_by('-created_at')[:25]
-    unread_count = Notification.get_unread_for_user(user).count()
-    return {
-        'notifications': [serialize_notification(item) for item in notifications],
-        'unread_count': unread_count,
     }
 
 
@@ -202,14 +172,6 @@ def broadcast_thread_update(complaint_id):
         complaint_thread_group_name(complaint_id),
         'thread.updated',
         {'complaint_id': str(complaint_id)},
-    )
-
-
-def broadcast_notification_update(user_id):
-    _send(
-        notification_group_name(user_id),
-        'notification.updated',
-        {'user_id': user_id},
     )
 
 

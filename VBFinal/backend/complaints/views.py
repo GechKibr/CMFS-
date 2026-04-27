@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django.db import models, transaction
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
@@ -22,11 +24,11 @@ from .models import (
     Complaint,
     ComplaintAttachment,
     ComplaintCC,
-    Notification,
     PublicAnnouncement,
     ResolverLevel,
     Response,
 )
+from notifications.models import Notification
 from .serializers import (
     AnnouncementCommentSerializer,
     AppointmentSerializer,
@@ -36,13 +38,14 @@ from .serializers import (
     CategorySerializer,
     CommentSerializer,
     ComplaintCreateSerializer,
+    ComplaintUserSerializer,
     ComplaintSerializer,
-    NotificationSerializer,
     PublicAnnouncementSerializer,
     ResolverLevelSerializer,
     ResponseSerializer,
 )
-from .realtime import build_complaint_analytics, broadcast_notification_update
+from .realtime import build_complaint_analytics
+from notifications.realtime import broadcast_notification_update
 from .service import service
 class IsAdminRole(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -173,6 +176,18 @@ class CategoryViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelViewSet):
                 }
             )
         return DRFResponse(data)
+
+    @action(detail=True, methods=['get'], url_path='officers')
+    def officers(self, request, pk=None):
+        category = self.get_object()
+        officer_ids = CategoryResolver.objects.filter(
+            category=category,
+            active=True,
+        ).values_list('officer_id', flat=True)
+
+        officers = User.objects.filter(id__in=officer_ids).order_by('first_name', 'last_name', 'email')
+        serializer = ComplaintUserSerializer(officers, many=True)
+        return DRFResponse(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='add-officer')
     def add_officer(self, request, pk=None):
@@ -680,49 +695,6 @@ class ResponseViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 
-class NotificationViewSet(viewsets.ModelViewSet):
-    serializer_class = NotificationSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Notification.objects.none()
-
-        return Notification.objects.filter(user=self.request.user)
-
-    @action(detail=False, methods=['get'], url_path='unread')
-    def unread(self, request):
-        notifications = Notification.get_unread_for_user(request.user)
-        serializer = self.get_serializer(notifications, many=True)
-        return DRFResponse({'count': notifications.count(), 'notifications': serializer.data})
-
-    @action(detail=False, methods=['get'], url_path='escalations')
-    def escalations(self, request):
-        notifications = Notification.get_escalation_notifications(request.user)
-        serializer = self.get_serializer(notifications, many=True)
-        return DRFResponse({'count': notifications.count(), 'notifications': serializer.data})
-
-    @action(detail=True, methods=['post'], url_path='mark-as-read')
-    def mark_as_read(self, request, pk=None):
-        notification = self.get_object()
-        notification.mark_as_read()
-        return DRFResponse(
-            {
-                'message': 'Notification marked as read',
-                'notification': NotificationSerializer(notification).data,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-    @action(detail=False, methods=['post'], url_path='mark-all-as-read')
-    def mark_all_as_read(self, request):
-        notifications = Notification.get_unread_for_user(request.user)
-        count = notifications.count()
-        for notification in notifications:
-            notification.mark_as_read()
-        return DRFResponse({'message': f'{count} notifications marked as read'}, status=status.HTTP_200_OK)
-
-
 class PublicAnnouncementViewSet(viewsets.ModelViewSet):
     serializer_class = PublicAnnouncementSerializer
 
@@ -877,15 +849,60 @@ class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
         queryset = AppointmentAvailability.objects.select_related('officer').filter(is_active=True)
         preferred_date = request.query_params.get('preferred_date')
         officer_id = request.query_params.get('officer_id')
+        category_id = request.query_params.get('category_id')
 
         if preferred_date:
             queryset = queryset.filter(available_date=preferred_date)
         if officer_id:
             queryset = queryset.filter(officer_id=officer_id)
+        if category_id:
+            officer_ids = CategoryResolver.objects.filter(
+                category_id=category_id,
+                active=True,
+            ).values_list('officer_id', flat=True)
+            queryset = queryset.filter(officer_id__in=officer_ids)
 
         queryset = queryset.exclude(appointments__status__in=['pending', 'confirmed', 'completed']).distinct()
         serializer = self.get_serializer(queryset, many=True)
         return DRFResponse(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='free-slots')
+    def free_slots(self, request):
+        """Return free slots grouped by date, optionally filtered by preferred_date."""
+        from collections import defaultdict
+        queryset = AppointmentAvailability.objects.select_related('officer').filter(is_active=True)
+        preferred_date = request.query_params.get('preferred_date')
+        officer_id = request.query_params.get('officer_id')
+        category_id = request.query_params.get('category_id')
+
+        if not category_id:
+            return DRFResponse(
+                {'error': 'category_id is required to fetch free slots.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if preferred_date:
+            queryset = queryset.filter(available_date__gte=preferred_date)
+        if officer_id:
+            queryset = queryset.filter(officer_id=officer_id)
+        if category_id:
+            officer_ids = CategoryResolver.objects.filter(
+                category_id=category_id,
+                active=True,
+            ).values_list('officer_id', flat=True)
+            queryset = queryset.filter(officer_id__in=officer_ids)
+
+        queryset = queryset.exclude(
+            appointments__status__in=['pending', 'confirmed', 'completed']
+        ).distinct().order_by('available_date', 'start_time')
+
+        grouped = defaultdict(list)
+        for slot in queryset:
+            date_key = str(slot.available_date)
+            grouped[date_key].append(self.get_serializer(slot).data)
+
+        result = [{'date': date, 'slots': slots} for date, slots in sorted(grouped.items())]
+        return DRFResponse(result, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         if request.user.role not in ('officer', 'admin'):
@@ -931,7 +948,28 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             if complaint.submitted_by_id != self.request.user.id:
                 raise PermissionDenied('You can only request appointments for your own complaints.')
 
-        appointment = serializer.save(requested_by=self.request.user)
+        slot = serializer.validated_data.get('availability_slot')
+        with transaction.atomic():
+            locked_slot = None
+            if slot:
+                locked_slot = AppointmentAvailability.objects.select_for_update().get(pk=slot.pk)
+                active_appointments = Appointment.objects.select_for_update().filter(
+                    availability_slot=locked_slot,
+                    status__in=['pending', 'confirmed', 'completed'],
+                )
+                if active_appointments.exists():
+                    raise ValidationError({'availability_slot_id': 'Selected time slot is no longer available.'})
+
+            save_kwargs = {'requested_by': self.request.user}
+            if locked_slot:
+                save_kwargs['availability_slot'] = locked_slot
+                save_kwargs['officer'] = locked_slot.officer
+                scheduled_at = datetime.combine(locked_slot.available_date, locked_slot.start_time)
+                if timezone.is_naive(scheduled_at):
+                    scheduled_at = timezone.make_aware(scheduled_at)
+                save_kwargs['scheduled_at'] = scheduled_at
+
+            appointment = serializer.save(**save_kwargs)
         if appointment.status != 'pending':
             appointment.status = 'pending'
             appointment.save(update_fields=['status', 'updated_at'])

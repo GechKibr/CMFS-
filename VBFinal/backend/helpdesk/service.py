@@ -2,7 +2,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from complaints.models import Notification
+from notifications.models import Notification
 from .models import HelpdeskMessage, HelpdeskSession, HelpdeskSessionParticipant
 
 User = get_user_model()

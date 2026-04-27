@@ -20,6 +20,7 @@ from django.urls import path, include
 from accounts.microsoft_auth import microsoft_mobile_auth
 from accounts.urls import router as accounts_router
 from complaints.urls import router as complaints_router
+from notifications.urls import router as notifications_router
 from feedback.urls import router as feedback_router
 from contact.urls import router as contact_router
 from rest_framework.routers import DefaultRouter
@@ -32,6 +33,7 @@ if settings.DEBUG:
 router = DefaultRouter()
 router.registry.extend(accounts_router.registry)
 router.registry.extend(complaints_router.registry)
+router.registry.extend(notifications_router.registry)
 router.registry.extend(feedback_router.registry)
 router.registry.extend(contact_router.registry)
 urlpatterns = [

@@ -1,6 +1,7 @@
 from django.urls import path
 
-from complaints.consumers import AnalyticsConsumer, ComplaintThreadConsumer, NotificationConsumer
+from complaints.consumers import AnalyticsConsumer, ComplaintThreadConsumer
+from notifications.consumers import NotificationConsumer
 from helpdesk.consumers import HelpdeskSessionConsumer
 
 websocket_urlpatterns = [

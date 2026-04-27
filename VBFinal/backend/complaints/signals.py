@@ -3,14 +3,14 @@ from django.dispatch import receiver
 
 from accounts.email_service import EmailService
 
-from .models import Assignment, Comment, Complaint, Notification, Response
+from .models import Assignment, Comment, Complaint, Response
+from notifications.models import Notification
 from .realtime import (
     broadcast_admin_analytics_update,
     broadcast_officer_analytics_update,
-    broadcast_notification_update,
     broadcast_thread_update,
-    serialize_notification,
 )
+from notifications.realtime import broadcast_notification_update
 
 
 @receiver(post_save, sender=Complaint)
@@ -139,20 +139,3 @@ def response_saved(sender, instance, created, **kwargs):
         pass
 
 
-@receiver(post_save, sender=Notification)
-def notification_saved(sender, instance, created, **kwargs):
-    broadcast_notification_update(instance.user_id)
-    payload = serialize_notification(instance)
-    if instance.user_id:
-        from .realtime import _send, notification_group_name
-
-        _send(
-            notification_group_name(instance.user_id),
-            'notification.updated' if not created else 'notification.created',
-            {'notification': payload},
-        )
-
-
-@receiver(post_delete, sender=Notification)
-def notification_deleted(sender, instance, **kwargs):
-    broadcast_notification_update(instance.user_id)

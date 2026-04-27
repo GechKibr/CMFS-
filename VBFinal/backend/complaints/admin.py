@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Category, Complaint, Comment, Assignment,
-    CategoryResolver,ResolverLevel,Response
+    CategoryResolver,ResolverLevel,Response,AppointmentAvailability
 )
 
 admin.site.register(ResolverLevel)

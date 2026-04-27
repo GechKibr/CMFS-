@@ -148,7 +148,7 @@ This complaint has reached the maximum escalation level and requires administrat
         """Create a notification record for a user"""
         try:
             # Import here to avoid circular imports
-            from .models import Notification
+            from notifications.models import Notification
             
             Notification.objects.create(
                 user=user,

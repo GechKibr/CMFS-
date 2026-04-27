@@ -1,5 +1,5 @@
 from accounts.models import User
-from complaints.models import Notification
+from notifications.models import Notification
 
 from .models import FeedbackTemplate
 

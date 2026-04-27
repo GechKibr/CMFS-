@@ -12,6 +12,8 @@ from .views import (
     PublicAnnouncementViewSet,
     AppointmentAvailabilityViewSet,
     AppointmentViewSet,
+    AvailabilityBlockViewSet,
+    AvailabilityRuleViewSet,
 )
 
 
@@ -27,4 +29,6 @@ router.register(r'responses', ResponseViewSet, basename='response')
 router.register(r'announcements', PublicAnnouncementViewSet, basename='announcement')
 router.register(r'appointment-availabilities', AppointmentAvailabilityViewSet, basename='appointment-availability')
 router.register(r'appointments', AppointmentViewSet, basename='appointment')
+router.register(r'availability-rules', AvailabilityRuleViewSet, basename='availability-rule')
+router.register(r'availability-blocks', AvailabilityBlockViewSet, basename='availability-block')
 urlpatterns = router.urls

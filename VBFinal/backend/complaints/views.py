@@ -3,7 +3,7 @@ from datetime import datetime
 from django.db import models, transaction
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
-from django.utils.dateparse import parse_duration
+from django.utils.dateparse import parse_duration, parse_date
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -17,6 +17,8 @@ from .models import (
     AnnouncementLike,
     Appointment,
     AppointmentAvailability,
+    AvailabilityBlock,
+    AvailabilityRule,
     Assignment,
     Category,
     CategoryResolver,
@@ -33,6 +35,8 @@ from .serializers import (
     AnnouncementCommentSerializer,
     AppointmentSerializer,
     AppointmentAvailabilitySerializer,
+    AvailabilityBlockSerializer,
+    AvailabilityRuleSerializer,
     AssignmentSerializer,
     CategoryResolverSerializer,
     CategorySerializer,
@@ -47,6 +51,7 @@ from .serializers import (
 from .realtime import build_complaint_analytics
 from notifications.realtime import broadcast_notification_update
 from .service import service
+from .availability_service import AvailabilityService
 class IsAdminRole(permissions.BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and request.user.is_admin())
@@ -826,9 +831,101 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminRole]
 
 
+class AvailabilityRuleViewSet(viewsets.ModelViewSet):
+    serializer_class = AvailabilityRuleSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return AvailabilityRule.objects.none()
+
+        user = self.request.user
+        if user.is_admin():
+            return AvailabilityRule.objects.all()
+        if user.is_officer():
+            return AvailabilityRule.objects.filter(officer=user)
+        return AvailabilityRule.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.is_officer():
+            rule = serializer.save(officer=user)
+        elif user.is_admin():
+            if not serializer.validated_data.get('officer'):
+                raise ValidationError({'officer_id': 'Officer is required for availability rules.'})
+            rule = serializer.save()
+        else:
+            raise PermissionDenied('Only officers can create availability rules.')
+
+        AvailabilityService.ensure_generated_slots(
+            [rule.officer_id],
+            timezone.localdate(),
+            range_days=30,
+        )
+
+    def perform_update(self, serializer):
+        rule = serializer.save()
+        AvailabilityService.ensure_generated_slots(
+            [rule.officer_id],
+            timezone.localdate(),
+            range_days=30,
+        )
+
+
+class AvailabilityBlockViewSet(viewsets.ModelViewSet):
+    serializer_class = AvailabilityBlockSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return AvailabilityBlock.objects.none()
+
+        user = self.request.user
+        if user.is_admin():
+            return AvailabilityBlock.objects.all()
+        if user.is_officer():
+            return AvailabilityBlock.objects.filter(officer=user)
+        return AvailabilityBlock.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.is_officer():
+            block = serializer.save(officer=user)
+        elif user.is_admin():
+            if not serializer.validated_data.get('officer'):
+                raise ValidationError({'officer_id': 'Officer is required for availability blocks.'})
+            block = serializer.save()
+        else:
+            raise PermissionDenied('Only officers can create availability blocks.')
+
+        AvailabilityService.apply_block_to_slots(block)
+
+
 class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
     serializer_class = AppointmentAvailabilitySerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def _maybe_generate_slots(self, officer_ids, preferred_date):
+        if not officer_ids:
+            return
+        start_date = parse_date(preferred_date) if preferred_date else timezone.localdate()
+        if not start_date:
+            start_date = timezone.localdate()
+        AvailabilityService.ensure_generated_slots(officer_ids, start_date)
+
+    def _deactivate_overlapping_generated(self, officer_id, available_date, start_time, end_time):
+        if not officer_id or not available_date or not start_time or not end_time:
+            return
+
+        overlaps = AppointmentAvailability.objects.filter(
+            officer_id=officer_id,
+            available_date=available_date,
+            is_active=True,
+            source=AppointmentAvailability.SOURCE_RULE,
+        ).exclude(start_time__gte=end_time).exclude(end_time__lte=start_time)
+
+        if overlaps.exists():
+            overlaps.update(is_active=False)
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
@@ -846,13 +943,19 @@ class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
+        available_date = serializer.validated_data.get('available_date')
+        start_time = serializer.validated_data.get('start_time')
+        end_time = serializer.validated_data.get('end_time')
         if user.is_officer():
-            serializer.save(officer=user)
+            self._deactivate_overlapping_generated(user.id, available_date, start_time, end_time)
+            serializer.save(officer=user, source=AppointmentAvailability.SOURCE_MANUAL)
             return
         if user.is_admin():
             if not serializer.validated_data.get('officer'):
                 raise ValidationError({'officer_id': 'Officer is required for availability slots.'})
-            serializer.save()
+            officer = serializer.validated_data.get('officer')
+            self._deactivate_overlapping_generated(officer.id if officer else None, available_date, start_time, end_time)
+            serializer.save(source=AppointmentAvailability.SOURCE_MANUAL)
             return
         raise PermissionDenied('Only officers can create availability slots.')
 
@@ -862,6 +965,16 @@ class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
         preferred_date = request.query_params.get('preferred_date')
         officer_id = request.query_params.get('officer_id')
         category_id = request.query_params.get('category_id')
+
+        officer_ids = []
+        if officer_id:
+            officer_ids = [officer_id]
+        elif category_id:
+            officer_ids = list(CategoryResolver.objects.filter(
+                category_id=category_id,
+                active=True,
+            ).values_list('officer_id', flat=True))
+        self._maybe_generate_slots(officer_ids, preferred_date)
 
         if preferred_date:
             queryset = queryset.filter(available_date=preferred_date)
@@ -893,6 +1006,16 @@ class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        officer_ids = []
+        if officer_id:
+            officer_ids = [officer_id]
+        elif category_id:
+            officer_ids = list(CategoryResolver.objects.filter(
+                category_id=category_id,
+                active=True,
+            ).values_list('officer_id', flat=True))
+        self._maybe_generate_slots(officer_ids, preferred_date)
+
         if preferred_date:
             queryset = queryset.filter(available_date__gte=preferred_date)
         if officer_id:
@@ -923,12 +1046,6 @@ class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().create(request, *args, **kwargs)
-
-    def perform_create(self, serializer):
-        if self.request.user.is_officer() and not self.request.user.is_admin():
-            serializer.save(officer=self.request.user)
-            return
-        serializer.save()
 
 
 class AppointmentViewSet(viewsets.ModelViewSet):

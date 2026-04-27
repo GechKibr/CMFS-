@@ -540,15 +540,31 @@ class Response(models.Model):
         return f"{self.response_type.title()} response by {self.responder} on {self.complaint.complaint_id}"
 
 class AppointmentAvailability(models.Model):
+    SOURCE_MANUAL = 'manual'
+    SOURCE_RULE = 'rule'
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, 'Manual'),
+        (SOURCE_RULE, 'Generated from rule'),
+    ]
+
     officer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='appointment_availabilities'
     )
+    rule = models.ForeignKey(
+        'AvailabilityRule',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='generated_slots'
+    )
     available_date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField()
     is_active = models.BooleanField(default=True)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    generated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -559,6 +575,10 @@ class AppointmentAvailability(models.Model):
                 fields=['officer', 'available_date', 'start_time', 'end_time'],
                 name='unique_officer_availability_slot',
             ),
+        ]
+        indexes = [
+            models.Index(fields=['officer', 'available_date']),
+            models.Index(fields=['available_date', 'start_time']),
         ]
 
     def clean(self):
@@ -589,6 +609,79 @@ class AppointmentAvailability(models.Model):
 
     def __str__(self):
         return f"{self.officer} - {self.available_date} {self.start_time:%H:%M}"
+
+
+class AvailabilityRule(models.Model):
+    WEEKDAY_CHOICES = [
+        (0, 'Monday'),
+        (1, 'Tuesday'),
+        (2, 'Wednesday'),
+        (3, 'Thursday'),
+        (4, 'Friday'),
+        (5, 'Saturday'),
+        (6, 'Sunday'),
+    ]
+
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='availability_rules'
+    )
+    weekday = models.PositiveSmallIntegerField(choices=WEEKDAY_CHOICES)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    slot_duration_minutes = models.PositiveSmallIntegerField(default=30)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['weekday', 'start_time']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['officer', 'weekday', 'start_time', 'end_time'],
+                name='unique_officer_weekday_rule',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['officer', 'weekday']),
+        ]
+
+    def clean(self):
+        if self.end_time and self.start_time and self.end_time <= self.start_time:
+            raise ValidationError('Rule end time must be after start time.')
+        if self.slot_duration_minutes <= 0:
+            raise ValidationError('Slot duration must be a positive number of minutes.')
+
+    def __str__(self):
+        return f"{self.officer} - {self.get_weekday_display()} ({self.start_time:%H:%M}-{self.end_time:%H:%M})"
+
+
+class AvailabilityBlock(models.Model):
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='availability_blocks'
+    )
+    start_datetime = models.DateTimeField()
+    end_datetime = models.DateTimeField()
+    reason = models.CharField(max_length=255, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-start_datetime']
+        indexes = [
+            models.Index(fields=['officer', 'start_datetime']),
+        ]
+
+    def clean(self):
+        if self.end_datetime and self.start_datetime and self.end_datetime <= self.start_datetime:
+            raise ValidationError('Block end time must be after start time.')
+
+    def __str__(self):
+        return f"{self.officer} blocked {self.start_datetime} - {self.end_datetime}"
 
 
 class PublicAnnouncement(models.Model):

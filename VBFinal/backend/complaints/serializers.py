@@ -9,6 +9,8 @@ from .models import (
     AnnouncementComment,
     Appointment,
     AppointmentAvailability,
+    AvailabilityBlock,
+    AvailabilityRule,
     Assignment,
     Category,
     CategoryResolver,
@@ -435,21 +437,66 @@ class AnnouncementCommentSerializer(serializers.ModelSerializer):
         return full_name or obj.user.email
 
 
+class AvailabilityRuleSerializer(serializers.ModelSerializer):
+    officer = ComplaintUserSerializer(read_only=True)
+    officer_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), source="officer", write_only=True, required=False
+    )
+
+    class Meta:
+        model = AvailabilityRule
+        fields = [
+            "id", "officer", "officer_id", "weekday", "start_time", "end_time",
+            "slot_duration_minutes", "is_active", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "officer", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        rule = AvailabilityRule(**attrs)
+        rule.clean()
+        return attrs
+
+
+class AvailabilityBlockSerializer(serializers.ModelSerializer):
+    officer = ComplaintUserSerializer(read_only=True)
+    officer_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), source="officer", write_only=True, required=False
+    )
+
+    class Meta:
+        model = AvailabilityBlock
+        fields = [
+            "id", "officer", "officer_id", "start_datetime", "end_datetime",
+            "reason", "is_active", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "officer", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        block = AvailabilityBlock(**attrs)
+        block.clean()
+        return attrs
+
+
 class AppointmentAvailabilitySerializer(serializers.ModelSerializer):
     officer = ComplaintUserSerializer(read_only=True)
     officer_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(), source="officer", write_only=True, required=False
     )
+    rule_id = serializers.IntegerField(source="rule.id", read_only=True)
     officer_name = serializers.SerializerMethodField(read_only=True)
     is_free = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = AppointmentAvailability
         fields = [
-            "id", "officer", "officer_id", "officer_name", "available_date",
-            "start_time", "end_time", "is_active", "is_free", "created_at", "updated_at",
+            "id", "officer", "officer_id", "officer_name", "rule_id", "source",
+            "available_date", "start_time", "end_time", "is_active", "is_free",
+            "generated_at", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "officer", "officer_name", "is_free", "created_at", "updated_at"]
+        read_only_fields = [
+            "id", "officer", "officer_name", "rule_id", "source", "generated_at",
+            "is_free", "created_at", "updated_at",
+        ]
 
     def get_officer_name(self, obj):
         full_name = f"{obj.officer.first_name} {obj.officer.last_name}".strip()

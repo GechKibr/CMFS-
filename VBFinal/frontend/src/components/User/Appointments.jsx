@@ -1,51 +1,115 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { useLanguage } from '../../contexts/LanguageContext';
 import apiService from '../../services/api';
+import AppointmentRequestForm from '../scheduling/AppointmentRequestForm';
+import { ToastContainer } from '../UI/Toast';
+import useToast from '../../hooks/useToast';
 
-const STATUS_COLORS = {
-  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+const STATUS_STYLES = {
+  pending:   'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
   confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-  completed: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+  rejected:  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+  completed: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+  canceled:  'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+};
+
+const StatusBadge = ({ status }) => (
+  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[status] || STATUS_STYLES.pending}`}>
+    {status}
+  </span>
+);
+
+const AppointmentCard = ({ appt, onCancel, isDark }) => {
+  const [canceling, setCanceling] = useState(false);
+
+  const handleCancel = async () => {
+    setCanceling(true);
+    await onCancel(appt.id);
+    setCanceling(false);
+  };
+
+  const slot = appt.availability_slot;
+  const dateStr = appt.scheduled_at
+    ? new Date(appt.scheduled_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    : slot
+      ? `${new Date(slot.available_date + 'T00:00:00').toLocaleDateString(undefined, { dateStyle: 'medium' })} · ${slot.start_time?.slice(0, 5)} – ${slot.end_time?.slice(0, 5)}`
+      : '—';
+
+  return (
+    <div className={`rounded-xl border shadow-sm p-5 transition-all ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-xs font-medium px-2 py-0.5 rounded ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+              {appt.issue_type_display || appt.issue_type}
+            </span>
+            <StatusBadge status={appt.status} />
+          </div>
+          <p className={`mt-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{appt.description}</p>
+          <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            <span>📅 {dateStr}</span>
+            {appt.officer && <span>👤 {appt.officer.first_name} {appt.officer.last_name}</span>}
+            {appt.location && <span>📍 {appt.location}</span>}
+          </div>
+          {appt.note && (
+            <p className={`mt-2 text-xs italic ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{appt.note}</p>
+          )}
+          {appt.rejection_reason && (
+            <p className="mt-2 text-xs text-red-500">Reason: {appt.rejection_reason}</p>
+          )}
+        </div>
+        {appt.status === 'pending' && (
+          <button
+            disabled={canceling}
+            onClick={handleCancel}
+            className="shrink-0 px-3 py-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg disabled:opacity-50 transition-colors"
+          >
+            {canceling ? '...' : 'Cancel'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 };
 
 const Appointments = () => {
   const { isDark } = useTheme();
-  const { t } = useLanguage();
+  const { toasts, toast, removeToast } = useToast();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [updatingId, setUpdatingId] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [filter, setFilter] = useState('all');
 
-  const loadAppointments = async () => {
+  const load = useCallback(async () => {
     try {
-      const appts = await apiService.getAppointments();
-      setAppointments(appts.results ?? appts ?? []);
+      const data = await apiService.getAppointments();
+      setAppointments(data.results ?? data ?? []);
     } catch {
       setAppointments([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadAppointments();
   }, []);
 
-  const updateStatus = async (appointmentId, status) => {
-    setUpdatingId(appointmentId);
+  useEffect(() => { load(); }, [load]);
+
+  const handleSuccess = (created) => {
+    setAppointments(prev => [created, ...prev]);
+    setShowForm(false);
+    toast.success('Your appointment request has been submitted and is awaiting officer review.', 'Request Submitted');
+  };
+
+  const handleCancel = async (id) => {
     try {
-      const updated = await apiService.updateAppointmentStatus(appointmentId, status);
-      setAppointments((prev) => prev.map((appointment) => (
-        appointment.id === appointmentId ? updated : appointment
-      )));
-    } catch (error) {
-      console.error('Failed to update appointment status:', error);
-    } finally {
-      setUpdatingId(null);
+      const updated = await apiService.updateAppointmentStatus(id, 'canceled');
+      setAppointments(prev => prev.map(a => a.id === id ? updated : a));
+      toast.info('Your appointment has been canceled.', 'Appointment Canceled');
+    } catch {
+      toast.error('Failed to cancel appointment.', 'Error');
     }
   };
 
+  const filtered = filter === 'all' ? appointments : appointments.filter(a => a.status === filter);
   const cardCls = `${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl border shadow-sm p-5`;
 
   if (loading) return (
@@ -56,65 +120,70 @@ const Appointments = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t('appointments')}</h2>
-          <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            {t('appointment_scheduled_by_officers')}
+          <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Appointments</h2>
+          <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            Request and track your appointments with officers
           </p>
         </div>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            + New Request
+          </button>
+        )}
       </div>
 
-      {appointments.length === 0 ? (
-        <div className={`${cardCls} text-center py-12`}>
-          <p className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{t('no_appointments_yet')}</p>
-          <p className={`text-sm mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-            {t('appointments_will_appear')}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {appointments.map(appointment => (
-            <div key={appointment.id} className={cardCls}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className={`font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{appointment.complaint_title}</p>
-                  <div className={`flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    <span>{new Date(appointment.scheduled_at).toLocaleString()}</span>
-                    {appointment.location && <span> {appointment.location}</span>}
-                    {appointment.officer && <span>{appointment.officer.first_name} {appointment.officer.last_name}</span>}
-                  </div>
-                  {appointment.note && <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{appointment.note}</p>}
-                </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[appointment.status]}`}>
-                    {appointment.status}
-                  </span>
-                  {appointment.status === 'pending' && (
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        disabled={updatingId === appointment.id}
-                        onClick={() => updateStatus(appointment.id, 'confirmed')}
-                        className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50"
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        type="button"
-                        disabled={updatingId === appointment.id}
-                        onClick={() => updateStatus(appointment.id, 'cancelled')}
-                        className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded disabled:opacity-50"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+      {showForm && (
+        <AppointmentRequestForm onSuccess={handleSuccess} onCancel={() => setShowForm(false)} />
+      )}
+
+      {!showForm && (
+        <div className="flex gap-2 flex-wrap">
+          {['all', 'pending', 'confirmed', 'rejected', 'completed', 'canceled'].map(s => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors capitalize ${
+                filter === s
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : isDark
+                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {s}
+              {s !== 'all' && appointments.filter(a => a.status === s).length > 0 && (
+                <span className="ml-1 opacity-70">({appointments.filter(a => a.status === s).length})</span>
+              )}
+            </button>
           ))}
         </div>
+      )}
+
+      {!showForm && (
+        filtered.length === 0 ? (
+          <div className={`${cardCls} text-center py-12`}>
+            <div className="text-4xl mb-3">📅</div>
+            <p className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              {filter === 'all' ? 'No appointments yet' : `No ${filter} appointments`}
+            </p>
+            <p className={`text-sm mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+              {filter === 'all' ? 'Click "New Request" to schedule an appointment with an officer.' : 'Try a different filter.'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map(appt => (
+              <AppointmentCard key={appt.id} appt={appt} onCancel={handleCancel} isDark={isDark} />
+            ))}
+          </div>
+        )
       )}
     </div>
   );

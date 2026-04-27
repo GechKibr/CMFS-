@@ -104,7 +104,7 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
     { id: 'profile', name: 'Profile', icon: '👤' }
   ];
 
-  const [systemStats, setSystemStats] = useState({
+  const [, setSystemStats] = useState({
     totalComplaints: 0,
     pendingComplaints: 0,
     resolvedComplaints: 0,
@@ -122,35 +122,6 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
           accent="blue"
           recentComplaintLinkBuilder={(item) => `/admin?tab=complaints&complaintId=${item.complaint_id}`}
         />
-
-        {/* Performance Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-              Recent Activity
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {systemStats.resolvedComplaints} complaints resolved this month
-                </span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {systemStats.totalUsers} active users in system
-                </span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {systemStats.pendingComplaints} complaints awaiting review
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div >
     );
   };

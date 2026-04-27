@@ -633,6 +633,10 @@ class ApiService {
     return this.request(`/categories/by-language/?lang=${language}`);
   }
 
+  async getCategoryOfficers(categoryId) {
+    return this.request(`/categories/${categoryId}/officers/`);
+  }
+
   async createCategory(data) {
     return this.request('/categories/', {
       method: 'POST',
@@ -821,11 +825,48 @@ class ApiService {
     });
   }
 
-  async updateAppointmentStatus(id, statusValue) {
+  async updateAppointmentStatus(id, statusValue, extra = {}) {
     return this.request(`/appointments/${id}/status/`, {
       method: 'PATCH',
-      body: JSON.stringify({ status: statusValue }),
+      body: JSON.stringify({ status: statusValue, ...extra }),
     });
+  }
+
+  async getFreeSlots(params = {}) {
+    const query = new URLSearchParams();
+    if (params.preferred_date) query.set('preferred_date', params.preferred_date);
+    if (params.officer_id) query.set('officer_id', params.officer_id);
+    if (params.category_id) query.set('category_id', params.category_id);
+    const qs = query.toString();
+    const url = qs ? `/appointment-availabilities/free-slots/?${qs}` : '/appointment-availabilities/free-slots/';
+    return this.request(url);
+  }
+
+  async getAvailableSlots(params = {}) {
+    const query = new URLSearchParams();
+    if (params.preferred_date) query.set('preferred_date', params.preferred_date);
+    if (params.officer_id) query.set('officer_id', params.officer_id);
+    if (params.category_id) query.set('category_id', params.category_id);
+    const qs = query.toString();
+    const url = qs ? `/appointment-availabilities/available/?${qs}` : '/appointment-availabilities/available/';
+    return this.request(url);
+  }
+
+  async createAvailabilitySlot(data) {
+    return this.request('/appointment-availabilities/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAvailabilitySlot(id) {
+    return this.request(`/appointment-availabilities/${id}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getAvailabilitySlots() {
+    return this.request('/appointment-availabilities/');
   }
 
   // Dashboard stats

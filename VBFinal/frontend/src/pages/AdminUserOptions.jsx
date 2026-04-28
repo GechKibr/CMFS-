@@ -104,6 +104,21 @@ const AdminUserOptions = () => {
     }
   };
 
+  const handleSendPasswordReset = async () => {
+    if (!user || actionLoading) return;
+
+    try {
+      setActionLoading(true);
+      await apiService.requestPasswordReset(user.email);
+      window.alert('If the account exists, an OTP has been sent to the user.');
+    } catch (error) {
+      console.error('Failed to send password reset OTP:', error);
+      window.alert('Failed to send password reset OTP. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleSidebarToggle = () => {
     if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
       setIsDesktopSidebarCollapsed((prev) => !prev);
@@ -211,6 +226,14 @@ const AdminUserOptions = () => {
                   className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                 >
                   Edit Details
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendPasswordReset}
+                  disabled={actionLoading}
+                  className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  Send Reset OTP
                 </button>
                 <button
                   type="button"

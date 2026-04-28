@@ -32,6 +32,9 @@ const AdminUserDetail = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -144,6 +147,18 @@ const AdminUserDetail = () => {
     e.preventDefault();
     if (!user) return;
 
+    setPasswordError('');
+    if (newPassword || confirmPassword) {
+      if (newPassword.length < 8) {
+        setPasswordError('Password must be at least 8 characters long.');
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setPasswordError('Passwords do not match.');
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -158,8 +173,15 @@ const AdminUserDetail = () => {
         employee_id: formData.role === 'officer' ? (formData.employee_id || null) : null,
       };
 
+      if (newPassword) {
+        payload.password = newPassword;
+        payload.confirm_password = confirmPassword;
+      }
+
       await apiService.updateUser(user.id, payload);
       window.alert('User updated successfully');
+      setNewPassword('');
+      setConfirmPassword('');
       navigate('/admin?tab=users');
     } catch (error) {
       console.error('Failed to update user:', error);
@@ -389,6 +411,39 @@ const AdminUserDetail = () => {
                     />
                   </div>
                 )}
+
+                <div className={`${isDark ? 'border-gray-700' : 'border-gray-200'} border-t pt-4`}>
+                  <h4 className={`text-sm font-semibold mb-3 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                    Change Password
+                  </h4>
+                  {passwordError && <p className="text-red-500 text-sm mb-3">{passwordError}</p>}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        New Password
+                      </label>
+                      <input
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Leave blank to keep current"
+                        className={`w-full px-3 py-2 border rounded-md ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Confirm Password
+                      </label>
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter new password"
+                        className={`w-full px-3 py-2 border rounded-md ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                      />
+                    </div>
+                  </div>
+                </div>
 
                 <div className="flex justify-end space-x-2 pt-2">
                   <button type="button" onClick={() => navigate('/admin?tab=users')} className={`px-4 py-2 border rounded-md ${isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>

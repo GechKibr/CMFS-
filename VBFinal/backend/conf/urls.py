@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.conf import settings
 from django.urls import path, include
-from accounts.microsoft_auth import microsoft_mobile_auth
+from accounts.microsoft_auth import microsoft_mobile_auth, microsoft_flutter_auth
 from accounts.urls import router as accounts_router
 from complaints.urls import router as complaints_router
 from notifications.urls import router as notifications_router
@@ -40,6 +40,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
     path('api/auth/microsoft/mobile/', microsoft_mobile_auth, name='microsoft-mobile-auth'),
+    path('api/auth/microsoft/flutter/', microsoft_flutter_auth, name='microsoft-flutter-auth'),
     path('api/helpdesk/', include('helpdesk.urls')),
     path('api-auth/', include('rest_framework.urls')),
     path('auth/', include('social_django.urls', namespace='social')),

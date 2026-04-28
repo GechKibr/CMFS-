@@ -191,3 +191,39 @@ def microsoft_mobile_auth(request):
         )
     except MicrosoftTokenValidationError:
         return Response({'error': 'Invalid or expired Microsoft access token.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def microsoft_flutter_auth(request):
+    """
+    Endpoint for Flutter mobile app Microsoft authentication.
+    Accepts a Microsoft access_token from client-side OAuth flow,
+    validates it with Microsoft Graph API, and returns JWT tokens.
+    
+    URL: POST /auth/microsoft/flutter/
+    """
+    access_token = (request.data.get('access_token') or '').strip()
+
+    if not access_token:
+        return Response({'error': 'access_token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user_info = _fetch_microsoft_user_info(access_token)
+        profile = normalize_microsoft_profile(user_info)
+        if not profile['email']:
+            return Response({'error': 'No email found in Microsoft profile.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user, is_new = upsert_microsoft_user(user_info)
+        tokens = generate_jwt_pair_for_user(user)
+
+        return Response(
+            {
+                'access': tokens['access'],
+                'refresh': tokens['refresh'],
+                'email': profile['email'].lower(),
+            },
+            status=status.HTTP_200_OK,
+        )
+    except MicrosoftTokenValidationError:
+        return Response({'error': 'Invalid or expired Microsoft access token.'}, status=status.HTTP_401_UNAUTHORIZED)

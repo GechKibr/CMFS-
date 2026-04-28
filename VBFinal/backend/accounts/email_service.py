@@ -73,6 +73,24 @@ class EmailService:
         )
 
     @staticmethod
+    def send_password_reset_otp_email(user, otp_code, expires_minutes=10):
+        destination = getattr(user, 'preferred_notification_email', None) or user.email
+
+        subject = "Your Password Reset OTP"
+        message = (
+            "Use the following OTP to reset your password: "
+            f"{otp_code}. This code expires in {expires_minutes} minutes."
+        )
+
+        return EmailService.send_email(
+            subject=subject,
+            message=message,
+            recipient_list=[destination],
+            email_type='password_reset_otp',
+            recipient_user=user,
+        )
+
+    @staticmethod
     def send_complaint_notification(user, complaint):
         subject = f"Complaint Update: {complaint.title}"
         message = f"Your complaint (ID: {complaint.complaint_id}) status: {complaint.status}"

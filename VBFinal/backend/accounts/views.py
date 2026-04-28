@@ -1,4 +1,6 @@
 from django.conf import settings
+from django.contrib.auth.hashers import check_password
+from django.core.cache import cache
 from django.db.models import Count, Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -14,6 +16,7 @@ from .models import (
     EmailVerificationToken,
     MaintenanceConfiguration,
     Officer,
+    PasswordResetOTP,
     PasswordResetToken,
     Student,
     StudentType,
@@ -34,7 +37,12 @@ from .serializers import (
     StudentTypeSerializer,
     SystemLogSerializer,
 )
-from .utils import generate_email_verification_token, generate_password_reset_token
+from .utils import (
+    generate_email_verification_token,
+    generate_password_reset_otp,
+    generate_password_reset_token,
+    mask_email,
+)
 
 
 class IsAdminRole(permissions.BasePermission):
@@ -59,9 +67,37 @@ class UserViewSet(viewsets.ModelViewSet):
         'register',
         'login',
         'request_password_reset',
+        'verify_password_reset_otp',
+        'reset_password_otp',
         'reset_password',
         'verify_email',
     }
+
+    def _get_otp_rate_limit_config(self):
+        return {
+            'limit': getattr(settings, 'PASSWORD_RESET_OTP_RATE_LIMIT', 3),
+            'window_minutes': getattr(settings, 'PASSWORD_RESET_OTP_RATE_WINDOW_MINUTES', 10),
+        }
+
+    def _increment_otp_rate_limit(self, email):
+        email_key = (email or '').strip().lower()
+        config = self._get_otp_rate_limit_config()
+        window_seconds = int(config['window_minutes']) * 60
+        cache_key = f"password-reset-otp:requests:{email_key}"
+
+        current = cache.get(cache_key)
+        if current is None:
+            cache.set(cache_key, 1, timeout=window_seconds)
+            return True
+
+        if current >= int(config['limit']):
+            return False
+
+        try:
+            cache.incr(cache_key)
+        except Exception:
+            cache.set(cache_key, current + 1, timeout=window_seconds)
+        return True
 
     def get_serializer_class(self):
         if self.action == 'register':
@@ -202,13 +238,106 @@ class UserViewSet(viewsets.ModelViewSet):
         if not email:
             return Response({'error': 'Email required'}, status=status.HTTP_400_BAD_REQUEST)
 
+        if not self._increment_otp_rate_limit(email):
+            return Response(
+                {'message': 'If an account exists for this email, an OTP has been sent.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        user = User.objects.filter(Q(email__iexact=email) | Q(gmail_account__iexact=email)).first()
+        if user:
+            otp_length = getattr(settings, 'PASSWORD_RESET_OTP_LENGTH', 6)
+            otp_expiry = getattr(settings, 'PASSWORD_RESET_OTP_EXPIRY_MINUTES', 10)
+            max_attempts = getattr(settings, 'PASSWORD_RESET_OTP_MAX_ATTEMPTS', 5)
+            PasswordResetOTP.objects.filter(user=user, is_used=False).update(is_used=True)
+            otp_code, _ = generate_password_reset_otp(
+                user,
+                expiry_minutes=otp_expiry,
+                length=otp_length,
+                max_attempts=max_attempts,
+            )
+            EmailService.send_password_reset_otp_email(user, otp_code, expires_minutes=otp_expiry)
+
+        return Response(
+            {
+                'message': 'If an account exists for this email, an OTP has been sent.',
+                'masked_email': mask_email(email),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['post'], url_path='verify-password-reset-otp')
+    def verify_password_reset_otp(self, request):
+        email = request.data.get('email')
+        otp = str(request.data.get('otp', '')).strip()
+
+        if not email or not otp:
+            return Response({'error': 'Email and OTP are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(Q(email__iexact=email) | Q(gmail_account__iexact=email)).first()
+        if not user:
+            return Response({'error': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
+
+        otp_entry = (
+            PasswordResetOTP.objects.filter(user=user, is_used=False)
+            .order_by('-created_at')
+            .first()
+        )
+        if not otp_entry or not otp_entry.is_valid() or not otp_entry.can_attempt():
+            return Response({'error': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not check_password(otp, otp_entry.otp_hash):
+            otp_entry.register_attempt(succeeded=False)
+            return Response({'error': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
+
+        otp_entry.register_attempt(succeeded=True)
+
+        reset_token_expiry = getattr(settings, 'PASSWORD_RESET_OTP_RESET_TOKEN_MINUTES', 15)
+        reset_token = generate_password_reset_token(user, expiry_hours=reset_token_expiry / 60)
+
+        return Response(
+            {
+                'message': 'OTP verified. You can now reset your password.',
+                'reset_token': reset_token.token,
+                'reset_token_expires_at': reset_token.expires_at,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['post'], url_path='reset-password-otp')
+    def reset_password_otp(self, request):
+        token_str = request.data.get('reset_token', '').strip()
+        new_password = request.data.get('password')
+
+        if not token_str or not new_password:
+            return Response(
+                {'error': 'Reset token and password are required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            user = User.objects.get(Q(email__iexact=email) | Q(gmail_account__iexact=email))
-            token = generate_password_reset_token(user)
-            EmailService.send_password_reset_email(user, token)
-            return Response({'message': 'Password reset email sent'}, status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            return Response({'error': 'No email address found in the system.'}, status=status.HTTP_404_NOT_FOUND)
+            token = PasswordResetToken.objects.get(token=token_str)
+            if not token.is_valid():
+                return Response(
+                    {'error': 'Reset token has expired or has already been used.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            token.user.set_password(new_password)
+            token.user.save()
+            token.user.mark_password_as_local_auth()
+            token.is_used = True
+            token.save()
+
+            return Response(
+                {'message': 'Password reset successfully. You can now log in with your new password.'},
+                status=status.HTTP_200_OK,
+            )
+        except PasswordResetToken.DoesNotExist:
+            return Response(
+                {'error': 'Invalid reset token. Please request a new OTP.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @action(detail=False, methods=['post'], url_path='reset-password')
     def reset_password(self, request):

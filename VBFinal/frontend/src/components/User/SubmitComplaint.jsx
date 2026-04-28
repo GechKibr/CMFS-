@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import apiService from '../../services/api';
@@ -15,10 +15,19 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     category: '',
     isAnonymous: false,
   });
+  const [categorySearchText, setCategorySearchText] = useState('');
+  const [categoryRegexEnabled, setCategoryRegexEnabled] = useState(false);
+  const [categoryFilters, setCategoryFilters] = useState({
+    campus: '',
+    college: '',
+    department: '',
+  });
   const [files, setFiles] = useState([]);
   const [formErrors, setFormErrors] = useState({});
   const [currentStep, setCurrentStep] = useState(1);
   const [ccOfficeIds, setCcOfficeIds] = useState([]);
+  const [ccSearchText, setCcSearchText] = useState('');
+  const [ccRegexEnabled, setCcRegexEnabled] = useState(false);
   const totalSteps = 4;
 
   const getCategoryId = (category) => String(category.category_id || category.id || '');
@@ -94,6 +103,11 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     setComplaintForm({ title: '', description: '', category: '', isAnonymous: false });
     setFiles([]);
     setCcOfficeIds([]);
+    setCategorySearchText('');
+    setCategoryRegexEnabled(false);
+    setCategoryFilters({ campus: '', college: '', department: '' });
+    setCcSearchText('');
+    setCcRegexEnabled(false);
     setFormErrors({});
     setCurrentStep(1);
   };
@@ -107,15 +121,88 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   };
 
   const ccOfficeOptions = categories;
-  const selectedCcOffices = ccOfficeOptions.filter((office) => ccOfficeIds.includes(office.value));
+  const selectedCcOffices = ccOfficeOptions.filter((office) => ccOfficeIds.includes(String(office.value)));
+  const availableCcOffices = ccOfficeOptions.filter((office) => !ccOfficeIds.includes(String(office.value)));
+
+  const buildSearchMatcher = useCallback((query, useRegex, invalidRegexMessage) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      return { matcher: () => true, error: '' };
+    }
+
+    if (useRegex) {
+      try {
+        const regex = new RegExp(trimmed, 'i');
+        return { matcher: (text) => regex.test(text), error: '' };
+      } catch {
+        return { matcher: () => false, error: invalidRegexMessage };
+      }
+    }
+
+    const lowered = trimmed.toLowerCase();
+    return { matcher: (text) => String(text || '').toLowerCase().includes(lowered), error: '' };
+  }, []);
+
+  const categorySearch = useMemo(() => buildSearchMatcher(
+    categorySearchText,
+    categoryRegexEnabled,
+    language === 'am' ? 'ትክክለኛ የሬገክስ አብራሪ ያስገቡ።' : 'Enter a valid regex pattern.'
+  ), [buildSearchMatcher, categorySearchText, categoryRegexEnabled, language]);
+
+  const ccOfficeSearch = useMemo(() => buildSearchMatcher(
+    ccSearchText,
+    ccRegexEnabled,
+    language === 'am' ? 'ትክክለኛ የሬገክስ አብራሪ ያስገቡ።' : 'Enter a valid regex pattern.'
+  ), [buildSearchMatcher, ccSearchText, ccRegexEnabled, language]);
+
+  const toSearchableText = useCallback((category) => (
+    [
+      category?.label,
+      category?.office_name,
+      category?.office_scope,
+      category?.campus_name,
+      category?.college_name,
+      category?.department_name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+  ), []);
+
+  const campusOptions = useMemo(() => (
+    Array.from(new Set(categories.map((cat) => cat.campus_name).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b))
+  ), [categories]);
+
+  const collegeOptions = useMemo(() => (
+    Array.from(new Set(categories.map((cat) => cat.college_name).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b))
+  ), [categories]);
+
+  const departmentOptions = useMemo(() => (
+    Array.from(new Set(categories.map((cat) => cat.department_name).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b))
+  ), [categories]);
+
+  const filteredCategories = useMemo(() => (
+    categories.filter((category) => {
+      if (categoryFilters.campus && category.campus_name !== categoryFilters.campus) return false;
+      if (categoryFilters.college && category.college_name !== categoryFilters.college) return false;
+      if (categoryFilters.department && category.department_name !== categoryFilters.department) return false;
+      return categorySearch.matcher(toSearchableText(category));
+    })
+  ), [categories, categoryFilters, categorySearch, toSearchableText]);
+
+  const filteredCcOffices = useMemo(() => (
+    availableCcOffices.filter((office) => ccOfficeSearch.matcher(toSearchableText(office)))
+  ), [availableCcOffices, ccOfficeSearch, toSearchableText]);
 
   const validateStep = (step) => {
     const errors = validateForm();
     if (step === 1) {
-      return !errors.title && !errors.description;
+      return !errors.category;
     }
     if (step === 2) {
-      return !errors.category;
+      return !errors.title && !errors.description;
     }
     return true;
   };
@@ -161,6 +248,10 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     });
   };
 
+  const removeCcOffice = (officeId) => {
+    setCcOfficeIds((prev) => prev.filter((item) => String(item) !== String(officeId)));
+  };
+
   const selectAllCcOffices = () => {
     setCcOfficeIds(ccOfficeOptions.map((office) => String(office.value)));
   };
@@ -173,9 +264,9 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     e.preventDefault();
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
-      if (errors.title || errors.description) {
+      if (errors.category) {
         setCurrentStep(1);
-      } else if (errors.category) {
+      } else if (errors.title || errors.description) {
         setCurrentStep(2);
       }
       return;
@@ -262,86 +353,122 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
             {currentStep === 1 && (
               <div className="space-y-6">
                 <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {language === 'am' ? '1. የቅሬታ ዝርዝሮች' : '1. Complaint Details'}
+                  {language === 'am' ? '1. ምድብ እና ተዛማጅ መረጃ' : '1. Category & Routing'}
                 </h4>
-                <div>
-                  <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    {t('title')} *
-                  </label>
-                  <input
-                    type="text"
-                    value={complaintForm.title}
-                    onChange={(e) => setComplaintForm({ ...complaintForm, title: e.target.value })}
-                    className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'} ${formErrors.title ? 'border-red-500' : ''}`}
-                    placeholder={t('brief_title')}
-                  />
-                  {formErrors.title && <p className="text-red-500 text-sm mt-1 flex items-center"><span className="mr-1">⚠️</span>{formErrors.title}</p>}
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    {t('description')} *
-                  </label>
-                  <textarea
-                    value={complaintForm.description}
-                    onChange={(e) => setComplaintForm({ ...complaintForm, description: e.target.value })}
-                    rows={5}
-                    className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'} ${formErrors.description ? 'border-red-500' : ''}`}
-                    placeholder={t('detailed_description')}
-                  />
-                  <div className="flex justify-between items-center mt-1">
-                    {formErrors.description && <p className="text-red-500 text-sm flex items-center"><span className="mr-1">⚠️</span>{formErrors.description}</p>}
-                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} ml-auto`}>
-                      {complaintForm.description.length}/500
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {currentStep === 2 && (
-              <div className="space-y-6">
-                <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {language === 'am' ? '2. ምድብ እና ተዛማጅ መረጃ' : '2. Classification'}
-                </h4>
-
                 <div>
                   <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                     {language === 'am' ? 'ምድብ' : 'Category'} *
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {categories.map((cat) => {
-                      const isSelected = String(complaintForm.category) === String(cat.value);
-                      return (
-                        <button
-                          key={cat.value}
-                          type="button"
-                          onClick={() => selectCategory(cat.value)}
-                          className={`text-left w-full rounded-xl border p-4 transition-all duration-200 ${isSelected
-                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500 dark:bg-blue-900/20'
-                            : isDark
-                              ? 'border-gray-600 bg-gray-700 hover:border-blue-400 hover:bg-gray-600'
-                              : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50'
-                            }`}
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
+                          {language === 'am' ? 'ካምፓስ' : 'Campus'}
+                        </label>
+                        <select
+                          value={categoryFilters.campus}
+                          onChange={(e) => setCategoryFilters((prev) => ({ ...prev, campus: e.target.value }))}
+                          className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                {cat.label}
-                              </div>
-                              <div className={`mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {language === 'am' ? 'በመጫን ይምረጡ' : 'Tap to select'}
-                              </div>
-                            </div>
-                            <div className={`mt-0.5 h-5 w-5 rounded-full border flex items-center justify-center ${isSelected ? 'border-blue-500 bg-blue-500' : isDark ? 'border-gray-500' : 'border-gray-300'}`}>
-                              {isSelected && <span className="text-white text-[10px] leading-none">✓</span>}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                          {campusOptions.map((campus) => (
+                            <option key={campus} value={campus}>{campus}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
+                          {language === 'am' ? 'ኮሌጅ' : 'College'}
+                        </label>
+                        <select
+                          value={categoryFilters.college}
+                          onChange={(e) => setCategoryFilters((prev) => ({ ...prev, college: e.target.value }))}
+                          className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                        >
+                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                          {collegeOptions.map((college) => (
+                            <option key={college} value={college}>{college}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
+                          {language === 'am' ? 'ዲፓርትመንት' : 'Department'}
+                        </label>
+                        <select
+                          value={categoryFilters.department}
+                          onChange={(e) => setCategoryFilters((prev) => ({ ...prev, department: e.target.value }))}
+                          className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                        >
+                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                          {departmentOptions.map((department) => (
+                            <option key={department} value={department}>{department}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                      <div className="md:col-span-2">
+                        <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
+                          {language === 'am' ? 'ምድብ ፈልግ' : 'Search category'}
+                        </label>
+                        <input
+                          type="text"
+                          value={categorySearchText}
+                          onChange={(e) => setCategorySearchText(e.target.value)}
+                          placeholder={language === 'am' ? 'ስም፣ ካምፓስ፣ ኮሌጅ፣ ዲፓርትመንት' : 'Name, campus, college, department'}
+                          className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-800 placeholder-gray-400'}`}
+                        />
+                      </div>
+                      <label className={`flex items-center gap-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <input
+                          type="checkbox"
+                          checked={categoryRegexEnabled}
+                          onChange={(e) => setCategoryRegexEnabled(e.target.checked)}
+                        />
+                        {language === 'am' ? 'ሬገክስ ይጠቀሙ' : 'Use regex'}
+                      </label>
+                    </div>
+
+                    <div className={`border rounded-lg p-3 ${isDark ? 'border-gray-600 bg-gray-800' : 'border-gray-200 bg-white'} ${formErrors.category ? 'border-red-500' : ''}`}>
+                      <div className="max-h-64 overflow-y-auto space-y-2">
+                        {filteredCategories.map((cat) => {
+                          const isSelected = String(complaintForm.category) === String(cat.value);
+                          return (
+                            <button
+                              key={cat.value}
+                              type="button"
+                              onClick={() => selectCategory(cat.value)}
+                              className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${isSelected
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : isDark
+                                  ? 'border-gray-600 bg-gray-700 hover:border-blue-400'
+                                  : 'border-gray-200 bg-white hover:border-blue-300'} `}
+                            >
+                              <span className="flex items-center justify-between gap-3">
+                                <span className={`text-sm ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{cat.label}</span>
+                                <span className={`h-5 w-5 rounded-full border flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : isDark ? 'border-gray-500 text-transparent' : 'border-gray-300 text-transparent'}`}>
+                                  ✓
+                                </span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                   <input type="hidden" value={complaintForm.category} readOnly />
+                  {categorySearch.error && (
+                    <p className="text-red-500 text-xs mt-2 flex items-center">
+                      <span className="mr-1">⚠️</span>{categorySearch.error}
+                    </p>
+                  )}
+                  {!categorySearch.error && filteredCategories.length === 0 && (
+                    <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {language === 'am' ? 'ምድቦች አልተገኙም። ማጣሪያዎችን ያስተካክሉ።' : 'No categories match. Adjust the filters or search.'}
+                    </p>
+                  )}
                   {formErrors.category && <p className="text-red-500 text-sm mt-1 flex items-center"><span className="mr-1">⚠️</span>{formErrors.category}</p>}
                 </div>
 
@@ -417,30 +544,59 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                         </div>
                       </div>
 
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end mb-3">
+                        <div className="md:col-span-2">
+                          <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
+                            {language === 'am' ? 'ቢሮ ፈልግ' : 'Search office'}
+                          </label>
+                          <input
+                            type="text"
+                            value={ccSearchText}
+                            onChange={(e) => setCcSearchText(e.target.value)}
+                            placeholder={language === 'am' ? 'ስም፣ ካምፓስ፣ ኮሌጅ፣ ዲፓርትመንት' : 'Name, campus, college, department'}
+                            className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-800 placeholder-gray-400'}`}
+                          />
+                        </div>
+                        <label className={`flex items-center gap-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                          <input
+                            type="checkbox"
+                            checked={ccRegexEnabled}
+                            onChange={(e) => setCcRegexEnabled(e.target.checked)}
+                          />
+                          {language === 'am' ? 'ሬገክስ ይጠቀሙ' : 'Use regex'}
+                        </label>
+                      </div>
+
+                      {ccOfficeSearch.error && (
+                        <p className="text-red-500 text-xs mb-2 flex items-center">
+                          <span className="mr-1">⚠️</span>{ccOfficeSearch.error}
+                        </p>
+                      )}
+
                       <div className="max-h-52 overflow-y-auto space-y-2">
-                        {ccOfficeOptions.map((office) => {
-                          const officeId = String(office.value);
-                          const selected = ccOfficeIds.includes(officeId);
-                          return (
+                        {filteredCcOffices.length === 0 ? (
+                          <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {language === 'am' ? 'የሚገኙ ቢሮዎች የሉም።' : 'No available offices match.'}
+                          </div>
+                        ) : (
+                          filteredCcOffices.map((office) => (
                             <button
                               key={office.value}
                               type="button"
-                              onClick={() => toggleCcOfficeSelection(officeId)}
-                              className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${selected
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : isDark
-                                  ? 'border-gray-600 bg-gray-700 hover:border-blue-400'
-                                  : 'border-gray-200 bg-white hover:border-blue-300'} `}
+                              onClick={() => toggleCcOfficeSelection(office.value)}
+                              className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${isDark
+                                ? 'border-gray-600 bg-gray-700 hover:border-blue-400'
+                                : 'border-gray-200 bg-white hover:border-blue-300'} `}
                             >
                               <span className="flex items-center justify-between gap-3">
                                 <span className={`text-sm ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{office.label}</span>
-                                <span className={`h-5 w-5 rounded-full border flex items-center justify-center ${selected ? 'bg-blue-600 border-blue-600 text-white' : isDark ? 'border-gray-500 text-transparent' : 'border-gray-300 text-transparent'}`}>
-                                  ✓
+                                <span className={`h-5 w-5 rounded-full border flex items-center justify-center ${isDark ? 'border-gray-500 text-transparent' : 'border-gray-300 text-transparent'}`}>
+                                  +
                                 </span>
                               </span>
                             </button>
-                          );
-                        })}
+                          ))
+                        )}
                       </div>
                     </div>
                   )}
@@ -452,15 +608,59 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                   {selectedCcOffices.length > 0 && (
                     <div className={`mt-2 flex flex-wrap gap-2 text-xs ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                       {selectedCcOffices.map((office) => (
-                        <span
+                        <button
                           key={office.value}
-                          className={`rounded-full px-3 py-1 ${isDark ? 'bg-gray-700' : 'bg-blue-100 text-blue-700'}`}
+                          type="button"
+                          onClick={() => removeCcOffice(office.value)}
+                          className={`rounded-full px-3 py-1 flex items-center gap-2 ${isDark ? 'bg-gray-700' : 'bg-blue-100 text-blue-700'}`}
+                          title={language === 'am' ? 'አስወግድ' : 'Remove'}
                         >
-                          {office.label}
-                        </span>
+                          <span>{office.label}</span>
+                          <span className="text-[10px]">✕</span>
+                        </button>
                       ))}
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {currentStep === 2 && (
+              <div className="space-y-6">
+                <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  {language === 'am' ? '2. የቅሬታ ዝርዝሮች' : '2. Complaint Details'}
+                </h4>
+                <div>
+                  <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    {t('title')} *
+                  </label>
+                  <input
+                    type="text"
+                    value={complaintForm.title}
+                    onChange={(e) => setComplaintForm({ ...complaintForm, title: e.target.value })}
+                    className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'} ${formErrors.title ? 'border-red-500' : ''}`}
+                    placeholder={t('brief_title')}
+                  />
+                  {formErrors.title && <p className="text-red-500 text-sm mt-1 flex items-center"><span className="mr-1">⚠️</span>{formErrors.title}</p>}
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    {t('description')} *
+                  </label>
+                  <textarea
+                    value={complaintForm.description}
+                    onChange={(e) => setComplaintForm({ ...complaintForm, description: e.target.value })}
+                    rows={5}
+                    className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'} ${formErrors.description ? 'border-red-500' : ''}`}
+                    placeholder={t('detailed_description')}
+                  />
+                  <div className="flex justify-between items-center mt-1">
+                    {formErrors.description && <p className="text-red-500 text-sm flex items-center"><span className="mr-1">⚠️</span>{formErrors.description}</p>}
+                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} ml-auto`}>
+                      {complaintForm.description.length}/500
+                    </p>
+                  </div>
                 </div>
               </div>
             )}

@@ -603,7 +603,27 @@ class ApiService {
     return this.request(url);
   }
 
-  async getAllCategories() {
+  async getAllCategories(options = {}) {
+    const { forceRefresh = false } = options || {};
+    const cacheKey = 'categories_cache_v1';
+    const cacheTtlMs = 10 * 60 * 1000;
+
+    if (!forceRefresh && typeof localStorage !== 'undefined') {
+      try {
+        const cachedRaw = localStorage.getItem(cacheKey);
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          const cachedResults = cached?.results;
+          const cachedAt = cached?.timestamp;
+          if (Array.isArray(cachedResults) && cachedAt && Date.now() - cachedAt < cacheTtlMs) {
+            return { results: cachedResults, count: cachedResults.length };
+          }
+        }
+      } catch {
+        // Ignore cache parsing issues and fall back to live fetch.
+      }
+    }
+
     let allCategories = [];
     let page = 1;
     let hasMore = true;
@@ -624,6 +644,17 @@ class ApiService {
 
       hasMore = Boolean(response && !Array.isArray(response) && response.next);
       page += 1;
+    }
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          timestamp: Date.now(),
+          results: allCategories,
+        }));
+      } catch {
+        // Ignore quota/storage issues.
+      }
     }
 
     return { results: allCategories, count: allCategories.length };
@@ -758,10 +789,17 @@ class ApiService {
     });
   }
 
-  async resetPassword(token, password) {
-    return this.request('/accounts/reset-password/', {
+  async verifyPasswordResetOtp(email, otp) {
+    return this.request('/accounts/verify-password-reset-otp/', {
       method: 'POST',
-      body: JSON.stringify({ token, password }),
+      body: JSON.stringify({ email, otp }),
+    });
+  }
+
+  async resetPasswordOtp(resetToken, password) {
+    return this.request('/accounts/reset-password-otp/', {
+      method: 'POST',
+      body: JSON.stringify({ reset_token: resetToken, password }),
       skipAuth: true,
     });
   }

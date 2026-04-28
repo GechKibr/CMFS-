@@ -9,7 +9,7 @@ const ResetPassword = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token') || '';
+  const resetToken = searchParams.get('reset_token') || searchParams.get('token') || '';
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,7 +22,7 @@ const ResetPassword = () => {
     setError('');
     setMessage('');
 
-    if (!token) {
+    if (!resetToken) {
       setError('Reset token is missing or invalid.');
       return;
     }
@@ -39,19 +39,19 @@ const ResetPassword = () => {
 
     setLoading(true);
     try {
-      await apiService.resetPassword(token, password);
+      await apiService.resetPasswordOtp(resetToken, password);
       setMessage('Password reset successful. Redirecting to login...');
       setTimeout(() => navigate('/login'), 1400);
     } catch (err) {
       // Extract backend error message or show contextual error
-      const backendError = err.message || 'Reset link is invalid/expired or request failed.';
+      const backendError = err.message || 'Reset token is invalid/expired or request failed.';
       console.error('Password reset error:', backendError);
-      
+
       // Parse and display backend error more clearly
       if (backendError.includes('400')) {
-        setError('Token is invalid, expired, or already used. Please request a new password reset link.');
+        setError('Reset token is invalid, expired, or already used. Please request a new OTP.');
       } else if (backendError.includes('404')) {
-        setError('Reset link not found. Please request a new password reset.');
+        setError('Reset token not found. Please request a new OTP.');
       } else {
         setError(backendError);
       }

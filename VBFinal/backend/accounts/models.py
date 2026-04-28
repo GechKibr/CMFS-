@@ -96,6 +96,7 @@ class EmailLog(models.Model):
     EMAIL_TYPE_CHOICES = [
         ('verification', 'Email Verification'),
         ('password_reset', 'Password Reset'),
+        ('password_reset_otp', 'Password Reset OTP'),
         ('complaint_notification', 'Complaint Notification'),
         ('assignment_notification', 'Assignment Notification'),
         ('escalation_alert', 'Escalation Alert'),
@@ -568,6 +569,43 @@ class PasswordResetToken(models.Model):
     
     def __str__(self):
         return f"Reset token for {self.user.email}"
+
+
+class PasswordResetOTP(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='password_reset_otps'
+    )
+    otp_hash = models.CharField(max_length=128)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    attempt_count = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=5)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_used']),
+            models.Index(fields=['user', 'expires_at']),
+        ]
+
+    def is_valid(self):
+        return not self.is_used and timezone.now() < self.expires_at
+
+    def can_attempt(self):
+        return self.attempt_count < self.max_attempts
+
+    def register_attempt(self, succeeded=False):
+        if not succeeded:
+            self.attempt_count = self.attempt_count + 1
+        if succeeded or self.attempt_count >= self.max_attempts:
+            self.is_used = True
+        self.save(update_fields=['attempt_count', 'is_used'])
+
+    def __str__(self):
+        return f"Reset OTP for {self.user.email}"
 
 
 class EmailVerificationToken(models.Model):

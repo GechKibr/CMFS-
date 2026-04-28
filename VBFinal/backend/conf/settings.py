@@ -136,24 +136,24 @@ ASGI_APPLICATION = 'conf.asgi.application'
 
 
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.getenv('DATABASE_URL'),
-        conn_max_age=600,
-        ssl_require=not DEBUG, 
-    )
-}
-
 # DATABASES = {
-#     'default': {
-#         'ENGINE': os.getenv('DB_ENGINE'),
-#         'NAME': os.getenv('DB_NAME'),
-#         'USER': os.getenv('DB_USER'),
-#         'PASSWORD': os.getenv('DB_PASSWORD'),
-#         'HOST': os.getenv('DB_HOST'),
-#         'PORT': os.getenv('DB_PORT'),
-#     }
+#     'default': dj_database_url.config(
+#         default=os.getenv('DATABASE_URL'),
+#         conn_max_age=600,
+#         ssl_require=not DEBUG, 
+#     )
 # }
+
+DATABASES = {
+    'default': {
+        'ENGINE': os.getenv('DB_ENGINE'),
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT'),
+    }
+}
 
 CACHES = {
     'default': {
@@ -232,6 +232,13 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 if DEBUG and not EMAIL_HOST_USER:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+PASSWORD_RESET_OTP_LENGTH = int(os.getenv('PASSWORD_RESET_OTP_LENGTH', 6))
+PASSWORD_RESET_OTP_EXPIRY_MINUTES = int(os.getenv('PASSWORD_RESET_OTP_EXPIRY_MINUTES', 10))
+PASSWORD_RESET_OTP_RATE_LIMIT = int(os.getenv('PASSWORD_RESET_OTP_RATE_LIMIT', 3))
+PASSWORD_RESET_OTP_RATE_WINDOW_MINUTES = int(os.getenv('PASSWORD_RESET_OTP_RATE_WINDOW_MINUTES', 10))
+PASSWORD_RESET_OTP_MAX_ATTEMPTS = int(os.getenv('PASSWORD_RESET_OTP_MAX_ATTEMPTS', 5))
+PASSWORD_RESET_OTP_RESET_TOKEN_MINUTES = int(os.getenv('PASSWORD_RESET_OTP_RESET_TOKEN_MINUTES', 15))
 
 JWT_SESSION_TIMEOUT_MINUTES = 600
 SIMPLE_JWT = {

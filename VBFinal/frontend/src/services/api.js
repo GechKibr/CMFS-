@@ -33,8 +33,10 @@ class ApiService {
     if (!isFormData) {
       headers['Content-Type'] = 'application/json';
     }
-    if (this.token && !skipAuth) {
-      headers.Authorization = `Bearer ${this.token}`;
+    // Always get fresh token from localStorage to ensure it's up to date
+    const token = localStorage.getItem('token');
+    if (token && !skipAuth) {
+      headers.Authorization = `Bearer ${token}`;
     }
     return headers;
   }
@@ -57,7 +59,8 @@ class ApiService {
     }
 
     const data = await response.json();
-    this.setToken(data.access);
+    // Update token in localStorage and instance
+    localStorage.setItem('token', data.access);
     return data.access;
   }
 
@@ -71,7 +74,8 @@ class ApiService {
     try {
       let response = await fetch(url, config);
 
-      if (response.status === 401 && this.token) {
+      // Check for 401 using fresh token from localStorage
+      if (response.status === 401 && localStorage.getItem('token')) {
         try {
           await this.refreshToken();
           config.headers = this.getHeaders(options.isFormData);

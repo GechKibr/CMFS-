@@ -480,7 +480,10 @@ class AvailabilityBlockSerializer(serializers.ModelSerializer):
 class AppointmentAvailabilitySerializer(serializers.ModelSerializer):
     officer = ComplaintUserSerializer(read_only=True)
     officer_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), source="officer", write_only=True, required=False
+        queryset=User.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True,
     )
     rule_id = serializers.IntegerField(source="rule.id", read_only=True)
     officer_name = serializers.SerializerMethodField(read_only=True)
@@ -497,6 +500,13 @@ class AppointmentAvailabilitySerializer(serializers.ModelSerializer):
             "id", "officer", "officer_name", "rule_id", "source", "generated_at",
             "is_free", "created_at", "updated_at",
         ]
+
+    def to_internal_value(self, data):
+        # Remove officer_id if not provided or None, since it's handled by the view
+        data = data.copy()
+        if 'officer_id' in data and not data.get('officer_id'):
+            data.pop('officer_id', None)
+        return super().to_internal_value(data)
 
     def get_officer_name(self, obj):
         full_name = f"{obj.officer.first_name} {obj.officer.last_name}".strip()

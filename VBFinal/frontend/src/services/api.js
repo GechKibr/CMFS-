@@ -331,6 +331,10 @@ class ApiService {
     return this.request('/complaints/');
   }
 
+  async getAssignedComplaints() {
+    return this.request('/assignments/my-complaints/');
+  }
+
   async getCCComplaints() {
     return this.request('/complaints/cc/');
   }
@@ -577,9 +581,9 @@ class ApiService {
     const url = campusId ? `/colleges/?campus=${campusId}` : '/colleges/';
     return this.request(url);
   }
-  async createCollege(data) { return this.request('/colleges/', { method: 'POST', body: JSON.stringify(data) }); }
-  async updateCollege(id, data) { return this.request(`/colleges/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
-  async deleteCollege(id) { return this.request(`/colleges/${id}/`, { method: 'DELETE' }); }
+  // async createCollege(data) { return this.request('/colleges/', { method: 'POST', body: JSON.stringify(data) }); }
+  // async updateCollege(id, data) { return this.request(`/colleges/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  // async deleteCollege(id) { return this.request(`/colleges/${id}/`, { method: 'DELETE' }); }
 
   // Departments
   async getDepartments(collegeId = null) {
@@ -591,15 +595,15 @@ class ApiService {
   async deleteDepartment(id) { return this.request(`/departments/${id}/`, { method: 'DELETE' }); }
 
   async getStudentTypes() { return this.request('/student-types/'); }
-  async createStudentType(data) { return this.request('/student-types/', { method: 'POST', body: JSON.stringify(data) }); }
-  async updateStudentType(id, data) { return this.request(`/student-types/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
-  async deleteStudentType(id) { return this.request(`/student-types/${id}/`, { method: 'DELETE' }); }
+  // async createStudentType(data) { return this.request('/student-types/', { method: 'POST', body: JSON.stringify(data) }); }
+  // async updateStudentType(id, data) { return this.request(`/student-types/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  // async deleteStudentType(id) { return this.request(`/student-types/${id}/`, { method: 'DELETE' }); }
 
   // Campuses
   async getCampuses() { return this.request('/campuses/'); }
-  async createCampus(data) { return this.request('/campuses/', { method: 'POST', body: JSON.stringify(data) }); }
-  async updateCampus(id, data) { return this.request(`/campuses/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
-  async deleteCampus(id) { return this.request(`/campuses/${id}/`, { method: 'DELETE' }); }
+  // async createCampus(data) { return this.request('/campuses/', { method: 'POST', body: JSON.stringify(data) }); }
+  // async updateCampus(id, data) { return this.request(`/campuses/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  // async deleteCampus(id) { return this.request(`/campuses/${id}/`, { method: 'DELETE' }); }
 
   // Categories
   async getCategories(page = null) {

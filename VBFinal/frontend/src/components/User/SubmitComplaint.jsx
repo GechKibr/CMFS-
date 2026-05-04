@@ -26,6 +26,8 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   const [formErrors, setFormErrors] = useState({});
   const [currentStep, setCurrentStep] = useState(1);
   const [ccOfficeIds, setCcOfficeIds] = useState([]);
+  const [selectedResolverIds, setSelectedResolverIds] = useState([]);
+  const [resolverSelectionValue, setResolverSelectionValue] = useState('');
   const [resolverOfficerIds, setResolverOfficerIds] = useState([]);
   const [ccSearchText, setCcSearchText] = useState('');
   const [ccRegexEnabled, setCcRegexEnabled] = useState(false);
@@ -104,6 +106,8 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     setComplaintForm({ title: '', description: '', category: '', isAnonymous: false });
     setFiles([]);
     setCcOfficeIds([]);
+    setSelectedResolverIds([]);
+    setResolverSelectionValue('');
     setResolverOfficerIds([]);
     setCategorySearchText('');
     setCategoryRegexEnabled(false);
@@ -132,6 +136,8 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   const selectCategory = (categoryValue) => {
     setComplaintForm((prev) => ({ ...prev, category: categoryValue }));
     setResolverFilters({ campus: '', college: '', department: '' });
+    setSelectedResolverIds([]);
+    setResolverSelectionValue('');
     setResolverOfficerIds([]);
   };
 
@@ -230,9 +236,20 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     })
   ), [selectedCategoryResolvers, resolverFilters]);
 
-  const selectedResolverOfficers = useMemo(() => (
-    filteredResolverOfficers.filter((resolver) => resolverOfficerIds.includes(String(resolver.officer)))
-  ), [filteredResolverOfficers, resolverOfficerIds]);
+  const selectedResolverRoutes = useMemo(() => (
+    selectedResolverIds
+      .map((resolverId) => selectedCategoryResolvers.find((resolver) => String(resolver.id) === String(resolverId)))
+      .filter(Boolean)
+  ), [selectedResolverIds, selectedCategoryResolvers]);
+
+  const availableResolverRoutes = useMemo(() => (
+    filteredResolverOfficers.filter((resolver) => !selectedResolverIds.includes(String(resolver.id)))
+  ), [filteredResolverOfficers, selectedResolverIds]);
+
+  useEffect(() => {
+    const officerIds = Array.from(new Set(selectedResolverRoutes.map((resolver) => String(resolver.officer))));
+    setResolverOfficerIds(officerIds);
+  }, [selectedResolverRoutes]);
 
   const validateStep = (step) => {
     const errors = validateForm();
@@ -286,21 +303,28 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     });
   };
 
-  const toggleResolverOfficerSelection = (officerId) => {
-    setResolverOfficerIds((prev) => {
-      const id = String(officerId);
-      return prev.includes(id)
-        ? prev.filter((item) => item !== id)
-        : [...prev, id];
-    });
+  const addResolverRouteSelection = () => {
+    if (!resolverSelectionValue) return;
+    setSelectedResolverIds((prev) => (
+      prev.includes(String(resolverSelectionValue))
+        ? prev
+        : [...prev, String(resolverSelectionValue)]
+    ));
+    setResolverSelectionValue('');
   };
 
-  const clearResolverOfficerSelections = () => {
-    setResolverOfficerIds([]);
+  const removeResolverRouteSelection = (resolverId) => {
+    setSelectedResolverIds((prev) => prev.filter((item) => String(item) !== String(resolverId)));
   };
 
-  const selectAllResolverOfficers = () => {
-    setResolverOfficerIds(filteredResolverOfficers.map((resolver) => String(resolver.officer)));
+  const clearResolverRouteSelections = () => {
+    setSelectedResolverIds([]);
+    setResolverSelectionValue('');
+  };
+
+  const selectAllResolverRoutes = () => {
+    setSelectedResolverIds(filteredResolverOfficers.map((resolver) => String(resolver.id)));
+    setResolverSelectionValue('');
   };
 
   const removeCcOffice = (officeId) => {
@@ -543,25 +567,25 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {language === 'am' ? 'ልዩ ኦፊሰሮች' : 'Specific offices'}
+                          {language === 'am' ? 'ልዩ ሪዞልቨር መንገዶች' : 'Specific resolver routes'}
                         </p>
                         <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                           {language === 'am'
-                            ? 'ካምፓስ፣ ኮሌጅ እና ዲፓርትመንት በመምረጥ የሚስማሙ ኦፊሰሮችን ይጠቀሙ።'
-                            : 'Filter the available resolver officers by campus, college, and department.'}
+                            ? 'ካምፓስ፣ ኮሌጅ እና ዲፓርትመንት በመምረጥ ልዩ የCategoryResolver መንገዶችን ይምረጡ።'
+                            : 'Filter by campus, college, and department, then choose specific CategoryResolver routes.'}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={selectAllResolverOfficers}
+                          onClick={selectAllResolverRoutes}
                           className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
                         >
                           {language === 'am' ? 'ሁሉንም ይምረጡ' : 'Select all'}
                         </button>
                         <button
                           type="button"
-                          onClick={clearResolverOfficerSelections}
+                          onClick={clearResolverRouteSelections}
                           className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                         >
                           {language === 'am' ? 'አጽዳ' : 'Clear'}
@@ -619,51 +643,68 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
 
                     <div className="mt-4">
                       <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-2`}>
-                        {language === 'am' ? 'የተገኙ ኦፊሰሮች' : 'Matching resolver officers'}
+                        {language === 'am' ? 'የሚገኙ የCategoryResolver ምርጫዎች' : 'Available CategoryResolver routes'}
                       </label>
-                      <div className="max-h-52 overflow-y-auto space-y-2">
-                        {filteredResolverOfficers.length === 0 ? (
-                          <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {language === 'am' ? 'ይህን ማጣሪያ የሚያሟሉ ኦፊሰሮች የሉም።' : 'No officers match the selected scope filters.'}
-                          </div>
-                        ) : (
-                          filteredResolverOfficers.map((resolver) => {
-                            const isSelected = resolverOfficerIds.includes(String(resolver.officer));
-                            return (
-                              <button
-                                key={resolver.id}
-                                type="button"
-                                onClick={() => toggleResolverOfficerSelection(resolver.officer)}
-                                className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${isSelected
-                                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                  : isDark
-                                    ? 'border-gray-600 bg-gray-700 hover:border-blue-400'
-                                    : 'border-gray-200 bg-white hover:border-blue-300'} `}
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <div>
-                                    <p className={`text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{resolver.officer_name}</p>
-                                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                      {resolver.scope_label || 'General'}
-                                      {' '}
-                                      {resolver.campus_name ? `· ${resolver.campus_name}` : ''}
-                                      {resolver.college_name ? `· ${resolver.college_name}` : ''}
-                                      {resolver.department_name ? `· ${resolver.department_name}` : ''}
-                                    </p>
-                                  </div>
-                                  <span className={`h-5 w-5 rounded-full border flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : isDark ? 'border-gray-500 text-transparent' : 'border-gray-300 text-transparent'}`}>
-                                    ✓
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })
-                        )}
-                      </div>
+                      {availableResolverRoutes.length === 0 ? (
+                        <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {language === 'am' ? 'ይህን ማጣሪያ የሚያሟሉ ሪዞልቨር መንገዶች የሉም።' : 'No CategoryResolver routes match the selected scope filters.'}
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <select
+                            value={resolverSelectionValue}
+                            onChange={(e) => setResolverSelectionValue(e.target.value)}
+                            className={`flex-1 rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                          >
+                            <option value="">{language === 'am' ? 'CategoryResolver ይምረጡ' : 'Select CategoryResolver route'}</option>
+                            {availableResolverRoutes.map((resolver) => (
+                              <option key={resolver.id} value={resolver.id}>
+                                {`${resolver.officer_name} | ${resolver.scope_label || 'General'}${resolver.campus_name ? ` | ${resolver.campus_name}` : ''}${resolver.college_name ? ` | ${resolver.college_name}` : ''}${resolver.department_name ? ` | ${resolver.department_name}` : ''}`}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={addResolverRouteSelection}
+                            disabled={!resolverSelectionValue}
+                            className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {language === 'am' ? 'ጨምር' : 'Add'}
+                          </button>
+                        </div>
+                      )}
+
+                      {selectedResolverRoutes.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {selectedResolverRoutes.map((resolver) => (
+                            <div key={resolver.id} className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-white'}`}>
+                              <div className="flex items-center justify-between gap-2">
+                                <p className={`text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>
+                                  {resolver.officer_name}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => removeResolverRouteSelection(resolver.id)}
+                                  className="text-xs text-red-500 hover:text-red-600"
+                                >
+                                  {language === 'am' ? 'አስወግድ' : 'Remove'}
+                                </button>
+                              </div>
+                              <p className={`mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {resolver.scope_label || 'General'}
+                                {resolver.campus_name ? ` · ${resolver.campus_name}` : ''}
+                                {resolver.college_name ? ` · ${resolver.college_name}` : ''}
+                                {resolver.department_name ? ` · ${resolver.department_name}` : ''}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       <p className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {language === 'am'
-                          ? `የተመረጡ ኦፊሰሮች: ${selectedResolverOfficers.length}`
-                          : `Selected resolver officers: ${selectedResolverOfficers.length}`}
+                          ? `የተመረጡ የCategoryResolver መንገዶች: ${selectedResolverRoutes.length}`
+                          : `Selected CategoryResolver routes: ${selectedResolverRoutes.length}`}
                       </p>
                     </div>
                   </div>

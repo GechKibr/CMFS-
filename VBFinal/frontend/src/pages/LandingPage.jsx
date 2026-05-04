@@ -159,18 +159,11 @@ const LandingPage = () => {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 items-center">
             <div className="text-center lg:text-left min-w-0">
-              <span className={`inline-flex items-center rounded-full px-4 py-1.5 text-xs sm:text-sm font-semibold mb-4 sm:mb-6 text-center max-w-full ${isDark ? 'bg-blue-900/40 text-blue-200 border border-blue-700' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
-                Trusted Campus Feedback Platform
-              </span>
               <h1 className={`text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold ${isDark ? 'text-white' : 'text-gray-900'} mb-4 sm:mb-6 leading-tight text-balance break-words`}>
                 <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                   Complaint Management and Feedback Tracking for UOG
                 </span>
               </h1>
-
-              <p className={`text-base sm:text-lg md:text-xl ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-6 sm:mb-8 leading-relaxed text-pretty max-w-prose mx-auto lg:mx-0`}>
-                A modern platform for educational institutions to submit, track, and resolve concerns quickly with visibility and accountability.
-              </p>
 
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start mb-4">
                 <button

@@ -74,6 +74,7 @@ const OfficerDashboard = () => {
   const fetchComplaints = useCallback(async () => {
     setComplaintsLoading(true);
     try {
+      // Fetch complaints visible to the current officer through CategoryResolver scope.
       const data = await apiService.getComplaints();
       const availableComplaints = Array.isArray(data) ? data : data.results || [];
       setComplaints(availableComplaints);
@@ -467,7 +468,7 @@ const OfficerDashboard = () => {
               ) : (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Assigned Complaints ({complaints.length})</h3>
+                    <h3 className="text-lg font-semibold">Resolver Complaints ({complaints.length})</h3>
                     <select
                       value={complaintStatusFilter}
                       onChange={(e) => setComplaintStatusFilter(e.target.value)}

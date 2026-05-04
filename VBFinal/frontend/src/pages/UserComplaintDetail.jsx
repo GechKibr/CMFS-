@@ -164,8 +164,14 @@ const UserComplaintDetail = () => {
                   <a
                     key={file.id}
                     href={file.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      try {
+                        await apiService.openAuthenticatedFile(file.url, file.filename);
+                      } catch (err) {
+                        window.alert(err.message || 'Failed to open attachment');
+                      }
+                    }}
                     className="block p-3 rounded border border-gray-200 hover:bg-gray-50"
                   >
                     {file.filename}

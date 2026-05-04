@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import apiService from '../../services/api';
@@ -8,7 +8,7 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
   const { isDark, toggleTheme } = useTheme();
   const { user, logout, getUserRole } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+  // const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -126,12 +126,12 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
   const iconButtonClasses = isDark
     ? 'text-slate-300 hover:bg-blue-500/15 hover:text-blue-200'
     : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700';
-  const activeLinkClasses = isDark
-    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
-    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm';
-  const defaultLinkClasses = isDark
-    ? 'text-slate-300 hover:bg-blue-500/15 hover:text-blue-200'
-    : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700';
+  // const activeLinkClasses = isDark
+  //   ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+  //   : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm';
+  // const defaultLinkClasses = isDark
+  //   ? 'text-slate-300 hover:bg-blue-500/15 hover:text-blue-200'
+  //   : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700';
   const userMenuTriggerClasses = isDark
     ? 'hover:bg-blue-500/15'
     : 'hover:bg-blue-50';
@@ -169,19 +169,6 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Center: Navigation Links */}
-        <div className="hidden lg:flex items-center space-x-1">
-          <Link
-            to={getDashboardPath()}
-            className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${location.pathname === getDashboardPath()
-              ? activeLinkClasses
-              : defaultLinkClasses
-              }`}
-          >
-            Dashboard
-          </Link>
         </div>
 
         {/* Right: Theme Toggle and User Menu */}

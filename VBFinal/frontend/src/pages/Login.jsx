@@ -105,7 +105,15 @@ const Login = () => {
       </div>
 
       <div className="w-full lg:w-1/2 flex items-center justify-center px-4 py-8 sm:px-8">
+        
+               
+
         <div className="w-full max-w-md space-y-6">
+             <div className="mt-4 text-center">
+                <div className="flex justify-center gap-4 mt-2">
+                  <Link to="/" className="text-sm text-blue-600 hover:text-blue-500">Home Page</Link>
+                </div>
+              </div>
           {/* Scheduled Maintenance Notification */}
           {scheduledMaintenance && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -145,6 +153,9 @@ const Login = () => {
           )}
 
           <div className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} p-8 rounded-2xl shadow-2xl border`}>
+            
+
+            
             <div className="text-center mb-8">
               <div className="mx-auto h-20 w-20 sm:h-24 sm:w-24 rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white">
                 <img
@@ -155,8 +166,6 @@ const Login = () => {
                   height={162}
                 />
               </div>
-              <h2 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>Welcome Back</h2>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Sign in to University of Gondar CMFS</p>
             </div>
 
             {error && (
@@ -166,6 +175,7 @@ const Login = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              
               <div>
                 <label htmlFor="identifier" className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   Email or Username
@@ -280,6 +290,8 @@ const Login = () => {
                   <span>Sign in with Microsoft</span>
                 </div>
               </button>
+
+              
 
             </form>
           </div>

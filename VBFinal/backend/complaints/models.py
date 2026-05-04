@@ -78,10 +78,8 @@ class CategoryResolver(models.Model):
 
     def clean(self):
         if self.department_id:
-            # department.department_college is an academic-unit code now
             if self.department.department_college and self.college and self.department.department_college != self.college:
                 raise ValidationError("Selected department does not belong to the selected academic unit.")
-        # cannot reliably validate college->campus mapping without a lookup; skip campus/college mapping check
 
     def scope_rank(self):
         if self.department_id:
@@ -119,9 +117,7 @@ class CategoryResolver(models.Model):
             return False
 
         department = getattr(profile, "department", None)
-        # profile.college is an academic-unit code for officers; for students derive from department
         college_code = getattr(profile, "college", None) or (department.department_college if department else None)
-        # student_profile stores campus_id directly; officers may not have campus info
         campus_code = getattr(profile, "campus_id", None)
         return self.matches_scope(campus=campus_code, college=college_code, department=department)
 
@@ -174,7 +170,6 @@ class Complaint(models.Model):
     )
 
     submitter_campus = models.CharField(max_length=50, choices=CAMPUS_CHOICES, null=True, blank=True)
-    # store academic-unit code instead of FK to removed College model
     submitter_college = models.CharField(max_length=50, choices=ACADEMIC_UNITS, null=True, blank=True)
     submitter_department = models.ForeignKey(
         "accounts.Department",
@@ -224,7 +219,6 @@ class Complaint(models.Model):
         student_profile = getattr(self.submitted_by, "student_profile", None)
         if student_profile is not None:
             department = student_profile.department
-            # department.department_college is an academic-unit code
             college = department.department_college if department else None
             campus = student_profile.campus_id
             return campus, college, department
@@ -233,7 +227,6 @@ class Complaint(models.Model):
         if officer_profile is not None:
             department = officer_profile.department
             college = officer_profile.college or (department.department_college if department else None)
-            # officers do not have a campus field; campus may be unknown here
             campus = None
             return campus, college, department
 

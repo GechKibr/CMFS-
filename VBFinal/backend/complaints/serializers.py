@@ -23,6 +23,7 @@ from .models import (
 )
 
 User = get_user_model()
+from notifications.models import Notification
 
 ALLOWED_ATTACHMENT_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".pdf", ".txt", ".doc", ".docx"}
 ALLOWED_ATTACHMENT_CONTENT_TYPES = {

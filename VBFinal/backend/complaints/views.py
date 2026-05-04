@@ -78,12 +78,17 @@ def accessible_complaints_for(user):
         complaints = Complaint.objects.filter(
             models.Q(assigned_officer=user)
             | models.Q(submitted_by=user)
+            | models.Q(cc_list__email=user.email)
             | models.Q(category__resolvers__officer=user, category__resolvers__active=True)
         ).distinct().select_related('category', 'current_resolver', 'assigned_officer')
 
         visible_ids = []
         for complaint in complaints:
             if complaint.submitted_by_id == user.id or complaint.assigned_officer_id == user.id:
+                visible_ids.append(complaint.pk)
+                continue
+
+            if complaint.cc_list.filter(email=user.email).exists():
                 visible_ids.append(complaint.pk)
                 continue
 
@@ -397,21 +402,32 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         complaint = get_object_or_404(Complaint, pk=pk)
         if not can_manage_complaint(request.user, complaint):
             return DRFResponse({'error': 'You do not have permission to assign this complaint.'}, status=status.HTTP_403_FORBIDDEN)
-
         officer_id = request.data.get('officer_id')
+        resolver_id = request.data.get('resolver_id')
+
         if not officer_id:
             return DRFResponse({'error': 'officer_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         officer = get_object_or_404(User, id=officer_id, role='officer')
+
         resolver = None
-        for candidate in CategoryResolver.objects.filter(
-            category=complaint.category,
-            officer=officer,
-            active=True,
-        ).select_related('category', 'department', 'officer').order_by('department_id', 'college', 'campus', 'id'):
-            if candidate.matches_complaint_scope(complaint):
-                resolver = candidate
-                break
+        if resolver_id:
+            resolver = get_object_or_404(CategoryResolver, id=resolver_id, active=True)
+            if resolver.category_id != getattr(complaint.category, 'id', None) and resolver.category_id != getattr(complaint.category, 'category_id', None):
+                return DRFResponse({'error': 'Selected resolver does not belong to this complaint category.'}, status=status.HTTP_400_BAD_REQUEST)
+            if resolver.officer_id != officer.id:
+                return DRFResponse({'error': 'Selected resolver officer does not match the provided officer.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not resolver.matches_complaint_scope(complaint):
+                return DRFResponse({'error': 'Selected resolver does not match the complainant\'s campus/college/department.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            for candidate in CategoryResolver.objects.filter(
+                category=complaint.category,
+                officer=officer,
+                active=True,
+            ).select_related('category', 'department', 'officer').order_by('department_id', 'college', 'campus', 'id'):
+                if candidate.matches_complaint_scope(complaint):
+                    resolver = candidate
+                    break
 
         if resolver is None:
             return DRFResponse({'error': 'No matching resolver found for the selected officer.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -464,8 +480,8 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         complaint = get_object_or_404(Complaint, pk=pk)
         if not can_manage_complaint(request.user, complaint):
             return DRFResponse({'error': 'You do not have permission to reassign this complaint.'}, status=status.HTTP_403_FORBIDDEN)
-
         new_officer_id = request.data.get('officer_id')
+        resolver_id = request.data.get('resolver_id')
         reason = request.data.get('reason', 'manual reassignment')
         if not new_officer_id:
             return DRFResponse({'error': 'officer_id is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -473,14 +489,23 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         officer = get_object_or_404(User, id=new_officer_id, role='officer')
 
         resolver = None
-        for candidate in CategoryResolver.objects.filter(
-            category=complaint.category,
-            officer=officer,
-            active=True,
-        ).select_related('category', 'department', 'officer').order_by('department_id', 'college', 'campus', 'id'):
-            if candidate.matches_complaint_scope(complaint):
-                resolver = candidate
-                break
+        if resolver_id:
+            resolver = get_object_or_404(CategoryResolver, id=resolver_id, active=True)
+            if resolver.category_id != getattr(complaint.category, 'id', None) and resolver.category_id != getattr(complaint.category, 'category_id', None):
+                return DRFResponse({'error': 'Selected resolver does not belong to this complaint category.'}, status=status.HTTP_400_BAD_REQUEST)
+            if resolver.officer_id != officer.id:
+                return DRFResponse({'error': 'Selected resolver officer does not match the provided officer.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not resolver.matches_complaint_scope(complaint):
+                return DRFResponse({'error': 'Selected resolver does not match the complainant\'s campus/college/department.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            for candidate in CategoryResolver.objects.filter(
+                category=complaint.category,
+                officer=officer,
+                active=True,
+            ).select_related('category', 'department', 'officer').order_by('department_id', 'college', 'campus', 'id'):
+                if candidate.matches_complaint_scope(complaint):
+                    resolver = candidate
+                    break
 
         if resolver is None:
             return DRFResponse(
@@ -503,6 +528,30 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             {'detail': 'Complaint reassigned successfully', 'assigned_officer_id': officer.id},
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=True, methods=['get'], url_path='eligible-resolvers')
+    def eligible_resolvers(self, request, pk=None):
+        """Return CategoryResolver records for this complaint, optionally filtered by campus/college/department query params."""
+        complaint = get_object_or_404(Complaint, pk=pk)
+        if not can_manage_complaint(request.user, complaint):
+            return DRFResponse({'error': 'You do not have permission to view resolvers for this complaint.'}, status=status.HTTP_403_FORBIDDEN)
+
+        campus = request.query_params.get('campus')
+        college = request.query_params.get('college')
+        department_id = request.query_params.get('department')
+
+        qs = CategoryResolver.objects.filter(category=complaint.category, active=True).select_related('officer', 'department')
+        if campus is not None:
+            qs = qs.filter(campus=campus)
+        if college is not None:
+            qs = qs.filter(college=college)
+        if department_id is not None:
+            qs = qs.filter(department_id=department_id)
+
+        # Only include resolvers that actually match the complaint's scope
+        resolvers = [r for r in qs if r.matches_complaint_scope(complaint)]
+        serializer = CategoryResolverSerializer(resolvers, many=True)
+        return DRFResponse({'count': len(resolvers), 'results': serializer.data}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='change-status')
     def change_status(self, request, pk=None):
@@ -814,6 +863,18 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     queryset = Assignment.objects.all()
     serializer_class = AssignmentSerializer
     permission_classes = [IsAdminRole]
+
+    @action(detail=False, methods=['get'], url_path='my-complaints')
+    def my_complaints(self, request):
+        user = request.user
+        if not user or not user.is_authenticated or (not user.is_officer() and not user.is_admin()):
+            return DRFResponse({'error': 'Only officers and admins can view assigned complaints.'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Active assignments (ended_at is null) for this officer
+        assignments = Assignment.objects.filter(officer=user, ended_at__isnull=True).select_related('complaint__category', 'resolver', 'officer')
+        complaints = [a.complaint for a in assignments if a.complaint is not None]
+        serializer = ComplaintSerializer(complaints, many=True, context={'request': request})
+        return DRFResponse({'count': len(complaints), 'results': serializer.data}, status=status.HTTP_200_OK)
 
 
 class AvailabilityRuleViewSet(viewsets.ModelViewSet):

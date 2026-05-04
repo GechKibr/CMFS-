@@ -7,9 +7,8 @@ export const CategoryManagement = () => {
   const { isDark } = useTheme();
   const [categories, setCategories] = useState([]);
   const [filteredCategories, setFilteredCategories] = useState([]);
-  const [campuses, setCampuses] = useState([]);
-  const [colleges, setColleges] = useState([]);
-  const [departments, setDepartments] = useState([]);
+  const [parentOptions, setParentOptions] = useState([]);
+  
   const [loading, setLoading] = useState(true);
   const [editingCategory, setEditingCategory] = useState(null);
   const [pageMode, setPageMode] = useState('home');
@@ -26,14 +25,11 @@ export const CategoryManagement = () => {
   const [formData, setFormData] = useState({
     office_name: '',
     office_description: '',
-    campus: '',
-    college: '',
-    department: '',
     parent: '',
     is_active: true
   });
 
-  const resetForm = () => setFormData({ office_name: '', office_description: '', campus: '', college: '', department: '', parent: '', is_active: true });
+  const resetForm = () => setFormData({ office_name: '', office_description: '', parent: '', is_active: true });
 
   const openCreatePage = () => {
     setEditingCategory(null);
@@ -46,9 +42,6 @@ export const CategoryManagement = () => {
     setFormData({
       office_name: category.office_name || category.name || '',
       office_description: category.office_description || category.description || '',
-      campus: category.campus || '',
-      college: category.college || '',
-      department: category.department || '',
       parent: category.parent || '',
       is_active: category.is_active
     });
@@ -89,12 +82,8 @@ export const CategoryManagement = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [categoriesResponse, campusesData, collegesData, departmentsData] = await Promise.all([
-        apiService.getCategories(pagination.currentPage),
-        apiService.getCampuses(),
-        apiService.getColleges(),
-        apiService.getDepartments()
-      ]);
+      const categoriesResponse = await apiService.getCategories(pagination.currentPage);
+      const allCategoriesResp = await apiService.getAllCategories();
 
       // Handle paginated response
       if (categoriesResponse.results) {
@@ -108,9 +97,7 @@ export const CategoryManagement = () => {
         setCategories(categoriesResponse);
       }
 
-      setCampuses(campusesData.results || campusesData);
-      setColleges(collegesData.results || collegesData);
-      setDepartments(departmentsData.results || departmentsData);
+      setParentOptions(allCategoriesResp.results || allCategoriesResp || []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -130,11 +117,10 @@ export const CategoryManagement = () => {
     e.preventDefault();
     try {
       const payload = {
-        ...formData,
-        campus: formData.campus || null,
-        college: formData.college || null,
-        department: formData.department || null,
+        office_name: formData.office_name,
+        office_description: formData.office_description,
         parent: formData.parent || null,
+        is_active: formData.is_active,
       };
 
       if (editingCategory) {
@@ -172,12 +158,8 @@ export const CategoryManagement = () => {
   };
 
   const filteredColleges = formData.campus
-    ? colleges.filter(college => String(college.college_campus) === String(formData.campus))
-    : colleges;
-
-  const filteredDepartments = formData.college
-    ? departments.filter(department => String(department.department_college) === String(formData.college))
-    : departments;
+    ? []
+    : [];
 
   if (loading) return <div className="text-center py-4">Loading...</div>;
 
@@ -303,7 +285,7 @@ export const CategoryManagement = () => {
               className={`mt-1 block w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
             >
               <option value="">No Parent (Top Level Office)</option>
-              {categories
+              {parentOptions
                 .filter(cat => cat.category_id !== editingCategory?.category_id)
                 .map((category) => (
                   <option key={category.category_id} value={category.category_id}>
@@ -390,9 +372,7 @@ export const CategoryManagement = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Office Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Campus</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">College</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -414,9 +394,6 @@ export const CategoryManagement = () => {
                       <div className="font-medium">{category.office_name || category.name}</div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">{category.office_description || category.description || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{category.campus_name || campuses.find(campus => campus.id === category.campus)?.campus_name || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{category.college_name || colleges.find(college => college.id === category.college)?.college_name || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{category.department_name || departments.find(department => department.id === category.department)?.department_name || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-500">{category.parent_name || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${category.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>

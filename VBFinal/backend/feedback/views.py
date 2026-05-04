@@ -21,8 +21,6 @@ class FeedbackTemplateViewSet(viewsets.ModelViewSet):
     queryset = FeedbackTemplate.objects.select_related(
         'created_by',
         'approved_by',
-        'target_campus',
-        'target_college',
         'target_department',
     ).prefetch_related('fields', 'target_users')
     permission_classes = [permissions.IsAuthenticated]
@@ -172,16 +170,14 @@ class FeedbackTemplateViewSet(viewsets.ModelViewSet):
 
         if campus_id:
             responses = responses.filter(
-                Q(user__student_profile__department__department_college__college_campus_id=campus_id)
-                | Q(user__officer_profile__college__college_campus_id=campus_id)
-                | Q(user__officer_profile__department__department_college__college_campus_id=campus_id)
+                Q(user__student_profile__campus_id=campus_id)
             )
 
         if college_id:
             responses = responses.filter(
-                Q(user__student_profile__department__department_college_id=college_id)
-                | Q(user__officer_profile__college_id=college_id)
-                | Q(user__officer_profile__department__department_college_id=college_id)
+                Q(user__student_profile__department__department_college=college_id)
+                | Q(user__officer_profile__college=college_id)
+                | Q(user__officer_profile__department__department_college=college_id)
             )
 
         if department_id:

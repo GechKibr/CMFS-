@@ -10,8 +10,9 @@ from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
 from .email_service import EmailService
 from .models import (
-    Campus,
-    College,
+    ACADEMIC_UNITS,
+    CAMPUS_CHOICES,
+    STUDENT_TYPE_CHOICES,
     Department,
     EmailVerificationToken,
     MaintenanceConfiguration,
@@ -19,14 +20,11 @@ from .models import (
     PasswordResetOTP,
     PasswordResetToken,
     Student,
-    StudentType,
     SystemLog,
     User,
 )
 from .serializers import (
     AdminUserSerializer,
-    CampusSerializer,
-    CollegeSerializer,
     DepartmentSerializer,
     LoginSerializer,
     MaintenanceConfigurationSerializer,
@@ -34,7 +32,6 @@ from .serializers import (
     RegisterSerializer,
     SelfUserSerializer,
     StudentSerializer,
-    StudentTypeSerializer,
     SystemLogSerializer,
 )
 from .utils import (
@@ -457,30 +454,74 @@ class TokenViewSet(viewsets.ViewSet):
         return check_token_expiry(request._request)
 
 
-class CampusViewSet(PublicReadAdminWriteMixin, viewsets.ModelViewSet):
-    queryset = Campus.objects.order_by('id')
-    serializer_class = CampusSerializer
+class CampusListViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.AllowAny]
+
+    def get_authenticators(self):
+        return []
+
+    def list(self, request):
+        payload = [
+            {
+                'id': code,
+                'campus_name': label,
+                'code': code,
+                'is_active': True,
+            }
+            for code, label in CAMPUS_CHOICES
+        ]
+        return Response(payload)
 
 
-class CollegeViewSet(PublicReadAdminWriteMixin, viewsets.ModelViewSet):
-    serializer_class = CollegeSerializer
+class CollegeListViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.AllowAny]
 
-    def get_queryset(self):
-        campus_id = self.request.query_params.get('campus')
-        qs = College.objects.order_by('id')
-        if campus_id:
-            qs = qs.filter(college_campus_id=campus_id)
-        return qs
+    def get_authenticators(self):
+        return []
+
+    def list(self, request):
+        # College endpoint now serves academic-unit choices.
+        payload = [
+            {
+                'id': code,
+                'college_name': label,
+                'college_code': code,
+                'code': code,
+                'is_active': True,
+            }
+            for code, label in ACADEMIC_UNITS
+        ]
+        return Response(payload)
+
+
+class StudentTypeListViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.AllowAny]
+
+    def get_authenticators(self):
+        return []
+
+    def list(self, request):
+        payload = [
+            {
+                'id': code,
+                'type_name': label,
+                'code': code,
+                'is_active': True,
+            }
+            for code, label in STUDENT_TYPE_CHOICES
+        ]
+        return Response(payload)
+
 
 
 class DepartmentViewSet(PublicReadAdminWriteMixin, viewsets.ModelViewSet):
     serializer_class = DepartmentSerializer
 
     def get_queryset(self):
-        college_id = self.request.query_params.get('college')
+        college = self.request.query_params.get('college')
         qs = Department.objects.order_by('id')
-        if college_id:
-            qs = qs.filter(department_college_id=college_id)
+        if college:
+            qs = qs.filter(department_college=college)
         return qs
 
 
@@ -536,20 +577,18 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
             'results': self.get_serializer(results, many=True).data,
         })
 
-class StudentTypeViewSet(PublicReadAdminWriteMixin, viewsets.ModelViewSet):
-    queryset = StudentType.objects.order_by('id')
-    serializer_class = StudentTypeSerializer
+# StudentType was converted to static choices; remove its viewset.
 
 
 class StudentViewSet(AdminOnlyModelViewSet):
     serializer_class = StudentSerializer
 
     def get_queryset(self):
-        qs = Student.objects.select_related('user', 'student_type', 'department').order_by('id')
-        student_type_id = self.request.query_params.get('student_type')
+        qs = Student.objects.select_related('user', 'department').order_by('id')
+        student_type = self.request.query_params.get('student_type')
         department_id = self.request.query_params.get('department')
-        if student_type_id:
-            qs = qs.filter(student_type_id=student_type_id)
+        if student_type:
+            qs = qs.filter(student_type=student_type)
         if department_id:
             qs = qs.filter(department_id=department_id)
         return qs
@@ -559,11 +598,11 @@ class OfficerViewSet(AdminOnlyModelViewSet):
     serializer_class = OfficerSerializer
 
     def get_queryset(self):
-        qs = Officer.objects.select_related('user', 'college', 'department').order_by('id')
-        college_id = self.request.query_params.get('college')
+        qs = Officer.objects.select_related('user', 'department').order_by('id')
+        college = self.request.query_params.get('college')
         department_id = self.request.query_params.get('department')
-        if college_id:
-            qs = qs.filter(college_id=college_id)
+        if college:
+            qs = qs.filter(college=college)
         if department_id:
             qs = qs.filter(department_id=department_id)
         return qs

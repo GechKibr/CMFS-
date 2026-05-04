@@ -79,7 +79,7 @@ const UserProfile = ({ user: propUser }) => {
   };
 
   const handleCampusChange = async (e) => {
-    const campusId = e.target.value ? parseInt(e.target.value) : null;
+    const campusId = e.target.value || null;
     setFormData(prev => ({
       ...prev,
       user_campus: campusId,
@@ -104,7 +104,7 @@ const UserProfile = ({ user: propUser }) => {
   };
 
   const handleCollegeChange = async (e) => {
-    const collegeId = e.target.value ? parseInt(e.target.value) : null;
+    const collegeId = e.target.value || null;
     setFormData(prev => ({
       ...prev,
       college: collegeId,
@@ -223,13 +223,13 @@ const UserProfile = ({ user: propUser }) => {
 
   const getCampusName = (campusId) => {
     if (!campusId) return 'Not specified';
-    const campus = campuses.find(c => c.id === campusId);
+    const campus = campuses.find(c => String(c.id) === String(campusId));
     return campus?.campus_name || 'Unknown Campus';
   };
 
   const getCollegeName = (collegeId) => {
     if (!collegeId) return 'Not specified';
-    const college = colleges.find(c => c.id === collegeId);
+    const college = colleges.find(c => String(c.id) === String(collegeId));
     return college?.college_name || 'Unknown College';
   };
 

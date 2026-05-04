@@ -692,31 +692,6 @@ class ApiService {
     });
   }
 
-  // Resolver Levels
-  async getResolverLevels() {
-    return this.request('/resolver-levels/');
-  }
-
-  async createResolverLevel(data) {
-    return this.request('/resolver-levels/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async updateResolverLevel(id, data) {
-    return this.request(`/resolver-levels/${id}/`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteResolverLevel(id) {
-    return this.request(`/resolver-levels/${id}/`, {
-      method: 'DELETE',
-    });
-  }
-
   // Category Resolvers
   async getCategoryResolvers(page = null, pageSize = null) {
     let url = '/resolver-assignments/';

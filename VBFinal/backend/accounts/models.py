@@ -10,6 +10,39 @@ from django.conf import settings
 from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
 
+CAMPUS_CHOICES = [
+    ("maraki", "Maraki Campus"),
+    ("atse_tewodros", "Atse Tewodros Campus"),
+    ("atse_fasil", "Atse Fasil Campus"),
+    ("cmhs", "College of Medicine & Health Sciences Campus"),
+    ("tseda", "Tseda Campus"),
+]
+
+ACADEMIC_UNITS = [
+    ("medicine_health_sciences", "College of Medicine and Health Sciences"),
+    ("agriculture_env_sciences", "College of Agriculture & Environmental Sciences"),
+    ("business_economics", "College of Business and Economics"),
+    ("natural_comp_sciences", "College of Natural and Computational Sciences"),
+    ("social_sciences_humanities", "College of Social Sciences and Humanities"),
+    ("veterinary_medicine", "College of Veterinary Medicine and Animal Sciences"),
+    ("education", "College of Education"),
+    ("informatics", "College of Informatics"),
+    ("institute_technology", "Institute of Technology"),
+    ("institute_biotechnology", "Institute of Biotechnology"),
+    ("school_of_law", "School of Law"),
+]
+
+STUDENT_TYPE_CHOICES = [
+    ("undergraduate", "Undergraduate Student"),
+    ("postgraduate", "Postgraduate Student"),
+    ("phd", "PhD / Doctoral Student"),
+    ("specialty", "Specialty / Sub-specialty Student"),
+    ("international", "International Student"),
+    ("prospective", "Prospective Student"),
+    ("regular", "Regular (Full-time) Student"),
+    ("extension", "Extension / Part-time Student"),
+    ("summer", "Summer / Special Term Student"),
+]
 
 class SystemLog(models.Model):
     LEVEL_CHOICES = [
@@ -155,32 +188,10 @@ class UserManager(BaseUserManager):
 
         return self.create_user(email, password, **extra_fields)
 
-class Campus(models.Model):
-    campus_name = models.CharField(max_length=100, blank=True, null=True)
-    location    = models.CharField(max_length=255, blank=True, null=True)
-    description = models.TextField(blank=True, null=True)
-    is_active   = models.BooleanField(default=True)
-    created_at  = models.DateTimeField(default=timezone.now)
-
-    def __str__(self):
-        return self.campus_name or ''
-
-
-class College(models.Model):
-    college_name   = models.CharField(max_length=100, null=True, blank=True)
-    college_code   = models.CharField(max_length=20, null=True, blank=True)
-    college_campus = models.ForeignKey(Campus, on_delete=models.CASCADE, null=True, blank=True, related_name='colleges')
-    description    = models.TextField(blank=True, null=True)
-    is_active      = models.BooleanField(default=True)
-    created_at     = models.DateTimeField(default=timezone.now)
-
-    def __str__(self):
-        return self.college_name or ''
-
 
 class Department(models.Model):
     department_name    = models.CharField(max_length=100, null=True, blank=True)
-    department_college = models.ForeignKey(College, on_delete=models.CASCADE, null=True, blank=True, related_name='departments')
+    department_college = models.CharField(max_length=100, null=True, blank=True,choices=ACADEMIC_UNITS)
     description        = models.TextField(blank=True, null=True)
     is_active          = models.BooleanField(default=True)
     created_at         = models.DateTimeField(default=timezone.now)
@@ -403,28 +414,24 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def user_campus(self):
         student_profile = getattr(self, 'student_profile', None)
-        if student_profile and student_profile.department_id:
-            college = student_profile.department.department_college
-            return college.college_campus_id if college else None
+        if student_profile and student_profile.campus_id:
+            return student_profile.campus_id
 
         officer_profile = getattr(self, 'officer_profile', None)
         if officer_profile:
-            if officer_profile.college_id:
-                return officer_profile.college.college_campus_id
-            if officer_profile.department_id:
-                return officer_profile.department.department_college.college_campus_id
+            return None
         return None
 
     @property
     def college(self):
         student_profile = getattr(self, 'student_profile', None)
         if student_profile and student_profile.department_id:
-            return student_profile.department.department_college_id
+            return student_profile.department.department_college
 
         officer_profile = getattr(self, 'officer_profile', None)
         if officer_profile:
-            return officer_profile.college_id or (
-                officer_profile.department.department_college_id if officer_profile.department_id else None
+            return officer_profile.college or (
+                officer_profile.department.department_college if officer_profile.department_id else None
             )
         return None
 
@@ -445,7 +452,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def student_type(self):
         student_profile = getattr(self, 'student_profile', None)
-        return student_profile.student_type_id if student_profile else None
+        return student_profile.student_type if student_profile else None
 
     @property
     def year_of_study(self):
@@ -464,18 +471,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         else:
             return Complaint.objects.filter(submitted_by=self)
 
-class StudentType(models.Model):
-    type_name = models.CharField(max_length=50, unique=True)
-    description = models.TextField(blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(default=timezone.now)
-
-    class Meta:
-        ordering = ['type_name']
-        indexes = [models.Index(fields=['type_name'])]
-
-    def __str__(self):
-        return self.type_name
+# Student types are represented as choices in `STUDENT_TYPE_CHOICES`.
 
 class Student(models.Model):
     user = models.OneToOneField(
@@ -483,7 +479,7 @@ class Student(models.Model):
         on_delete=models.CASCADE,
         related_name='student_profile'
     )
-    student_type = models.ForeignKey(StudentType, on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
+    student_type = models.CharField(max_length=50, choices=STUDENT_TYPE_CHOICES, null=True, blank=True, db_index=True)
     campus_id = models.CharField(max_length=20, unique=True, null=True, blank=True, db_index=True)
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
     year_of_study = models.PositiveIntegerField(null=True, blank=True)
@@ -519,7 +515,7 @@ class Officer(models.Model):
         related_name='officer_profile'
     )
     employee_id = models.CharField(max_length=20, unique=True, null=True, blank=True, db_index=True)
-    college = models.ForeignKey(College, on_delete=models.SET_NULL, null=True, blank=True, related_name='officers')
+    college = models.CharField(max_length=100, null=True, blank=True, choices=ACADEMIC_UNITS)
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='officers')
     
     class Meta:

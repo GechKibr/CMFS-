@@ -4,7 +4,7 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from accounts.models import Officer, User
-from complaints.models import Category, CategoryResolver, Comment, Complaint, ComplaintCC, Response, ResolverLevel
+from complaints.models import Category, CategoryResolver, Comment, Complaint, ComplaintCC, Response
 
 
 class ComplaintSecurityAPITests(APITestCase):
@@ -18,19 +18,15 @@ class ComplaintSecurityAPITests(APITestCase):
         Officer.objects.create(user=self.officer_one, employee_id='EMP-001')
         Officer.objects.create(user=self.officer_two, employee_id='EMP-002')
 
-        self.resolver_level = ResolverLevel.objects.create(
-            name='Department',
-            level_order=1,
-        )
-
         self.category = Category.objects.create(
             office_name='General Support',
             office_description='General complaint routing',
-            office_scope=Category.SCOPE_GENERAL,
         )
         CategoryResolver.objects.create(
             category=self.category,
-            level=self.resolver_level,
+            campus=None,
+            college=None,
+            department=None,
             officer=self.officer_one,
             escalation_time=timedelta(hours=1),
         )
@@ -111,7 +107,6 @@ class ComplaintSecurityAPITests(APITestCase):
             reverse('resolver-assignment-bulk-create'),
             {
                 'category': self.category.pk,
-                'level': self.resolver_level.pk,
                 'escalation_time': '1 00:00:00',
                 'active': True,
                 'officer_ids': [self.officer_one.id, self.officer_two.id],
@@ -124,7 +119,6 @@ class ComplaintSecurityAPITests(APITestCase):
 
         assignments = CategoryResolver.objects.filter(
             category=self.category,
-            level=self.resolver_level,
             officer__in=[self.officer_one, self.officer_two],
         )
         self.assertEqual(assignments.count(), 2)
@@ -225,10 +219,12 @@ class ComplaintSecurityAPITests(APITestCase):
         created_comment = Comment.objects.get(pk=comment_create.data['id'])
         self.assertEqual(created_comment.author, self.user_one)
 
-    def test_admin_can_reassign_complaint_without_current_level(self):
+    def test_admin_can_reassign_complaint_without_current_resolver(self):
         CategoryResolver.objects.create(
             category=self.category,
-            level=self.resolver_level,
+            campus=None,
+            college=None,
+            department=None,
             officer=self.officer_two,
             escalation_time=timedelta(hours=1),
         )
@@ -253,4 +249,4 @@ class ComplaintSecurityAPITests(APITestCase):
         self.assertEqual(response.status_code, 200)
         complaint.refresh_from_db()
         self.assertEqual(complaint.assigned_officer, self.officer_two)
-        self.assertEqual(complaint.current_level, self.resolver_level)
+        self.assertEqual(complaint.current_resolver.officer, self.officer_two)

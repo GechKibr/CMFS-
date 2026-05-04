@@ -1,49 +1,53 @@
-from complaints.models import Category, ResolverLevel, CategoryResolver, Assignment
 import logging
+
+from complaints.models import Assignment, CategoryResolver
 
 logger = logging.getLogger(__name__)
 
 
 class ComplaintService:
+    def _matching_resolvers(self, complaint):
+        return list(
+            CategoryResolver.objects.filter(
+                category=complaint.category,
+                active=True,
+            ).select_related('officer', 'category', 'department').order_by(
+                'department_id',
+                'college',
+                'campus',
+                'id',
+            )
+        )
 
     def assign_to_first_level_officer(self, complaint):
         try:
             if not complaint.category:
                 return None
 
-            first_level = ResolverLevel.objects.filter(level_order=1).first()
+            candidates = [
+                resolver
+                for resolver in self._matching_resolvers(complaint)
+                if resolver.matches_complaint_scope(complaint)
+            ]
 
-            if not first_level:
+            if not candidates:
                 return None
 
-            category_resolver = CategoryResolver.objects.filter(
-                category=complaint.category,
-                level=first_level,
-                active=True
-            ).select_related('officer').order_by('id')
+            matched_resolver = max(candidates, key=lambda resolver: (resolver.scope_rank(), -resolver.id))
 
-            matched_resolver = None
-            for resolver in category_resolver:
-                if complaint.category.matches_officer(resolver.officer):
-                    matched_resolver = resolver
-                    break
+            complaint.assigned_officer = matched_resolver.officer
+            complaint.current_resolver = matched_resolver
+            complaint.set_escalation_deadline(matched_resolver.escalation_time, base_time=complaint.created_at)
+            complaint.save()
 
-            if matched_resolver:
-                complaint.assigned_officer = matched_resolver.officer
-                complaint.current_level = first_level
-                complaint.set_escalation_deadline(matched_resolver.escalation_time, base_time=complaint.created_at)
-                complaint.save()
+            Assignment.objects.create(
+                complaint=complaint,
+                officer=matched_resolver.officer,
+                resolver=matched_resolver,
+                reason='initial',
+            )
 
-                Assignment.objects.create(
-                    complaint=complaint,
-                    officer=matched_resolver.officer,
-                    level=first_level,
-                    reason='initial'
-                )
-
-                return matched_resolver.officer
-
-            return None
+            return matched_resolver.officer
         except Exception as e:
             logger.error(f"Assignment failed: {e}")
             return None

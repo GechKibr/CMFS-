@@ -19,7 +19,6 @@ from .models import (
     ComplaintAttachment,
     ComplaintCC,
     PublicAnnouncement,
-    ResolverLevel,
     Response,
 )
 
@@ -75,26 +74,7 @@ class ComplaintUserSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    campus = serializers.PrimaryKeyRelatedField(
-        queryset=Category._meta.get_field("campus").remote_field.model.objects.all(),
-        required=False,
-        allow_null=True,
-    )
-    college = serializers.PrimaryKeyRelatedField(
-        queryset=Category._meta.get_field("college").remote_field.model.objects.all(),
-        required=False,
-        allow_null=True,
-    )
-    department = serializers.PrimaryKeyRelatedField(
-        queryset=Category._meta.get_field("department").remote_field.model.objects.all(),
-        required=False,
-        allow_null=True,
-    )
-
     parent_name = serializers.CharField(source="parent.office_name", read_only=True)
-    campus_name = serializers.CharField(source="campus.campus_name", read_only=True)
-    college_name = serializers.CharField(source="college.college_name", read_only=True)
-    department_name = serializers.CharField(source="department.department_name", read_only=True)
 
     class Meta:
         model = Category
@@ -102,13 +82,6 @@ class CategorySerializer(serializers.ModelSerializer):
             "category_id",
             "office_name",
             "office_description",
-            "office_scope",
-            "campus",
-            "campus_name",
-            "college",
-            "college_name",
-            "department",
-            "department_name",
             "parent",
             "parent_name",
             "is_active",
@@ -117,11 +90,6 @@ class CategorySerializer(serializers.ModelSerializer):
         read_only_fields = ["category_id", "created_at"]
 
     def validate(self, attrs):
-        for relation_key in ["campus", "college", "department"]:
-            raw_value = self.initial_data.get(relation_key, None)
-            if raw_value == "" and relation_key not in attrs:
-                attrs[relation_key] = None
-
         if not attrs.get("office_name"):
             legacy_name = self.initial_data.get("name")
             if legacy_name:
@@ -141,17 +109,13 @@ class CategorySerializer(serializers.ModelSerializer):
         return data
 
 
-class ResolverLevelSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ResolverLevel
-        fields = ["id", "name", "level_order"]
-        read_only_fields = ["id"]
-
-
 class CategoryResolverSerializer(serializers.ModelSerializer):
     officer_name = serializers.CharField(source="officer.full_name", read_only=True)
-    level_name = serializers.CharField(source="level.name", read_only=True)
     category_name = serializers.CharField(source="category.office_name", read_only=True)
+    campus_name = serializers.CharField(source="get_campus_display", read_only=True, allow_null=True)
+    college_name = serializers.CharField(source="get_college_display", read_only=True, allow_null=True)
+    department_name = serializers.CharField(source="department.department_name", read_only=True, allow_null=True)
+    scope_label = serializers.SerializerMethodField()
 
     class Meta:
         model = CategoryResolver
@@ -159,14 +123,22 @@ class CategoryResolverSerializer(serializers.ModelSerializer):
             "id",
             "category",
             "category_name",
-            "level",
-            "level_name",
+            "campus",
+            "campus_name",
+            "college",
+            "college_name",
+            "department",
+            "department_name",
             "officer",
             "officer_name",
+            "scope_label",
             "escalation_time",
             "active",
         ]
-        read_only_fields = ["id", "officer_name", "level_name", "category_name"]
+        read_only_fields = ["id", "officer_name", "category_name", "campus_name", "college_name", "department_name", "scope_label"]
+
+    def get_scope_label(self, obj):
+        return obj.scope_label()
 
 
 class ComplaintCreateSerializer(serializers.ModelSerializer):
@@ -329,7 +301,7 @@ class ComplaintSerializer(serializers.ModelSerializer):
     submitted_by = serializers.SerializerMethodField()
     category = CategorySerializer(read_only=True)
     assigned_officer = ComplaintUserSerializer(read_only=True)
-    current_level = ResolverLevelSerializer(read_only=True)
+    current_resolver = CategoryResolverSerializer(read_only=True)
     attachments = ComplaintAttachmentSerializer(many=True, read_only=True)
     cc_list = CCSerializer(many=True, read_only=True)
     is_cc_user = serializers.SerializerMethodField()
@@ -341,7 +313,7 @@ class ComplaintSerializer(serializers.ModelSerializer):
             "title", "description", "attachment", "attachments", "cc_list",
             "created_at", "updated_at", "status",
             "submitter_campus", "submitter_college", "submitter_department",
-            "assigned_officer", "current_level", "escalation_deadline",
+            "assigned_officer", "current_resolver", "escalation_deadline",
             "is_cc_user", "is_anonymous",
         ]
         read_only_fields = ["complaint_id", "created_at", "updated_at", "escalation_deadline"]
@@ -386,10 +358,11 @@ class ResponseSerializer(serializers.ModelSerializer):
 
 class AssignmentSerializer(serializers.ModelSerializer):
     officer = ComplaintUserSerializer(read_only=True)
+    resolver = CategoryResolverSerializer(read_only=True)
 
     class Meta:
         model = Assignment
-        fields = ["id", "complaint", "officer", "level", "assigned_at", "ended_at", "reason"]
+        fields = ["id", "complaint", "officer", "resolver", "assigned_at", "ended_at", "reason"]
 
 
 class PublicAnnouncementSerializer(serializers.ModelSerializer):

@@ -27,7 +27,6 @@ from .models import (
     ComplaintAttachment,
     ComplaintCC,
     PublicAnnouncement,
-    ResolverLevel,
     Response,
 )
 from notifications.models import Notification
@@ -45,7 +44,6 @@ from .serializers import (
     ComplaintUserSerializer,
     ComplaintSerializer,
     PublicAnnouncementSerializer,
-    ResolverLevelSerializer,
     ResponseSerializer,
 )
 from .realtime import build_complaint_analytics
@@ -70,15 +68,32 @@ def accessible_complaints_for(user):
     if user.is_admin():
         return Complaint.objects.all()
     if user.is_officer():
-        resolver_category_ids = CategoryResolver.objects.filter(
-            officer=user,
-            active=True,
-        ).values_list('category_id', flat=True)
-        return Complaint.objects.filter(
+        resolver_categories = list(
+            CategoryResolver.objects.filter(
+                officer=user,
+                active=True,
+            ).select_related('category', 'college', 'department')
+        )
+
+        complaints = Complaint.objects.filter(
             models.Q(assigned_officer=user)
             | models.Q(submitted_by=user)
-            | models.Q(category_id__in=resolver_category_ids)
-        ).distinct()
+            | models.Q(category__resolvers__officer=user, category__resolvers__active=True)
+        ).distinct().select_related('category', 'current_resolver', 'assigned_officer')
+
+        visible_ids = []
+        for complaint in complaints:
+            if complaint.submitted_by_id == user.id or complaint.assigned_officer_id == user.id:
+                visible_ids.append(complaint.pk)
+                continue
+
+            if complaint.category_id and any(
+                resolver.category_id == complaint.category_id and resolver.matches_complaint_scope(complaint)
+                for resolver in resolver_categories
+            ):
+                visible_ids.append(complaint.pk)
+
+        return Complaint.objects.filter(pk__in=visible_ids)
     return Complaint.objects.filter(submitted_by=user)
 
 
@@ -91,11 +106,14 @@ def can_manage_complaint(user, complaint):
         and complaint
         and complaint.category_id
     ):
-        is_category_resolver = CategoryResolver.objects.filter(
-            officer=user,
-            category_id=complaint.category_id,
-            active=True,
-        ).exists()
+        is_category_resolver = any(
+            resolver.matches_complaint_scope(complaint)
+            for resolver in CategoryResolver.objects.filter(
+                officer=user,
+                category_id=complaint.category_id,
+                active=True,
+            ).select_related('category', 'college', 'department')
+        )
 
     return bool(
         user
@@ -202,15 +220,9 @@ class CategoryViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelViewSet):
         )
 
 
-class ResolverLevelViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelViewSet):
-    queryset = ResolverLevel.objects.all()
-    serializer_class = ResolverLevelSerializer
-
-
 class CategoryResolverViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelViewSet):
-    queryset = CategoryResolver.objects.select_related('category', 'level', 'officer').order_by(
+    queryset = CategoryResolver.objects.select_related('category', 'department', 'officer').order_by(
         'category_id',
-        'level__level_order',
         'officer_id',
         'id',
     )
@@ -220,14 +232,16 @@ class CategoryResolverViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelVi
     def bulk_create(self, request):
         payload = request.data or {}
         category_id = payload.get('category')
-        level_id = payload.get('level')
-        escalation_time = payload.get('escalation_time')
+        campus_id = payload.get('campus') or None
+        college_id = payload.get('college') or None
+        department_id = payload.get('department') or None
         active = payload.get('active', True)
         officer_ids = payload.get('officer_ids')
+        escalation_time = payload.get('escalation_time')
 
-        if not category_id or not level_id or escalation_time is None:
+        if not category_id or escalation_time is None:
             return DRFResponse(
-                {'error': 'category, level, and escalation_time are required.'},
+                {'error': 'category and escalation_time are required.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -275,7 +289,9 @@ class CategoryResolverViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelVi
                 for officer_id in unique_officer_ids:
                     resolver, _ = CategoryResolver.objects.update_or_create(
                         category_id=category_id,
-                        level_id=level_id,
+                        campus=campus_id,
+                        college=college_id,
+                        department_id=department_id,
                         officer_id=officer_id,
                         defaults={
                             'escalation_time': parsed_escalation_time,
@@ -383,29 +399,33 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             return DRFResponse({'error': 'You do not have permission to assign this complaint.'}, status=status.HTTP_403_FORBIDDEN)
 
         officer_id = request.data.get('officer_id')
-        level_id = request.data.get('level_id')
-        if not officer_id or not level_id:
-            return DRFResponse({'error': 'officer_id and level_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not officer_id:
+            return DRFResponse({'error': 'officer_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         officer = get_object_or_404(User, id=officer_id, role='officer')
-        level = get_object_or_404(ResolverLevel, id=level_id)
+        resolver = None
+        for candidate in CategoryResolver.objects.filter(
+            category=complaint.category,
+            officer=officer,
+            active=True,
+        ).select_related('category', 'department', 'officer').order_by('department_id', 'college', 'campus', 'id'):
+            if candidate.matches_complaint_scope(complaint):
+                resolver = candidate
+                break
+
+        if resolver is None:
+            return DRFResponse({'error': 'No matching resolver found for the selected officer.'}, status=status.HTTP_400_BAD_REQUEST)
 
         Assignment.objects.create(
             complaint=complaint,
             officer=officer,
-            level=level,
+            resolver=resolver,
             reason='manual',
         )
         complaint.assigned_officer = officer
-        complaint.current_level = level
-        assignment_config = CategoryResolver.objects.filter(
-            category=complaint.category,
-            level=level,
-            officer=officer,
-            active=True,
-        ).first()
+        complaint.current_resolver = resolver
         complaint.set_escalation_deadline(
-            assignment_config.escalation_time if assignment_config else None,
+            resolver.escalation_time,
             base_time=complaint.created_at,
         )
         complaint.save()
@@ -446,50 +466,37 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             return DRFResponse({'error': 'You do not have permission to reassign this complaint.'}, status=status.HTTP_403_FORBIDDEN)
 
         new_officer_id = request.data.get('officer_id')
-        requested_level_id = request.data.get('level_id')
         reason = request.data.get('reason', 'manual reassignment')
         if not new_officer_id:
             return DRFResponse({'error': 'officer_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         officer = get_object_or_404(User, id=new_officer_id, role='officer')
 
-        level = None
-        if requested_level_id:
-            level = ResolverLevel.objects.filter(id=requested_level_id).first()
+        resolver = None
+        for candidate in CategoryResolver.objects.filter(
+            category=complaint.category,
+            officer=officer,
+            active=True,
+        ).select_related('category', 'department', 'officer').order_by('department_id', 'college', 'campus', 'id'):
+            if candidate.matches_complaint_scope(complaint):
+                resolver = candidate
+                break
 
-        if level is None and complaint.category_id:
-            level = CategoryResolver.objects.filter(
-                category=complaint.category,
-                officer=officer,
-                active=True,
-            ).select_related('level').order_by('level__level_order', 'id').first()
-            level = level.level if level else None
-
-        if level is None and complaint.category_id:
-            level = CategoryResolver.objects.filter(
-                category=complaint.category,
-                active=True,
-            ).select_related('level').order_by('level__level_order', 'id').first()
-            level = level.level if level else None
-
-        if level is None:
-            level = complaint.current_level
-
-        if level is None:
+        if resolver is None:
             return DRFResponse(
-                {'error': 'Unable to determine a resolver level for this complaint. Assign a category first or include a level.'},
+                {'error': 'Unable to determine a resolver for this complaint. Select an officer that matches the complaint scope.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         Assignment.objects.create(
             complaint=complaint,
             officer=officer,
-            level=level,
+            resolver=resolver,
             reason=reason,
         )
 
         complaint.assigned_officer = officer
-        complaint.current_level = level
+        complaint.current_resolver = resolver
         complaint.save()
 
         return DRFResponse(
@@ -540,42 +547,20 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         if not can_manage_complaint(request.user, complaint):
             return DRFResponse({'error': 'You do not have permission to escalate this complaint.'}, status=status.HTTP_403_FORBIDDEN)
 
-        if not complaint.current_level:
-            return DRFResponse({'error': 'No current level set'}, status=status.HTTP_400_BAD_REQUEST)
+        if not complaint.current_resolver:
+            return DRFResponse({'error': 'No current resolver set'}, status=status.HTTP_400_BAD_REQUEST)
 
-        next_level = ResolverLevel.objects.filter(level_order=complaint.current_level.level_order + 1).first()
-        if not next_level:
-            return DRFResponse({'error': 'No higher level available'}, status=status.HTTP_400_BAD_REQUEST)
+        if complaint.escalate_to_next_level():
+            complaint.refresh_from_db()
+            return DRFResponse(
+                {
+                    'detail': f'Escalated to {complaint.current_resolver.scope_label()}',
+                    'assigned_to': complaint.assigned_officer.email if complaint.assigned_officer_id else None,
+                },
+                status=status.HTTP_200_OK,
+            )
 
-        category_resolver = CategoryResolver.objects.filter(
-            category=complaint.category,
-            level=next_level,
-            active=True,
-        ).first()
-
-        if not category_resolver:
-            return DRFResponse({'error': 'No resolver found at next level'}, status=status.HTTP_400_BAD_REQUEST)
-
-        Assignment.objects.create(
-            complaint=complaint,
-            officer=category_resolver.officer,
-            level=next_level,
-            reason='escalation',
-        )
-
-        complaint.current_level = next_level
-        complaint.assigned_officer = category_resolver.officer
-        complaint.set_escalation_deadline(category_resolver.escalation_time, base_time=complaint.created_at)
-        complaint.status = 'escalated'
-        complaint.save()
-
-        return DRFResponse(
-            {
-                'detail': f'Escalated to {next_level.name}',
-                'assigned_to': category_resolver.officer.email,
-            },
-            status=status.HTTP_200_OK,
-        )
+        return DRFResponse({'error': 'No broader resolver available'}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['get'], url_path='responses')
     def get_responses(self, request, pk=None):

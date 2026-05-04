@@ -4,14 +4,14 @@ from urllib.parse import parse_qs, urlparse
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from accounts.models import Campus, MaintenanceConfiguration, User
+from accounts.models import MaintenanceConfiguration, User
 
 
 class AccountSecurityAPITests(APITestCase):
     def setUp(self):
         self.admin = self._create_user('admin@example.com', role=User.ROLE_ADMIN)
         self.user = self._create_user('user@example.com', role=User.ROLE_USER)
-        self.campus = Campus.objects.create(campus_name='Main Campus')
+        self.college_code = 'engineering'
 
     def _create_user(self, email, role=User.ROLE_USER, password='Password123!'):
         return User.objects.create_user(
@@ -25,12 +25,12 @@ class AccountSecurityAPITests(APITestCase):
     def test_public_endpoint_allowlist_and_admin_endpoint_denial(self):
         self.client.force_authenticate(user=None)
 
-        response = self.client.get(reverse('campuses-list'))
+        response = self.client.get(reverse('colleges-list'))
         self.assertEqual(response.status_code, 200)
 
         response = self.client.post(
-            reverse('campuses-list'),
-            {'campus_name': 'Another Campus'},
+            reverse('colleges-list'),
+            {'college_name': 'Another College', 'college_campus': 'atse_tewodros'},
             format='json',
         )
         self.assertIn(response.status_code, [401, 403])

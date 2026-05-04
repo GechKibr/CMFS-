@@ -21,7 +21,6 @@ const translations = {
   users: 'Users',
   institutions: 'Institutions',
   categories: 'Categories',
-  resolver_levels: 'Resolver Levels',
   assignments: 'Assignments',
   system: 'System',
   title: 'Title',

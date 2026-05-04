@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import apiService from '../../services/api';
-import ResolverLevelManagement from './ResolverLevelManagement';
 import { CategoryManagement } from './CategoryManagement';
 import CategoryResolverManagement from './CategoryResolverManagement';
 
@@ -169,20 +168,11 @@ const EntityFormPage = ({ isDark, title, fields, formData, onChange, onSubmit, o
 
 const InstitutionManagement = () => {
   const { isDark } = useTheme();
-  const [activeTab, setActiveTab] = useState('campuses');
+  const [activeTab, setActiveTab] = useState('departments');
   const [tabMode, setTabMode] = useState('home');
 
-  // Campuses
-  const [campuses, setCampuses] = useState([]);
-  const [campLoading, setCampLoading] = useState(false);
-  const [campEditing, setCampEditing] = useState(null);
-  const [campForm, setCampForm] = useState({ campus_name: '' });
-
-  // Colleges
+  // Academic units list (served by backend via /colleges/ compatibility endpoint)
   const [colleges, setColleges] = useState([]);
-  const [colLoading, setColLoading] = useState(false);
-  const [colEditing, setColEditing] = useState(null);
-  const [colForm, setColForm] = useState({ college_name: '', college_campus: '' });
 
   // Departments
   const [departments, setDepartments] = useState([]);
@@ -190,47 +180,19 @@ const InstitutionManagement = () => {
   const [deptEditing, setDeptEditing] = useState(null);
   const [deptForm, setDeptForm] = useState({ department_name: '', department_college: '' });
 
-  // Student Types
-  const [studentTypes, setStudentTypes] = useState([]);
-  const [studentTypeLoading, setStudentTypeLoading] = useState(false);
-  const [studentTypeEditing, setStudentTypeEditing] = useState(null);
-  const [studentTypeForm, setStudentTypeForm] = useState({ type_name: '', description: '', is_active: true });
-
   const load = async (tab) => {
-    if (tab === 'campuses') {
-      setCampLoading(true);
-      try { const d = await apiService.getCampuses(); setCampuses(d.results ?? d); } catch { }
-      finally { setCampLoading(false); }
-    }
-    if (tab === 'colleges') {
-      setCampLoading(true); setColLoading(true);
-      try {
-        const [c, col] = await Promise.all([apiService.getCampuses(), apiService.getColleges()]);
-        setCampuses(c.results ?? c);
-        setColleges(col.results ?? col);
-      } catch { }
-      finally { setCampLoading(false); setColLoading(false); }
-    }
     if (tab === 'departments') {
-      setColLoading(true); setDeptLoading(true);
+      setDeptLoading(true);
       try {
         const [col, dept] = await Promise.all([apiService.getColleges(), apiService.getDepartments()]);
         setColleges(col.results ?? col);
         setDepartments(dept.results ?? dept);
       } catch { }
-      finally { setColLoading(false); setDeptLoading(false); }
-    }
-    if (tab === 'student-types') {
-      setStudentTypeLoading(true);
-      try {
-        const data = await apiService.getStudentTypes();
-        setStudentTypes(data.results ?? data);
-      } catch { }
-      finally { setStudentTypeLoading(false); }
+      finally { setDeptLoading(false); }
     }
   };
 
-  useEffect(() => { load('campuses'); }, []);
+  useEffect(() => { load('departments'); }, []);
   useEffect(() => { load(activeTab); }, [activeTab]);
   useEffect(() => { setTabMode('home'); }, [activeTab]);
 
@@ -250,24 +212,17 @@ const InstitutionManagement = () => {
   };
 
   const tabs = [
-    { id: 'campuses', label: 'Campuses', icon: '🗺️' },
-    { id: 'colleges', label: 'Colleges', icon: '🎓' },
     { id: 'departments', label: 'Departments', icon: '🏢' },
-    { id: 'student-types', label: 'Student Types', icon: '🧑‍🎓' },
     { id: 'offices', label: 'Office', icon: '📂' },
     { id: 'office-assignments', label: 'Assignment', icon: '👥' },
-    { id: 'resolver-levels', label: 'Resolver Levels', icon: '⚡' },
   ];
 
   const renderContent = () => {
-    const isPageTab = ['campuses', 'colleges', 'departments', 'student-types'].includes(activeTab);
+    const isPageTab = ['departments'].includes(activeTab);
 
     if (isPageTab && tabMode === 'home') {
       const titleMap = {
-        campuses: 'Campuses',
-        colleges: 'Colleges',
         departments: 'Departments',
-        'student-types': 'Student Types',
       };
       return (
         <SubTabLanding
@@ -275,21 +230,9 @@ const InstitutionManagement = () => {
           title={titleMap[activeTab]}
           onView={() => setTabMode('view')}
           onAdd={() => {
-            if (activeTab === 'campuses') {
-              setCampEditing(null);
-              setCampForm({ campus_name: '', location: '', description: '', is_active: true });
-            }
-            if (activeTab === 'colleges') {
-              setColEditing(null);
-              setColForm({ college_name: '', college_code: '', college_campus: '', dean: '', description: '', is_active: true });
-            }
             if (activeTab === 'departments') {
               setDeptEditing(null);
               setDeptForm({ department_name: '', department_code: '', department_college: '', head: '', description: '', is_active: true });
-            }
-            if (activeTab === 'student-types') {
-              setStudentTypeEditing(null);
-              setStudentTypeForm({ type_name: '', description: '', is_active: true });
             }
             setTabMode('add');
           }}
@@ -298,123 +241,6 @@ const InstitutionManagement = () => {
     }
 
     switch (activeTab) {
-      case 'campuses':
-        if (tabMode === 'add' || tabMode === 'edit') {
-          return (
-            <EntityFormPage
-              isDark={isDark}
-              title="Campus"
-              editing={campEditing}
-              formData={campForm}
-              onChange={(k, v) => setCampForm((p) => ({ ...p, [k]: v }))}
-              onBack={() => setTabMode('home')}
-              onSubmit={(e) => {
-                handleSubmit(
-                  e,
-                  campEditing,
-                  campForm,
-                  apiService.createCampus.bind(apiService),
-                  apiService.updateCampus.bind(apiService),
-                  'campuses'
-                );
-                setTabMode('view');
-              }}
-              fields={[
-                { key: 'campus_name', label: 'Campus Name', required: true, placeholder: 'e.g. Main Campus' },
-                { key: 'location', label: 'Location', placeholder: 'e.g. Gondar, Ethiopia' },
-                { key: 'description', label: 'Description', placeholder: 'Brief description...' },
-                { key: 'is_active', label: 'Active', type: 'checkbox' },
-              ]}
-            />
-          );
-        }
-        return (
-          <div className="space-y-4">
-            <BackButton isDark={isDark} onClick={() => setTabMode('home')} />
-            <CrudSection
-              isDark={isDark} title="Campuses" items={campuses} loading={campLoading}
-              columns={[
-                { key: 'campus_name', label: 'Name' },
-                { key: 'location', label: 'Location' },
-                { key: 'description', label: 'Description' },
-                { key: 'is_active', label: 'Active', render: c => c.is_active ? '✅' : '❌' },
-              ]}
-              onAdd={() => {
-                setCampEditing(null);
-                setCampForm({ campus_name: '', location: '', description: '', is_active: true });
-                setTabMode('add');
-              }}
-              onEdit={i => {
-                setCampEditing(i);
-                setCampForm({ campus_name: i.campus_name, location: i.location, description: i.description, is_active: i.is_active });
-                setTabMode('edit');
-              }}
-              onDelete={id => handleDelete(id, apiService.deleteCampus.bind(apiService), 'campuses')}
-              addButtonLabel="+ Add Campus"
-            />
-          </div>
-        );
-
-      case 'colleges':
-        if (tabMode === 'add' || tabMode === 'edit') {
-          return (
-            <EntityFormPage
-              isDark={isDark}
-              title="College"
-              editing={colEditing}
-              formData={colForm}
-              onChange={(k, v) => setColForm((p) => ({ ...p, [k]: v }))}
-              onBack={() => setTabMode('home')}
-              onSubmit={(e) => {
-                handleSubmit(
-                  e,
-                  colEditing,
-                  colForm,
-                  apiService.createCollege.bind(apiService),
-                  apiService.updateCollege.bind(apiService),
-                  'colleges'
-                );
-                setTabMode('view');
-              }}
-              fields={[
-                { key: 'college_name', label: 'College Name', required: true, placeholder: 'e.g. College of Medicine' },
-                { key: 'college_code', label: 'Code', placeholder: 'e.g. COM' },
-                { key: 'college_campus', label: 'Campus', required: true, type: 'select', options: campuses, displayKey: 'campus_name' },
-                { key: 'dean', label: 'Dean', placeholder: 'e.g. Dr. Abebe Kebede' },
-                { key: 'description', label: 'Description', placeholder: 'Brief description...' },
-                { key: 'is_active', label: 'Active', type: 'checkbox' },
-              ]}
-            />
-          );
-        }
-        return (
-          <div className="space-y-4">
-            <BackButton isDark={isDark} onClick={() => setTabMode('home')} />
-            <CrudSection
-              isDark={isDark} title="Colleges" items={colleges} loading={colLoading}
-              columns={[
-                { key: 'college_name', label: 'Name' },
-                { key: 'college_code', label: 'Code' },
-                { key: 'campus_name', label: 'Campus', render: c => c.campus_name || '—' },
-                { key: 'dean', label: 'Dean' },
-                { key: 'is_active', label: 'Active', render: c => c.is_active ? '✅' : '❌' },
-              ]}
-              onAdd={() => {
-                setColEditing(null);
-                setColForm({ college_name: '', college_code: '', college_campus: '', dean: '', description: '', is_active: true });
-                setTabMode('add');
-              }}
-              onEdit={i => {
-                setColEditing(i);
-                setColForm({ college_name: i.college_name, college_code: i.college_code, college_campus: i.college_campus, dean: i.dean, description: i.description, is_active: i.is_active });
-                setTabMode('edit');
-              }}
-              onDelete={id => handleDelete(id, apiService.deleteCollege.bind(apiService), 'colleges')}
-              addButtonLabel="+ Add College"
-            />
-          </div>
-        );
-
       case 'departments':
         if (tabMode === 'add' || tabMode === 'edit') {
           return (
@@ -474,69 +300,6 @@ const InstitutionManagement = () => {
             />
           </div>
         );
-
-      case 'student-types':
-        if (tabMode === 'add' || tabMode === 'edit') {
-          return (
-            <EntityFormPage
-              isDark={isDark}
-              title="Student Type"
-              editing={studentTypeEditing}
-              formData={studentTypeForm}
-              onChange={(k, v) => setStudentTypeForm((prev) => ({ ...prev, [k]: v }))}
-              onBack={() => setTabMode('home')}
-              onSubmit={(e) => {
-                handleSubmit(
-                  e,
-                  studentTypeEditing,
-                  studentTypeForm,
-                  apiService.createStudentType.bind(apiService),
-                  apiService.updateStudentType.bind(apiService),
-                  'student-types'
-                );
-                setTabMode('view');
-              }}
-              fields={[
-                { key: 'type_name', label: 'Type Name', required: true, placeholder: 'e.g. Undergraduate' },
-                { key: 'description', label: 'Description', placeholder: 'Brief description...' },
-                { key: 'is_active', label: 'Active', type: 'checkbox' },
-              ]}
-            />
-          );
-        }
-        return (
-          <div className="space-y-4">
-            <BackButton isDark={isDark} onClick={() => setTabMode('home')} />
-            <CrudSection
-              isDark={isDark} title="Student Types" items={studentTypes} loading={studentTypeLoading}
-              columns={[
-                { key: 'type_name', label: 'Type Name' },
-                { key: 'description', label: 'Description' },
-                { key: 'is_active', label: 'Active', render: item => item.is_active ? '✅' : '❌' },
-                { key: 'created_at', label: 'Created', render: item => item.created_at ? new Date(item.created_at).toLocaleDateString() : '—' },
-              ]}
-              onAdd={() => {
-                setStudentTypeEditing(null);
-                setStudentTypeForm({ type_name: '', description: '', is_active: true });
-                setTabMode('add');
-              }}
-              onEdit={(item) => {
-                setStudentTypeEditing(item);
-                setStudentTypeForm({
-                  type_name: item.type_name || '',
-                  description: item.description || '',
-                  is_active: item.is_active ?? true,
-                });
-                setTabMode('edit');
-              }}
-              onDelete={(id) => handleDelete(id, apiService.deleteStudentType.bind(apiService), 'student-types')}
-              addButtonLabel="+ Add Student Type"
-            />
-          </div>
-        );
-
-      case 'resolver-levels':
-        return <ResolverLevelManagement />;
 
       case 'offices':
         return <CategoryManagement />;

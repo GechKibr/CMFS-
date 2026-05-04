@@ -3,8 +3,8 @@ from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
 from .models import (
-    Campus,
-    College,
+    ACADEMIC_UNITS,
+    CAMPUS_CHOICES,
     Department,
     EmailLog,
     EmailVerificationToken,
@@ -12,7 +12,7 @@ from .models import (
     Officer,
     PasswordResetToken,
     Student,
-    StudentType,
+    STUDENT_TYPE_CHOICES,
     SystemLog,
     User,
 )
@@ -27,36 +27,8 @@ class UserSummarySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class CampusSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Campus
-        fields = ['id', 'campus_name', 'location', 'description', 'is_active', 'created_at']
-        read_only_fields = ['created_at']
-
-
-class CollegeSerializer(serializers.ModelSerializer):
-    campus_name = serializers.CharField(source='college_campus.campus_name', read_only=True)
-    campus_detail = CampusSerializer(source='college_campus', read_only=True)
-
-    class Meta:
-        model = College
-        fields = [
-            'id',
-            'college_name',
-            'college_code',
-            'college_campus',
-            'campus_name',
-            'campus_detail',
-            'description',
-            'is_active',
-            'created_at',
-        ]
-        read_only_fields = ['campus_name', 'campus_detail', 'created_at']
-
-
 class DepartmentSerializer(serializers.ModelSerializer):
-    college_name = serializers.CharField(source='department_college.college_name', read_only=True)
-    college_detail = CollegeSerializer(source='department_college', read_only=True)
+    college_name = serializers.CharField(source='get_department_college_display', read_only=True)
 
     class Meta:
         model = Department
@@ -65,19 +37,14 @@ class DepartmentSerializer(serializers.ModelSerializer):
             'department_name',
             'department_college',
             'college_name',
-            'college_detail',
             'description',
             'is_active',
             'created_at',
         ]
-        read_only_fields = ['college_name', 'college_detail', 'created_at']
+        read_only_fields = ['college_name', 'created_at']
 
 
-class StudentTypeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = StudentType
-        fields = ['id', 'type_name', 'description', 'is_active', 'created_at']
-        read_only_fields = ['created_at']
+# Student types are represented by `STUDENT_TYPE_CHOICES` in models; no model serializer needed.
 
 
 class SystemLogSerializer(serializers.ModelSerializer):
@@ -131,7 +98,7 @@ class EmailLogSerializer(serializers.ModelSerializer):
 
 class StudentSerializer(serializers.ModelSerializer):
     user_detail = UserSummarySerializer(source='user', read_only=True)
-    student_type_detail = StudentTypeSerializer(source='student_type', read_only=True)
+    student_type_detail = serializers.CharField(source='get_student_type_display', read_only=True)
     department_detail = DepartmentSerializer(source='department', read_only=True)
 
     class Meta:
@@ -165,7 +132,7 @@ class StudentSerializer(serializers.ModelSerializer):
 
 class OfficerSerializer(serializers.ModelSerializer):
     user_detail = UserSummarySerializer(source='user', read_only=True)
-    college_detail = CollegeSerializer(source='college', read_only=True)
+    college_name = serializers.CharField(source='get_college_display', read_only=True)
     department_detail = DepartmentSerializer(source='department', read_only=True)
 
     class Meta:
@@ -176,11 +143,11 @@ class OfficerSerializer(serializers.ModelSerializer):
             'user_detail',
             'employee_id',
             'college',
-            'college_detail',
+            'college_name',
             'department',
             'department_detail',
         ]
-        read_only_fields = ['user_detail', 'college_detail', 'department_detail']
+        read_only_fields = ['user_detail', 'college_name', 'department_detail']
 
     def validate_user(self, value):
         if value.role != User.ROLE_OFFICER:
@@ -198,11 +165,11 @@ class OfficerSerializer(serializers.ModelSerializer):
 
 class UserProfileMixin:
     campus_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    user_campus = serializers.IntegerField(required=False, allow_null=True)
-    college = serializers.IntegerField(required=False, allow_null=True)
+    user_campus = serializers.ChoiceField(choices=CAMPUS_CHOICES, required=False, allow_blank=True, allow_null=True)
+    college = serializers.ChoiceField(choices=ACADEMIC_UNITS, required=False, allow_null=True)
     department = serializers.IntegerField(required=False, allow_null=True)
     employee_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    student_type = serializers.IntegerField(required=False, allow_null=True)
+    student_type = serializers.ChoiceField(choices=STUDENT_TYPE_CHOICES, required=False, allow_null=True)
     year_of_study = serializers.IntegerField(required=False, allow_null=True)
 
     def validate_email(self, value):
@@ -235,46 +202,47 @@ class UserProfileMixin:
             return None if value != serializers.empty else serializers.empty
         return int(value)
 
+    def _normalize_optional_str(self, value):
+        if value in (serializers.empty, '', None):
+            return None if value != serializers.empty else serializers.empty
+        return str(value).strip()
+
     def _validate_scope_references(self, profile_data, role):
-        campus_pk = self._normalize_optional_int(profile_data['user_campus'])
-        college_pk = self._normalize_optional_int(profile_data['college'])
+        campus = self._normalize_optional_str(profile_data['user_campus'])
+        college_pk = self._normalize_optional_str(profile_data['college'])
         department_pk = self._normalize_optional_int(profile_data['department'])
-        student_type_pk = self._normalize_optional_int(profile_data['student_type'])
+        student_type_pk = self._normalize_optional_str(profile_data['student_type'])
         year_of_study = self._normalize_optional_int(profile_data['year_of_study'])
 
-        campus = None
         college = None
         department = None
         student_type = None
 
-        if campus_pk not in (None, serializers.empty):
-            campus = Campus.objects.filter(pk=campus_pk).first()
-            if campus is None:
-                raise serializers.ValidationError({'user_campus': 'Selected campus does not exist.'})
+        if campus in (None, serializers.empty):
+            campus = None
+        elif campus not in dict(CAMPUS_CHOICES):
+            raise serializers.ValidationError({'user_campus': 'Selected campus does not exist.'})
 
         if college_pk not in (None, serializers.empty):
-            college = College.objects.filter(pk=college_pk).first()
-            if college is None:
+            college = college_pk
+            if college not in dict(ACADEMIC_UNITS):
                 raise serializers.ValidationError({'college': 'Selected college does not exist.'})
-            if campus and college.college_campus_id != campus.id:
-                raise serializers.ValidationError({'college': 'Selected college does not belong to the selected campus.'})
 
         if department_pk not in (None, serializers.empty):
             department = Department.objects.filter(pk=department_pk).first()
             if department is None:
                 raise serializers.ValidationError({'department': 'Selected department does not exist.'})
-            if college and department.department_college_id != college.id:
+            if college and department.department_college != college:
                 raise serializers.ValidationError({'department': 'Selected department does not belong to the selected college.'})
-            if campus and department.department_college.college_campus_id != campus.id:
-                raise serializers.ValidationError({'department': 'Selected department does not belong to the selected campus.'})
 
         if role == User.ROLE_USER and college and department is None:
             raise serializers.ValidationError({'department': 'Student users must select a department.'})
 
         if student_type_pk not in (None, serializers.empty):
-            student_type = StudentType.objects.filter(pk=student_type_pk).first()
-            if student_type is None:
+            # student_type_pk is a choice code string; validate it's in STUDENT_TYPE_CHOICES
+            if student_type_pk not in dict(STUDENT_TYPE_CHOICES):
                 raise serializers.ValidationError({'student_type': 'Selected student type does not exist.'})
+            student_type = student_type_pk
 
         if year_of_study not in (None, serializers.empty) and year_of_study <= 0:
             raise serializers.ValidationError({'year_of_study': 'Year of study must be greater than 0.'})
@@ -285,7 +253,6 @@ class UserProfileMixin:
             'department': department,
             'student_type': student_type,
             'year_of_study': year_of_study,
-            'campus_pk': campus_pk,
             'college_pk': college_pk,
             'department_pk': department_pk,
             'student_type_pk': student_type_pk,
@@ -365,7 +332,7 @@ class UserProfileMixin:
 
                 if profile_data['department'] is not serializers.empty:
                     officer_profile.department = department
-                    if department and officer_profile.college_id is None:
+                    if department and not officer_profile.college:
                         officer_profile.college = department.department_college
 
                 officer_profile.save()
@@ -394,7 +361,7 @@ class UserReadWriteBaseSerializer(UserProfileMixin, serializers.ModelSerializer)
     password = serializers.CharField(write_only=True, required=False, min_length=8)
     confirm_password = serializers.CharField(write_only=True, required=False, min_length=8)
     employee_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    student_type = serializers.IntegerField(required=False, allow_null=True)
+    student_type = serializers.ChoiceField(choices=STUDENT_TYPE_CHOICES, required=False, allow_null=True)
     year_of_study = serializers.IntegerField(required=False, allow_null=True)
     full_name = serializers.CharField(read_only=True)
     role_level = serializers.IntegerField(read_only=True)
@@ -532,7 +499,7 @@ class RegisterSerializer(UserProfileMixin, serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     confirm_password = serializers.CharField(write_only=True, min_length=8)
     gmail_account = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
-    student_type = serializers.IntegerField(required=False, allow_null=True)
+    student_type = serializers.ChoiceField(choices=STUDENT_TYPE_CHOICES, required=False, allow_null=True)
     year_of_study = serializers.IntegerField(required=False, allow_null=True)
 
     class Meta:

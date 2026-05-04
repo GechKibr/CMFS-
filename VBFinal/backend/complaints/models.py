@@ -6,18 +6,9 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 import uuid
 
-class Category(models.Model):
-    SCOPE_GENERAL = "general"
-    SCOPE_CAMPUS = "campus"
-    SCOPE_COLLEGE = "college"
-    SCOPE_DEPARTMENT = "department"
-    SCOPE_CHOICES = [
-        (SCOPE_GENERAL, "General"),
-        (SCOPE_CAMPUS, "Campus"),
-        (SCOPE_COLLEGE, "College"),
-        (SCOPE_DEPARTMENT, "Department"),
-    ]
+from accounts.models import CAMPUS_CHOICES, ACADEMIC_UNITS
 
+class Category(models.Model):
     category_id = models.CharField(
         max_length=30,
         primary_key=True,
@@ -26,33 +17,6 @@ class Category(models.Model):
 
     office_name = models.CharField(max_length=150)
     office_description = models.TextField(blank=True)
-    office_scope = models.CharField(
-        max_length=20,
-        choices=SCOPE_CHOICES,
-        default=SCOPE_GENERAL,
-    )
-
-    campus = models.ForeignKey(
-        "accounts.Campus",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="complaint_categories",
-    )
-    college = models.ForeignKey(
-        "accounts.College",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="complaint_categories",
-    )
-    department = models.ForeignKey(
-        "accounts.Department",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="complaint_categories",
-    )
 
     parent = models.ForeignKey(
         "self",
@@ -67,49 +31,7 @@ class Category(models.Model):
 
     class Meta:
         ordering = ["office_name"]
-        unique_together = ("office_name", "office_scope", "campus", "college", "department")
-
-    def clean(self):
-        if self.office_scope == self.SCOPE_GENERAL:
-            return
-
-        if self.office_scope == self.SCOPE_CAMPUS and not self.campus_id:
-            raise ValidationError("Campus office categories must specify a campus.")
-
-        if self.office_scope == self.SCOPE_COLLEGE and not self.college_id:
-            raise ValidationError("College office categories must specify a college.")
-
-        if self.office_scope == self.SCOPE_DEPARTMENT and not self.department_id:
-            raise ValidationError("Department office categories must specify a department.")
-
-        if self.department_id and self.college_id:
-            if self.department.department_college_id != self.college_id:
-                raise ValidationError("Selected department does not belong to the selected college.")
-
-        if self.college_id and self.campus_id:
-            if self.college.college_campus_id != self.campus_id:
-                raise ValidationError("Selected college does not belong to the selected campus.")
-
-    def matches_scope(self, campus=None, college=None, department=None):
-        if self.office_scope == self.SCOPE_GENERAL:
-            return True
-        if self.office_scope == self.SCOPE_CAMPUS:
-            return bool(campus and self.campus_id == campus.id)
-        if self.office_scope == self.SCOPE_COLLEGE:
-            return bool(college and self.college_id == college.id)
-        if self.office_scope == self.SCOPE_DEPARTMENT:
-            return bool(department and self.department_id == department.id)
-        return False
-
-    def matches_officer(self, officer_user):
-        profile = getattr(officer_user, "officer_profile", None)
-        if profile is None:
-            return False
-
-        department = profile.department
-        college = profile.college or (department.department_college if department else None)
-        campus = college.college_campus if college else None
-        return self.matches_scope(campus=campus, college=college, department=department)
+        unique_together = ("office_name", "parent")
 
     def save(self, *args, **kwargs):
         if not self.category_id:
@@ -121,30 +43,20 @@ class Category(models.Model):
         return self.office_name
 
 
-
-class ResolverLevel(models.Model):
-    name = models.CharField(max_length=100)  # e.g. Department, Dean, President
-    level_order = models.PositiveIntegerField(unique=True)  # 1, 2, 3...
-
-    class Meta:
-        ordering = ["level_order"]
-
-    def __str__(self):
-        return f"{self.name} (L{self.level_order})"
-
-# escalation time is moved to category level 
-
-
 class CategoryResolver(models.Model):
     category = models.ForeignKey(
         Category,
         on_delete=models.CASCADE,
         related_name="resolvers"
     )
-    level = models.ForeignKey(
-        ResolverLevel,
-        on_delete=models.CASCADE,
-        related_name="category_resolvers"
+    campus = models.CharField(max_length=50, choices=CAMPUS_CHOICES, null=True, blank=True)
+    college = models.CharField(max_length=50, choices=ACADEMIC_UNITS, null=True, blank=True)
+    department = models.ForeignKey(
+        "accounts.Department",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="complaint_resolvers",
     )
     officer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -152,17 +64,83 @@ class CategoryResolver(models.Model):
         related_name="assigned_categories"
     )
     escalation_time = models.DurationField(
-        help_text="Time before escalation for this category-level-officer assignment (e.g. 48:00:00)."
+        help_text="Time before escalation for this category-officer assignment (e.g. 48:00:00)."
     )
-   
 
     active = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = ("category", "level", "officer")
+        unique_together = ("category", "campus", "college", "department", "officer")
+
+    @property
+    def campus_id(self):
+        return self.campus
+
+    def clean(self):
+        if self.department_id:
+            # department.department_college is an academic-unit code now
+            if self.department.department_college and self.college and self.department.department_college != self.college:
+                raise ValidationError("Selected department does not belong to the selected academic unit.")
+        # cannot reliably validate college->campus mapping without a lookup; skip campus/college mapping check
+
+    def scope_rank(self):
+        if self.department_id:
+            return 3
+        if self.college:
+            return 2
+        if self.campus_id:
+            return 1
+        return 0
+
+    def scope_label(self):
+        if self.department_id:
+            return "Department"
+        if self.college:
+            return "College"
+        if self.campus_id:
+            return "Campus"
+        return "General"
+
+    def matches_scope(self, campus=None, college=None, department=None):
+        if self.department_id:
+            return bool(department and self.department_id == getattr(department, 'id', department))
+        if self.college:
+            # college param can be a code (string) or an object; support both
+            if isinstance(college, str):
+                return bool(college and self.college == college)
+            return bool(college and (getattr(college, 'department_college', None) == self.college or getattr(college, 'college_code', None) == self.college or getattr(college, 'id', None) == self.college))
+        if self.campus_id:
+            return bool(campus and self.campus_id == campus)
+        return True
+
+    def matches_user_scope(self, user):
+        profile = getattr(user, "officer_profile", None) or getattr(user, "student_profile", None)
+        if profile is None:
+            return False
+
+        department = getattr(profile, "department", None)
+        # profile.college is an academic-unit code for officers; for students derive from department
+        college_code = getattr(profile, "college", None) or (department.department_college if department else None)
+        # student_profile stores campus_id directly; officers may not have campus info
+        campus_code = getattr(profile, "campus_id", None)
+        return self.matches_scope(campus=campus_code, college=college_code, department=department)
+
+    def matches_complaint_scope(self, complaint):
+        return self.matches_scope(
+            campus=complaint.submitter_campus,
+            college=complaint.submitter_college,
+            department=complaint.submitter_department,
+        )
+
+    def matches_officer(self, officer_user):
+        return self.matches_user_scope(officer_user)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.officer} → {self.category} (L{self.level.level_order})"
+        return f"{self.officer} → {self.category} ({self.scope_label()})"
 
 
 
@@ -195,20 +173,9 @@ class Complaint(models.Model):
         related_name="complaints"
     )
 
-    submitter_campus = models.ForeignKey(
-        "accounts.Campus",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="submitted_complaints",
-    )
-    submitter_college = models.ForeignKey(
-        "accounts.College",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="submitted_complaints",
-    )
+    submitter_campus = models.CharField(max_length=50, choices=CAMPUS_CHOICES, null=True, blank=True)
+    # store academic-unit code instead of FK to removed College model
+    submitter_college = models.CharField(max_length=50, choices=ACADEMIC_UNITS, null=True, blank=True)
     submitter_department = models.ForeignKey(
         "accounts.Department",
         on_delete=models.SET_NULL,
@@ -232,14 +199,13 @@ class Complaint(models.Model):
         default="pending"
     )
 
-    current_level = models.ForeignKey(
-        ResolverLevel,
+    current_resolver = models.ForeignKey(
+        CategoryResolver,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="complaints"
     )
-    # under review 
     assigned_officer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -258,15 +224,17 @@ class Complaint(models.Model):
         student_profile = getattr(self.submitted_by, "student_profile", None)
         if student_profile is not None:
             department = student_profile.department
+            # department.department_college is an academic-unit code
             college = department.department_college if department else None
-            campus = college.college_campus if college else None
+            campus = student_profile.campus_id
             return campus, college, department
 
         officer_profile = getattr(self.submitted_by, "officer_profile", None)
         if officer_profile is not None:
             department = officer_profile.department
             college = officer_profile.college or (department.department_college if department else None)
-            campus = college.college_campus if college else None
+            # officers do not have a campus field; campus may be unknown here
+            campus = None
             return campus, college, department
 
         return None, None, None
@@ -281,34 +249,33 @@ class Complaint(models.Model):
         if self.submitted_by_id:
             self._sync_submitter_scope_snapshot()
 
-        if self.category:
-            if not self.category.matches_scope(
-                campus=self.submitter_campus,
-                college=self.submitter_college,
-                department=self.submitter_department,
-            ):
-                raise ValidationError("Selected office category does not match the complainant's campus/college/department.")
+        if self.current_resolver_id and self.category:
+            if self.current_resolver.category_id != self.category_id:
+                raise ValidationError("Current resolver does not belong to the selected complaint category.")
 
-        if self.assigned_officer_id and self.category:
-            if not self.category.matches_officer(self.assigned_officer):
-                raise ValidationError("Assigned officer does not match the complaint office scope.")
+            if not self.current_resolver.matches_complaint_scope(self):
+                raise ValidationError("Current resolver does not match the complainant's campus/college/department.")
+
+        if self.assigned_officer_id and self.current_resolver_id:
+            if self.current_resolver.officer_id != self.assigned_officer_id:
+                raise ValidationError("Assigned officer does not match the current resolver.")
 
     def __str__(self):
         return f"{self.complaint_id}  {self.title}  ({self.status})"
 
     def _get_current_assignment(self):
-        if not (self.category_id and self.current_level_id and self.assigned_officer_id):
+        if not (self.category_id and self.current_resolver_id and self.assigned_officer_id):
             return None
 
         return CategoryResolver.objects.filter(
             category_id=self.category_id,
-            level_id=self.current_level_id,
+            id=self.current_resolver_id,
             officer_id=self.assigned_officer_id,
             active=True,
         ).first()
 
     def calculate_escalation_deadline(self, escalation_time=None, base_time=None):
-        if not self.current_level:
+        if not self.current_resolver:
             return None
 
         effective_escalation_time = escalation_time
@@ -329,49 +296,53 @@ class Complaint(models.Model):
         )
 
     def save(self, *args, **kwargs):
-        if self.current_level and not self.escalation_deadline:
+        if self.category_id and self.assigned_officer_id and not self.current_resolver_id:
+            candidate = CategoryResolver.objects.filter(
+                category_id=self.category_id,
+                officer_id=self.assigned_officer_id,
+                active=True,
+            ).select_related("officer", "category").first()
+            if candidate and candidate.matches_complaint_scope(self):
+                self.current_resolver = candidate
+
+        if self.current_resolver and not self.escalation_deadline:
             self.set_escalation_deadline()
         self.full_clean()
         super().save(*args, **kwargs)
 
     def escalate_to_next_level(self):
-        """Escalate complaint to the next resolver level"""
-        if not self.category or not self.current_level:
+        """Escalate complaint to the next broader resolver scope."""
+        if not self.category or not self.current_resolver:
             return False
-        
-        # Find the next level for this category
-        next_level = ResolverLevel.objects.filter(
-            level_order__gt=self.current_level.level_order
-        ).order_by('level_order').first()
-        
-        if not next_level:
-            return False  # No higher level available
-        
-        # Find an officer at the next level for this category
-        next_resolver = CategoryResolver.objects.filter(
-            category=self.category,
-            level=next_level,
-            active=True
-        ).first()
-        
-        if next_resolver:
-            # Create assignment record for the escalation
-            Assignment.objects.create(
-                complaint=self,
-                officer=next_resolver.officer,
-                level=next_level,
-                reason='escalation'
-            )
-            
-            # Update complaint
-            self.current_level = next_level
-            self.assigned_officer = next_resolver.officer
-            self.status = 'escalated'
-            self.set_escalation_deadline(next_resolver.escalation_time, base_time=self.created_at)
-            self.save()
-            
-            return True
-        
+
+        candidates = [
+            resolver for resolver in CategoryResolver.objects.filter(
+                category=self.category,
+                active=True,
+            ).select_related("officer", "category")
+            if resolver.matches_complaint_scope(self) and resolver.scope_rank() < self.current_resolver.scope_rank()
+        ]
+
+        if not candidates:
+            return False
+
+        next_resolver = max(candidates, key=lambda resolver: (resolver.scope_rank(), -resolver.id))
+
+        Assignment.objects.create(
+            complaint=self,
+            officer=next_resolver.officer,
+            resolver=next_resolver,
+            reason='escalation'
+        )
+
+        self.current_resolver = next_resolver
+        self.assigned_officer = next_resolver.officer
+        self.status = 'escalated'
+        self.set_escalation_deadline(next_resolver.escalation_time, base_time=self.created_at)
+        self.save()
+
+        return True
+
         return False
 
 
@@ -425,8 +396,8 @@ class Assignment(models.Model):
         on_delete=models.CASCADE,
         related_name="assignment_history"
     )
-    level = models.ForeignKey(
-        ResolverLevel,
+    resolver = models.ForeignKey(
+        CategoryResolver,
         on_delete=models.CASCADE
     )
 
@@ -442,7 +413,7 @@ class Assignment(models.Model):
         ordering = ["-assigned_at"]
 
     def __str__(self):
-        return f"{self.complaint.complaint_id}  → {self.officer} (L{self.level.level_order})"
+        return f"{self.complaint.complaint_id}  → {self.officer} ({self.resolver.scope_label()})"
 
 
 class Comment(models.Model):

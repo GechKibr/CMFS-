@@ -3,6 +3,8 @@ from django.conf import settings
 from django.utils import timezone
 import uuid
 
+from accounts.models import CAMPUS_CHOICES, ACADEMIC_UNITS
+
 
 class FeedbackTemplate(models.Model):
     STATUS_DRAFT = 'draft'
@@ -57,8 +59,8 @@ class FeedbackTemplate(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default=PRIORITY_MEDIUM)
     audience_scope = models.CharField(max_length=20, choices=AUDIENCE_SCOPE_CHOICES, default=AUDIENCE_ALL)
-    target_campus = models.ForeignKey('accounts.Campus', on_delete=models.SET_NULL, null=True, blank=True, related_name='feedback_templates')
-    target_college = models.ForeignKey('accounts.College', on_delete=models.SET_NULL, null=True, blank=True, related_name='feedback_templates')
+    target_campus = models.CharField(max_length=50, choices=CAMPUS_CHOICES, null=True, blank=True)
+    target_college = models.CharField(max_length=50, choices=ACADEMIC_UNITS, null=True, blank=True)
     target_department = models.ForeignKey('accounts.Department', on_delete=models.SET_NULL, null=True, blank=True, related_name='feedback_templates')
     target_users = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='targeted_feedback_templates')
     approved_by = models.ForeignKey(
@@ -82,6 +84,10 @@ class FeedbackTemplate(models.Model):
     def __str__(self):
         return f"{self.title} - {self.office}"
 
+    @property
+    def target_campus_id(self):
+        return self.target_campus
+
     def is_visible_to_user(self, user):
         if self.status != self.STATUS_ACTIVE:
             return False
@@ -93,36 +99,29 @@ class FeedbackTemplate(models.Model):
         officer_profile = getattr(user, 'officer_profile', None)
 
         if self.audience_scope == self.AUDIENCE_CAMPUS:
-            if self.target_campus_id is None:
+            if not self.target_campus:
                 return False
 
-            if student_profile and student_profile.department_id:
-                college = student_profile.department.department_college
-                campus = college.college_campus if college else None
-                return bool(campus and campus.id == self.target_campus_id)
+            if student_profile:
+                return bool(student_profile.campus_id and student_profile.campus_id == self.target_campus)
 
             if officer_profile:
-                if officer_profile.college_id:
-                    campus = officer_profile.college.college_campus
-                    return bool(campus and campus.id == self.target_campus_id)
-                if officer_profile.department_id:
-                    college = officer_profile.department.department_college
-                    campus = college.college_campus if college else None
-                    return bool(campus and campus.id == self.target_campus_id)
+                # Officer profile does not have a campus snapshot field after college refactor.
+                return False
             return False
 
         if self.audience_scope == self.AUDIENCE_COLLEGE:
-            if self.target_college_id is None:
+            if not self.target_college:
                 return False
 
             if student_profile and student_profile.department_id:
-                return student_profile.department.department_college_id == self.target_college_id
+                return student_profile.department.department_college == self.target_college
 
             if officer_profile:
-                if officer_profile.college_id:
-                    return officer_profile.college_id == self.target_college_id
+                if officer_profile.college:
+                    return officer_profile.college == self.target_college
                 if officer_profile.department_id:
-                    return officer_profile.department.department_college_id == self.target_college_id
+                    return officer_profile.department.department_college == self.target_college
             return False
 
         if self.audience_scope == self.AUDIENCE_DEPARTMENT:

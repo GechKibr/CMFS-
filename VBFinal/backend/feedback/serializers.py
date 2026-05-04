@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import FeedbackTemplate, TemplateField, FeedbackResponse, FeedbackAnswer
-from accounts.models import Campus, College, Department, User
+from accounts.models import CAMPUS_CHOICES, ACADEMIC_UNITS, Department, User
 import uuid
 import hashlib
 
@@ -16,8 +16,8 @@ class FeedbackTemplateSerializer(serializers.ModelSerializer):
     created_by = serializers.CharField(source='created_by.full_name', read_only=True)
     created_by_role = serializers.SerializerMethodField()
     approved_by = serializers.CharField(source='approved_by.full_name', read_only=True, allow_null=True)
-    target_campus_name = serializers.CharField(source='target_campus.campus_name', read_only=True, allow_null=True)
-    target_college_name = serializers.CharField(source='target_college.college_name', read_only=True, allow_null=True)
+    target_campus_name = serializers.CharField(source='get_target_campus_display', read_only=True, allow_null=True)
+    target_college_name = serializers.CharField(source='get_target_college_display', read_only=True, allow_null=True)
     target_department_name = serializers.CharField(source='target_department.department_name', read_only=True, allow_null=True)
     target_user_ids = serializers.SerializerMethodField()
     
@@ -45,8 +45,8 @@ class FeedbackTemplateCreateSerializer(serializers.ModelSerializer):
     fields = TemplateFieldSerializer(many=True)
     target_user_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False, write_only=True, default=list)
     audience_scope = serializers.ChoiceField(choices=FeedbackTemplate.AUDIENCE_SCOPE_CHOICES, required=False, default=FeedbackTemplate.AUDIENCE_ALL)
-    target_campus = serializers.PrimaryKeyRelatedField(queryset=Campus.objects.all(), required=False, allow_null=True)
-    target_college = serializers.PrimaryKeyRelatedField(queryset=College.objects.all(), required=False, allow_null=True)
+    target_campus = serializers.ChoiceField(choices=CAMPUS_CHOICES, required=False, allow_null=True, allow_blank=True)
+    target_college = serializers.ChoiceField(choices=ACADEMIC_UNITS, required=False, allow_null=True, allow_blank=True)
     target_department = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all(), required=False, allow_null=True)
     
     class Meta:
@@ -72,10 +72,9 @@ class FeedbackTemplateCreateSerializer(serializers.ModelSerializer):
         if audience_scope == FeedbackTemplate.AUDIENCE_USERS and not target_user_ids:
             raise serializers.ValidationError({'target_user_ids': 'Select at least one user for specific users audience.'})
 
-        if target_college and target_campus and target_college.college_campus_id != target_campus.id:
-            raise serializers.ValidationError({'target_college': 'Selected college does not belong to target campus.'})
-        if target_department and target_college and target_department.department_college_id != target_college.id:
-            raise serializers.ValidationError({'target_department': 'Selected department does not belong to target college.'})
+        # target_college is an academic-unit code now; ensure department belongs to selected academic unit
+        if target_department and target_college and target_department.department_college != target_college:
+            raise serializers.ValidationError({'target_department': 'Selected department does not belong to target academic unit.'})
 
         attrs['target_user_ids'] = list(dict.fromkeys(target_user_ids))
         return attrs
@@ -85,7 +84,6 @@ class FeedbackTemplateCreateSerializer(serializers.ModelSerializer):
         target_user_ids = validated_data.pop('target_user_ids', [])
         user = self.context['request'].user
         
-        # Set default status based on user role
         if user.is_admin():
             status = FeedbackTemplate.STATUS_ACTIVE
         else:
@@ -97,8 +95,8 @@ class FeedbackTemplateCreateSerializer(serializers.ModelSerializer):
         if officer_profile:
             if officer_profile.department_id:
                 office_name = officer_profile.department.department_name or office_name
-            elif officer_profile.college_id:
-                office_name = officer_profile.college.college_name or office_name
+            elif officer_profile.college:
+                office_name = dict(ACADEMIC_UNITS).get(officer_profile.college, office_name)
         elif student_profile and student_profile.department_id:
             office_name = student_profile.department.department_name or office_name
 

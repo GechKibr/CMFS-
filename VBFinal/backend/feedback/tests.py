@@ -1,17 +1,17 @@
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from accounts.models import Campus, College, Department, Student, User
+from accounts.models import Department, Student, User
 from complaints.models import Notification
 from feedback.models import FeedbackResponse, FeedbackTemplate, TemplateField
 
 
 class FeedbackTemplateSecurityAPITests(APITestCase):
     def setUp(self):
-        self.campus_a = Campus.objects.create(campus_name='Main Campus')
-        self.campus_b = Campus.objects.create(campus_name='North Campus')
-        self.college_a = College.objects.create(college_name='Engineering', college_campus=self.campus_a)
-        self.college_b = College.objects.create(college_name='Business', college_campus=self.campus_b)
+        self.campus_a = 'maraki'
+        self.campus_b = 'atse_tewodros'
+        self.college_a = 'engineering'
+        self.college_b = 'business'
         self.department_a = Department.objects.create(department_name='Software', department_college=self.college_a)
         self.department_b = Department.objects.create(department_name='Accounting', department_college=self.college_b)
 
@@ -218,7 +218,7 @@ class FeedbackTemplateSecurityAPITests(APITestCase):
         self.assertEqual(all_response.status_code, 200)
         self.assertEqual(all_response.data['total_responses'], 3)
 
-        campus_filtered = self.client.get(base_url, {'campus': str(self.campus_a.id)})
+        campus_filtered = self.client.get(base_url, {'campus': self.campus_a})
         self.assertEqual(campus_filtered.status_code, 200)
         self.assertEqual(campus_filtered.data['total_responses'], 1)
 

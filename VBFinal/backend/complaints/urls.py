@@ -3,7 +3,6 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     CategoryViewSet,
-    ResolverLevelViewSet,
     CategoryResolverViewSet,
     ComplaintViewSet,
     CommentViewSet,
@@ -20,7 +19,6 @@ from .views import (
 router = DefaultRouter()
 
 router.register(r'categories', CategoryViewSet, basename='category')
-router.register(r'resolver-levels', ResolverLevelViewSet, basename='resolver-level')
 router.register(r'resolver-assignments', CategoryResolverViewSet, basename='resolver-assignment')
 router.register(r'complaints', ComplaintViewSet, basename='complaint')
 router.register(r'comments', CommentViewSet, basename='comment')

@@ -1,25 +1,19 @@
 from django.contrib import admin
 from .models import (
-    Campus,
-    College,
     Department,
     EmailLog,
     EmailVerificationToken,
     Officer,
     PasswordResetToken,
     Student,
-    StudentType,
     SystemLog,
     User,
 )
 
 admin.site.register(SystemLog)
-admin.site.register(Campus)
-admin.site.register(College)
 admin.site.register(Department)
 admin.site.register(Student)
 admin.site.register(Officer)
-admin.site.register(StudentType)
 
 
 @admin.register(User)

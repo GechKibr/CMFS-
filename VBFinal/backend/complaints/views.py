@@ -72,7 +72,7 @@ def accessible_complaints_for(user):
             CategoryResolver.objects.filter(
                 officer=user,
                 active=True,
-            ).select_related('category', 'college', 'department')
+            ).select_related('category', 'department', 'officer')
         )
 
         complaints = Complaint.objects.filter(
@@ -112,7 +112,7 @@ def can_manage_complaint(user, complaint):
                 officer=user,
                 category_id=complaint.category_id,
                 active=True,
-            ).select_related('category', 'college', 'department')
+            ).select_related('category', 'department', 'officer')
         )
 
     return bool(

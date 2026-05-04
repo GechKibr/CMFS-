@@ -17,7 +17,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   });
   const [categorySearchText, setCategorySearchText] = useState('');
   const [categoryRegexEnabled, setCategoryRegexEnabled] = useState(false);
-  const [categoryFilters, setCategoryFilters] = useState({
+  const [resolverFilters, setResolverFilters] = useState({
     campus: '',
     college: '',
     department: '',
@@ -26,6 +26,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   const [formErrors, setFormErrors] = useState({});
   const [currentStep, setCurrentStep] = useState(1);
   const [ccOfficeIds, setCcOfficeIds] = useState([]);
+  const [resolverOfficerIds, setResolverOfficerIds] = useState([]);
   const [ccSearchText, setCcSearchText] = useState('');
   const [ccRegexEnabled, setCcRegexEnabled] = useState(false);
   const totalSteps = 4;
@@ -103,26 +104,51 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     setComplaintForm({ title: '', description: '', category: '', isAnonymous: false });
     setFiles([]);
     setCcOfficeIds([]);
+    setResolverOfficerIds([]);
     setCategorySearchText('');
     setCategoryRegexEnabled(false);
-    setCategoryFilters({ campus: '', college: '', department: '' });
+    setResolverFilters({ campus: '', college: '', department: '' });
     setCcSearchText('');
     setCcRegexEnabled(false);
     setFormErrors({});
     setCurrentStep(1);
   };
 
-  const categoryOfficers = categoryResolvers
-    .filter((resolver) => String(resolver.category) === String(complaintForm.category) && resolver.active)
-    .sort((a, b) => (a.level_name || '').localeCompare(b.level_name || ''));
+  const selectedCategory = categories.find((item) => String(item.value) === String(complaintForm.category));
+
+  const selectedCategoryResolvers = useMemo(() => {
+    const priority = (resolver) => {
+      if (resolver.department_name) return 3;
+      if (resolver.college_name) return 2;
+      if (resolver.campus_name) return 1;
+      return 0;
+    };
+
+    return categoryResolvers
+      .filter((resolver) => String(resolver.category) === String(complaintForm.category) && resolver.active)
+      .sort((a, b) => priority(b) - priority(a) || String(a.scope_label || '').localeCompare(String(b.scope_label || '')) || String(a.officer_name || '').localeCompare(String(b.officer_name || '')));
+  }, [categoryResolvers, complaintForm.category]);
 
   const selectCategory = (categoryValue) => {
     setComplaintForm((prev) => ({ ...prev, category: categoryValue }));
+    setResolverFilters({ campus: '', college: '', department: '' });
+    setResolverOfficerIds([]);
   };
 
-  const ccOfficeOptions = categories;
+  const ccOfficeOptions = useMemo(() => (
+    categories.filter((office) => String(office.value) !== String(complaintForm.category))
+  ), [categories, complaintForm.category]);
+
   const selectedCcOffices = ccOfficeOptions.filter((office) => ccOfficeIds.includes(String(office.value)));
   const availableCcOffices = ccOfficeOptions.filter((office) => !ccOfficeIds.includes(String(office.value)));
+
+  useEffect(() => {
+    if (!complaintForm.category) {
+      return;
+    }
+
+    setCcOfficeIds((prev) => prev.filter((officeId) => String(officeId) !== String(complaintForm.category)));
+  }, [complaintForm.category]);
 
   const buildSearchMatcher = useCallback((query, useRegex, invalidRegexMessage) => {
     const trimmed = query.trim();
@@ -159,42 +185,54 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     [
       category?.label,
       category?.office_name,
-      category?.office_scope,
-      category?.campus_name,
-      category?.college_name,
-      category?.department_name,
+      category?.office_description,
     ]
       .filter(Boolean)
       .join(' ')
   ), []);
 
-  const campusOptions = useMemo(() => (
-    Array.from(new Set(categories.map((cat) => cat.campus_name).filter(Boolean)))
-      .sort((a, b) => a.localeCompare(b))
-  ), [categories]);
-
-  const collegeOptions = useMemo(() => (
-    Array.from(new Set(categories.map((cat) => cat.college_name).filter(Boolean)))
-      .sort((a, b) => a.localeCompare(b))
-  ), [categories]);
-
-  const departmentOptions = useMemo(() => (
-    Array.from(new Set(categories.map((cat) => cat.department_name).filter(Boolean)))
-      .sort((a, b) => a.localeCompare(b))
-  ), [categories]);
-
   const filteredCategories = useMemo(() => (
-    categories.filter((category) => {
-      if (categoryFilters.campus && category.campus_name !== categoryFilters.campus) return false;
-      if (categoryFilters.college && category.college_name !== categoryFilters.college) return false;
-      if (categoryFilters.department && category.department_name !== categoryFilters.department) return false;
-      return categorySearch.matcher(toSearchableText(category));
-    })
-  ), [categories, categoryFilters, categorySearch, toSearchableText]);
+    categories.filter((category) => categorySearch.matcher(toSearchableText(category)))
+  ), [categories, categorySearch, toSearchableText]);
 
   const filteredCcOffices = useMemo(() => (
     availableCcOffices.filter((office) => ccOfficeSearch.matcher(toSearchableText(office)))
   ), [availableCcOffices, ccOfficeSearch, toSearchableText]);
+
+  const resolverCampusOptions = useMemo(() => (
+    Array.from(new Set(selectedCategoryResolvers.map((resolver) => resolver.campus_name).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b))
+  ), [selectedCategoryResolvers]);
+
+  const resolverCollegeOptions = useMemo(() => (
+    Array.from(new Set(selectedCategoryResolvers
+      .filter((resolver) => !resolverFilters.campus || resolver.campus_name === resolverFilters.campus)
+      .map((resolver) => resolver.college_name)
+      .filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b))
+  ), [selectedCategoryResolvers, resolverFilters.campus]);
+
+  const resolverDepartmentOptions = useMemo(() => (
+    Array.from(new Set(selectedCategoryResolvers
+      .filter((resolver) => (!resolverFilters.campus || resolver.campus_name === resolverFilters.campus)
+        && (!resolverFilters.college || resolver.college_name === resolverFilters.college))
+      .map((resolver) => resolver.department_name)
+      .filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b))
+  ), [selectedCategoryResolvers, resolverFilters.campus, resolverFilters.college]);
+
+  const filteredResolverOfficers = useMemo(() => (
+    selectedCategoryResolvers.filter((resolver) => {
+      if (resolverFilters.campus && resolver.campus_name !== resolverFilters.campus) return false;
+      if (resolverFilters.college && resolver.college_name !== resolverFilters.college) return false;
+      if (resolverFilters.department && resolver.department_name !== resolverFilters.department) return false;
+      return true;
+    })
+  ), [selectedCategoryResolvers, resolverFilters]);
+
+  const selectedResolverOfficers = useMemo(() => (
+    filteredResolverOfficers.filter((resolver) => resolverOfficerIds.includes(String(resolver.officer)))
+  ), [filteredResolverOfficers, resolverOfficerIds]);
 
   const validateStep = (step) => {
     const errors = validateForm();
@@ -248,6 +286,23 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     });
   };
 
+  const toggleResolverOfficerSelection = (officerId) => {
+    setResolverOfficerIds((prev) => {
+      const id = String(officerId);
+      return prev.includes(id)
+        ? prev.filter((item) => item !== id)
+        : [...prev, id];
+    });
+  };
+
+  const clearResolverOfficerSelections = () => {
+    setResolverOfficerIds([]);
+  };
+
+  const selectAllResolverOfficers = () => {
+    setResolverOfficerIds(filteredResolverOfficers.map((resolver) => String(resolver.officer)));
+  };
+
   const removeCcOffice = (officeId) => {
     setCcOfficeIds((prev) => prev.filter((item) => String(item) !== String(officeId)));
   };
@@ -283,6 +338,10 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
       // CC backend offices as JSON
       if (ccOfficeIds.length > 0) {
         formData.append('cc_office_ids', JSON.stringify(ccOfficeIds));
+      }
+
+      if (resolverOfficerIds.length > 0) {
+        formData.append('cc_officer_ids', JSON.stringify(resolverOfficerIds.map((officerId) => Number(officerId))));
       }
 
       // Add files to form data
@@ -360,56 +419,8 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                     {language === 'am' ? 'ምድብ' : 'Category'} *
                   </label>
                   <div className="space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
-                          {language === 'am' ? 'ካምፓስ' : 'Campus'}
-                        </label>
-                        <select
-                          value={categoryFilters.campus}
-                          onChange={(e) => setCategoryFilters((prev) => ({ ...prev, campus: e.target.value }))}
-                          className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
-                        >
-                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
-                          {campusOptions.map((campus) => (
-                            <option key={campus} value={campus}>{campus}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
-                          {language === 'am' ? 'ኮሌጅ' : 'College'}
-                        </label>
-                        <select
-                          value={categoryFilters.college}
-                          onChange={(e) => setCategoryFilters((prev) => ({ ...prev, college: e.target.value }))}
-                          className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
-                        >
-                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
-                          {collegeOptions.map((college) => (
-                            <option key={college} value={college}>{college}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
-                          {language === 'am' ? 'ዲፓርትመንት' : 'Department'}
-                        </label>
-                        <select
-                          value={categoryFilters.department}
-                          onChange={(e) => setCategoryFilters((prev) => ({ ...prev, department: e.target.value }))}
-                          className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
-                        >
-                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
-                          {departmentOptions.map((department) => (
-                            <option key={department} value={department}>{department}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                      <div className="md:col-span-2">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <div className="flex-1">
                         <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
                           {language === 'am' ? 'ምድብ ፈልግ' : 'Search category'}
                         </label>
@@ -417,7 +428,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                           type="text"
                           value={categorySearchText}
                           onChange={(e) => setCategorySearchText(e.target.value)}
-                          placeholder={language === 'am' ? 'ስም፣ ካምፓስ፣ ኮሌጅ፣ ዲፓርትመንት' : 'Name, campus, college, department'}
+                          placeholder={language === 'am' ? 'ስም ወይም መግለጫ' : 'Name or description'}
                           className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-800 placeholder-gray-400'}`}
                         />
                       </div>
@@ -440,14 +451,21 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                               key={cat.value}
                               type="button"
                               onClick={() => selectCategory(cat.value)}
-                              className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${isSelected
+                              className={`group w-full text-left rounded-lg border px-3 py-2 transition-colors ${isSelected
                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                                 : isDark
                                   ? 'border-gray-600 bg-gray-700 hover:border-blue-400'
                                   : 'border-gray-200 bg-white hover:border-blue-300'} `}
                             >
                               <span className="flex items-center justify-between gap-3">
-                                <span className={`text-sm ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{cat.label}</span>
+                                <span>
+                                  <span className={`block text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{cat.label}</span>
+                                  {cat.office_description && (
+                                    <span className={`mt-1 block overflow-hidden text-xs transition-all duration-200 ${isDark ? 'text-gray-400' : 'text-gray-500'} max-h-0 opacity-0 group-hover:max-h-20 group-hover:opacity-100`}>
+                                      {cat.office_description}
+                                    </span>
+                                  )}
+                                </span>
                                 <span className={`h-5 w-5 rounded-full border flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : isDark ? 'border-gray-500 text-transparent' : 'border-gray-300 text-transparent'}`}>
                                   ✓
                                 </span>
@@ -466,36 +484,190 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                   )}
                   {!categorySearch.error && filteredCategories.length === 0 && (
                     <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {language === 'am' ? 'ምድቦች አልተገኙም። ማጣሪያዎችን ያስተካክሉ።' : 'No categories match. Adjust the filters or search.'}
+                      {language === 'am' ? 'ምድቦች አልተገኙም። ፍለጋውን ያስተካክሉ።' : 'No categories match. Adjust the search.'}
                     </p>
                   )}
                   {formErrors.category && <p className="text-red-500 text-sm mt-1 flex items-center"><span className="mr-1">⚠️</span>{formErrors.category}</p>}
                 </div>
 
-                <div className={`rounded-lg border p-3 ${isDark ? 'border-gray-600 bg-gray-800' : 'border-blue-200 bg-blue-50'}`}>
+                <div className={`rounded-lg border p-4 ${isDark ? 'border-gray-600 bg-gray-800' : 'border-blue-200 bg-blue-50'}`}>
                   <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-blue-700'}`}>
-                    {language === 'am' ? 'የተመደቡ መፍትሄ ኦፊሰሮች' : 'Assigned Resolver Officers'}
+                    {language === 'am' ? 'የሪዞልቨር ማስተላለፊያ መረጃ' : 'Resolver routing preview'}
                   </p>
-                  {complaintForm.category ? (
-                    categoryOfficers.length > 0 ? (
-                      <ul className={`mt-2 space-y-1 text-sm ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                        {categoryOfficers.map((resolver) => (
-                          <li key={resolver.id}>
-                            {resolver.level_name}: {resolver.officer_name}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {language === 'am' ? 'ለዚህ ምድብ ገና ኦፊሰር አልተመደበም።' : 'No resolver officers are assigned to this category yet.'}
-                      </p>
-                    )
+                  {selectedCategory ? (
+                    <>
+                      <div className={`mt-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                        <p className="font-medium">{selectedCategory.label}</p>
+                        {selectedCategory.office_description && (
+                          <p className={`mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{selectedCategory.office_description}</p>
+                        )}
+                      </div>
+                      {selectedCategoryResolvers.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {selectedCategoryResolvers.map((resolver) => (
+                            <div
+                              key={resolver.id}
+                              className={`rounded-lg border px-3 py-2 text-sm ${isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-white'}`}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className={`font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>
+                                  {resolver.officer_name}
+                                </p>
+                                <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${isDark ? 'bg-gray-600 text-gray-200' : 'bg-blue-100 text-blue-700'}`}>
+                                  {resolver.scope_label || 'General'}
+                                </span>
+                              </div>
+                              <div className={`mt-2 grid gap-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'} sm:grid-cols-3`}>
+                                <span>Campus: {resolver.campus_name || 'All'}</span>
+                                <span>College: {resolver.college_name || 'All'}</span>
+                                <span>Department: {resolver.department_name || 'All'}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {language === 'am' ? 'ለዚህ ምድብ ገና ሪዞልቨር አልተመደበም።' : 'No resolver assignments are available for this category yet.'}
+                        </p>
+                      )}
+                    </>
                   ) : (
                     <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {language === 'am' ? 'እባክዎ መጀመሪያ ምድብ ይምረጡ።' : 'Select a category first to preview responsible officers.'}
+                      {language === 'am' ? 'እባክዎ መጀመሪያ ምድብ ይምረጡ።' : 'Select a category first to load resolver routing details.'}
                     </p>
                   )}
                 </div>
+
+                {selectedCategory && selectedCategoryResolvers.length > 0 && (
+                  <div className={`rounded-lg border p-4 ${isDark ? 'border-gray-600 bg-gray-800' : 'border-gray-200 bg-white'}`}>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {language === 'am' ? 'ልዩ ኦፊሰሮች' : 'Specific offices'}
+                        </p>
+                        <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {language === 'am'
+                            ? 'ካምፓስ፣ ኮሌጅ እና ዲፓርትመንት በመምረጥ የሚስማሙ ኦፊሰሮችን ይጠቀሙ።'
+                            : 'Filter the available resolver officers by campus, college, and department.'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={selectAllResolverOfficers}
+                          className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
+                        >
+                          {language === 'am' ? 'ሁሉንም ይምረጡ' : 'Select all'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={clearResolverOfficerSelections}
+                          className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                          {language === 'am' ? 'አጽዳ' : 'Clear'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                      <div>
+                        <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
+                          {language === 'am' ? 'ካምፓስ' : 'Campus'}
+                        </label>
+                        <select
+                          value={resolverFilters.campus}
+                          onChange={(e) => setResolverFilters((prev) => ({ ...prev, campus: e.target.value, college: '', department: '' }))}
+                          className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                        >
+                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                          {resolverCampusOptions.map((campus) => (
+                            <option key={campus} value={campus}>{campus}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
+                          {language === 'am' ? 'ኮሌጅ' : 'College'}
+                        </label>
+                        <select
+                          value={resolverFilters.college}
+                          onChange={(e) => setResolverFilters((prev) => ({ ...prev, college: e.target.value, department: '' }))}
+                          className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                        >
+                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                          {resolverCollegeOptions.map((college) => (
+                            <option key={college} value={college}>{college}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
+                          {language === 'am' ? 'ዲፓርትመንት' : 'Department'}
+                        </label>
+                        <select
+                          value={resolverFilters.department}
+                          onChange={(e) => setResolverFilters((prev) => ({ ...prev, department: e.target.value }))}
+                          className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                        >
+                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                          {resolverDepartmentOptions.map((department) => (
+                            <option key={department} value={department}>{department}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-2`}>
+                        {language === 'am' ? 'የተገኙ ኦፊሰሮች' : 'Matching resolver officers'}
+                      </label>
+                      <div className="max-h-52 overflow-y-auto space-y-2">
+                        {filteredResolverOfficers.length === 0 ? (
+                          <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {language === 'am' ? 'ይህን ማጣሪያ የሚያሟሉ ኦፊሰሮች የሉም።' : 'No officers match the selected scope filters.'}
+                          </div>
+                        ) : (
+                          filteredResolverOfficers.map((resolver) => {
+                            const isSelected = resolverOfficerIds.includes(String(resolver.officer));
+                            return (
+                              <button
+                                key={resolver.id}
+                                type="button"
+                                onClick={() => toggleResolverOfficerSelection(resolver.officer)}
+                                className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${isSelected
+                                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                  : isDark
+                                    ? 'border-gray-600 bg-gray-700 hover:border-blue-400'
+                                    : 'border-gray-200 bg-white hover:border-blue-300'} `}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className={`text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{resolver.officer_name}</p>
+                                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                      {resolver.scope_label || 'General'}
+                                      {' '}
+                                      {resolver.campus_name ? `· ${resolver.campus_name}` : ''}
+                                      {resolver.college_name ? `· ${resolver.college_name}` : ''}
+                                      {resolver.department_name ? `· ${resolver.department_name}` : ''}
+                                    </p>
+                                  </div>
+                                  <span className={`h-5 w-5 rounded-full border flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : isDark ? 'border-gray-500 text-transparent' : 'border-gray-300 text-transparent'}`}>
+                                    ✓
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                      <p className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {language === 'am'
+                          ? `የተመረጡ ኦፊሰሮች: ${selectedResolverOfficers.length}`
+                          : `Selected resolver officers: ${selectedResolverOfficers.length}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <label className={`flex items-start gap-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                   <input

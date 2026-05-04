@@ -157,10 +157,6 @@ export const CategoryManagement = () => {
     openCreatePage();
   };
 
-  const filteredColleges = formData.campus
-    ? []
-    : [];
-
   if (loading) return <div className="text-center py-4">Loading...</div>;
 
   const renderHeaderActions = (title) => (
@@ -227,54 +223,6 @@ export const CategoryManagement = () => {
               rows={3}
               placeholder="Brief description of the office category"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Campus</label>
-            <select
-              value={formData.campus}
-              onChange={(e) => setFormData({ ...formData, campus: e.target.value, college: '', department: '' })}
-              className={`mt-1 block w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
-            >
-              <option value="">Select Campus (Optional)</option>
-              {campuses.map((campus) => (
-                <option key={campus.id} value={campus.id}>
-                  {campus.campus_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">College</label>
-            <select
-              value={formData.college}
-              onChange={(e) => setFormData({ ...formData, college: e.target.value, department: '' })}
-              className={`mt-1 block w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
-            >
-              <option value="">Select College (Optional)</option>
-              {filteredColleges.map((college) => (
-                <option key={college.id} value={college.id}>
-                  {college.college_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Department</label>
-            <select
-              value={formData.department}
-              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-              className={`mt-1 block w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${isDark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"}`}
-            >
-              <option value="">Select Department (Optional)</option>
-              {filteredDepartments.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.department_name}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div>

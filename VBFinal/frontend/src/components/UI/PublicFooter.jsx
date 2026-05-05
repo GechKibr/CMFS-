@@ -4,130 +4,106 @@ const PublicFooter = () => {
   const { isDark } = useTheme();
   const currentYear = new Date().getFullYear();
 
+  const quickLinks = [
+    { label: 'Home', href: '/landing' },
+    { label: 'Features', href: '/landing#features' },
+    { label: 'Workflow', href: '/landing#workflow' },
+    { label: 'Contact', href: '/landing#contact' },
+  ];
+
+  const socialLinks = [
+    { label: 'Facebook', href: 'https://www.facebook.com/' },
+    { label: 'Twitter', href: 'https://x.com/' },
+    { label: 'LinkedIn', href: 'https://www.linkedin.com/' },
+    { label: 'YouTube', href: 'https://www.youtube.com/' },
+  ];
+
   return (
-    <footer className={`${isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200'} border-t`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-4">
-            <div>
-              <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                University of Gondar
-              </h3>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Complaint Management and Feedback Tracking System
-              </p>
-              <p className={`text-sm mt-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                The University of Gondar  is one of Ethiopia's historic higher education institutions,
-                originally established in 1954 as a Public Health College and Training Centre. Over the decades
-                it has evolved into a leading comprehensive university offering diverse undergraduate and
-                postgraduate programs, promoting education, research, and community engagement.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <h4 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>
-                  Vision
-                </h4>
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  To be one of the top ten research universities in Africa by 2030.
-                </p>
+    <footer className={`${isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'} border-t`}>
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-[1.4fr_0.8fr_0.8fr]">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-blue-200/60 bg-white/80 px-4 py-3 shadow-sm backdrop-blur dark:border-blue-500/20 dark:bg-slate-900/70">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/20">
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 7.5A2.5 2.5 0 0 1 7.5 5h9A2.5 2.5 0 0 1 19 7.5v9A2.5 2.5 0 0 1 16.5 19h-9A2.5 2.5 0 0 1 5 16.5v-9Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 9h8M8 12h5M8 15h6" />
+                </svg>
               </div>
               <div>
-                <h4 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>
-                  Mission
-                </h4>
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  To provide quality education, research and community engagement that is responsive to
-                  national and global needs through entrepreneurial culture.
-                </p>
+                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Complaint Management Platform</h3>
+                <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Unified complaints, scheduling, and service handling.</p>
               </div>
             </div>
 
-            <div>
-              <h4 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>
-                Values
-              </h4>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Quality, sustainability, professionalism, collaboration, social responsibility, diversity and
-                inclusiveness.
-              </p>
+            <p className={`max-w-2xl text-sm leading-7 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              A modern service operations platform for transparent complaint tracking, appointment handling,
+              quality templates, and real-time helpdesk communication.
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                ['Fast routing', 'Automatically assign requests to the right team.'],
+                ['Clear status', 'Keep users informed from submission to resolution.'],
+                ['Service insights', 'Review trends with simple operational analytics.'],
+              ].map(([title, description]) => (
+                <div key={title} className={`rounded-2xl border p-4 ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{title}</p>
+                  <p className={`mt-2 text-xs leading-6 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{description}</p>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div>
-              <h4 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>
-                Contact Information
-              </h4>
-              <div className={`text-sm space-y-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                <p>Email: info@uog.edu.et</p>
-                <p>Phone: +251 588 940 290</p>
-                <p>Address: Maraki Street, Gondar, Ethiopia</p>
-              </div>
+          <div>
+            <h4 className={`text-sm font-semibold uppercase tracking-[0.2em] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+              Quick Links
+            </h4>
+            <ul className="mt-4 space-y-3">
+              {quickLinks.map((item) => (
+                <li key={item.label}>
+                  <a
+                    href={item.href}
+                    className={`text-sm font-medium transition-colors ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-blue-700'}`}
+                  >
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h4 className={`text-sm font-semibold uppercase tracking-[0.2em] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+              Contact & Social
+            </h4>
+            <div className={`mt-4 space-y-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              <p>Email: support@platform.com</p>
+              <p>Phone: +251 000 000 000</p>
+              <p>Support: Mon-Fri, 8:00 - 17:00</p>
             </div>
 
-            <div>
-              <h4 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>
-                Useful Official Links
-              </h4>
-              <ul className={`text-sm space-y-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                <li>Students and Registrar Services</li>
-                <li>Library and ICT Services</li>
-                <li>University Hospital Services</li>
-                <li>Research and Community Engagement Portals</li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>
-                Connect With Us
-              </h4>
-              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Follow for updates, events and academic news:
-              </div>
-              <div className="flex flex-wrap gap-3 mt-2">
+            <div className="mt-6 flex flex-wrap gap-3">
+              {socialLinks.map((item) => (
                 <a
-                  href="https://www.facebook.com/"
-                  className={`${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} text-sm transition-colors`}
+                  key={item.label}
+                  href={item.href}
+                  className={`rounded-full border px-3 py-2 text-sm font-medium transition-colors ${isDark ? 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-white' : 'border-slate-200 text-slate-600 hover:border-blue-200 hover:text-blue-700'}`}
                 >
-                  Facebook
+                  {item.label}
                 </a>
-                <span className={`${isDark ? 'text-gray-600' : 'text-gray-400'}`}>|</span>
-                <a
-                  href="https://x.com/"
-                  className={`${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} text-sm transition-colors`}
-                >
-                  Twitter
-                </a>
-                <span className={`${isDark ? 'text-gray-600' : 'text-gray-400'}`}>|</span>
-                <a
-                  href="https://www.linkedin.com/"
-                  className={`${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} text-sm transition-colors`}
-                >
-                  LinkedIn
-                </a>
-                <span className={`${isDark ? 'text-gray-600' : 'text-gray-400'}`}>|</span>
-                <a
-                  href="https://www.youtube.com/"
-                  className={`${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} text-sm transition-colors`}
-                >
-                  YouTube
-                </a>
-              </div>
+              ))}
             </div>
           </div>
         </div>
 
-        <div className={`pt-8 mt-8 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
-          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            © {currentYear} University of Gondar - All Rights Reserved
-          </div>
+        <div className={`mt-10 flex flex-col gap-3 border-t pt-6 text-sm sm:flex-row sm:items-center sm:justify-between ${isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-600'}`}>
+          <p>© {currentYear} Complaint Management and Service Handling Platform. All rights reserved.</p>
           <a
-            href="https://uog.edu.et/"
-            className={`text-sm mt-2 inline-block ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition-colors`}
+            href="/landing"
+            className={`font-medium transition-colors ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-700 hover:text-slate-900'}`}
           >
-            Official University Website: https://uog.edu.et/
+            Return to top
           </a>
         </div>
       </div>

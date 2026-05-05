@@ -1,439 +1,737 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
-import apiService from '../services/api';
 import PublicNavbar from '../components/UI/PublicNavbar';
 import PublicFooter from '../components/UI/PublicFooter';
 
-const heroImages = [
-  '/assets/devoted.png',
-  '/assets/fasil.webp',
-  '/assets/gate.jfif',
-  '/assets/hospital.jfif',
-  '/assets/library.jfif',
-  '/assets/tedi.webp',
+const featureCards = [
+  {
+    slug: 'complaints',
+    title: 'Complaint Management',
+    description: 'Submit, track, and resolve complaints with clear ownership, status updates, and audit-ready history.',
+    icon: (
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h4M9 8h2" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 4.5h14A1.5 1.5 0 0 1 20.5 6v12A1.5 1.5 0 0 1 19 19.5H7.8L4.5 21V6A1.5 1.5 0 0 1 6 4.5Z" />
+      </svg>
+    ),
+  },
+  {
+    slug: 'appointments',
+    title: 'Appointment Scheduling',
+    description: 'Easily request, approve, and manage appointments with structured calendars and reminders.',
+    icon: (
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 3v3m8-3v3M4.5 8.5h15" />
+        <rect x="4.5" y="5.5" width="15" height="14" rx="2.5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h3m0 0h3m-3 0v3" />
+      </svg>
+    ),
+  },
+  {
+    slug: 'templates',
+    title: 'Service Quality Templates',
+    description: 'Define, standardize, and evaluate service quality with reusable templates and scoring workflows.',
+    icon: (
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7 4.5h10A1.5 1.5 0 0 1 18.5 6v12A1.5 1.5 0 0 1 17 19.5H7A1.5 1.5 0 0 1 5.5 18V6A1.5 1.5 0 0 1 7 4.5Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 9h7m-7 3h7m-7 3h4" />
+      </svg>
+    ),
+  },
+  {
+    slug: 'helpdesk',
+    title: 'Real-Time Helpdesk',
+    description: 'Keep users and support teams connected through live chat, updates, and instant follow-up.',
+    icon: (
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 6.5A2 2 0 0 1 6.5 4.5h11A2 2 0 0 1 19.5 6.5v7a2 2 0 0 1-2 2H11l-4.5 3v-3.5h0A2 2 0 0 1 4.5 13.5v-7Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 8.5h8M8 11.5h5" />
+      </svg>
+    ),
+  },
 ];
+
+const workflowSteps = [
+  {
+    title: 'Submit Request',
+    description: 'Users raise a complaint, appointment request, or service ticket from one entry point.',
+    icon: (
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0 5-5m-5 5-5-5" />
+      </svg>
+    ),
+  },
+  {
+    title: 'System Logs & Assigns',
+    description: 'The platform records the request, routes it, and assigns it to the right team.',
+    icon: (
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 7.5h15M4.5 12h15M4.5 16.5h10" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17.5 15.5l2 2 3-3" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Staff Handles Request',
+    description: 'Staff update progress, attach notes, and work from a single service queue.',
+    icon: (
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 19.5v-2a4.5 4.5 0 0 1 9 0v2" />
+        <circle cx="12" cy="9" r="3.5" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Real-Time Communication',
+    description: 'Users and support teams exchange messages, updates, and clarifications in real time.',
+    icon: (
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 6.5A2 2 0 0 1 6.5 4.5h11A2 2 0 0 1 19.5 6.5v7a2 2 0 0 1-2 2H11l-4.5 3v-3.5h0A2 2 0 0 1 4.5 13.5v-7Z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Resolution & Feedback',
+    description: 'Cases close with service notes, ratings, and reporting data for continuous improvement.',
+    icon: (
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 19.5h14" />
+      </svg>
+    ),
+  },
+];
+
+const serviceMetrics = [
+  {
+    label: 'Resolution time',
+    value: 'Track SLAs',
+    detail: 'Measure how quickly the team responds and closes requests.',
+  },
+  {
+    label: 'Service efficiency',
+    value: 'Monitor throughput',
+    detail: 'See how many requests are handled per team or queue.',
+  },
+  {
+    label: 'Complaint trends',
+    value: 'Spot recurring issues',
+    detail: 'Identify patterns across departments, services, and locations.',
+  },
+];
+
+const quickStats = [
+  { label: 'Live dashboards', value: '01' },
+  { label: 'Service channels', value: '04' },
+  { label: 'Workflow stages', value: '05' },
+];
+
+const Reveal = ({ children, className = '', delay = 0 }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const nodeRef = useRef(null);
+
+  useEffect(() => {
+    const node = nodeRef.current;
+    if (!node) return undefined;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.18 },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={nodeRef}
+      className={`transition-all duration-700 ease-out will-change-transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'} ${className}`}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      {children}
+    </div>
+  );
+};
+
+const SectionHeading = ({ eyebrow, title, description, centered = false }) => (
+  <div className={centered ? 'mx-auto max-w-3xl text-center' : 'max-w-3xl'}>
+    <p className="text-sm font-semibold uppercase tracking-[0.28em] text-blue-600 dark:text-blue-400">
+      {eyebrow}
+    </p>
+    <h2 className="mt-4 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white text-balance">
+      {title}
+    </h2>
+    <p className="mt-4 text-base sm:text-lg leading-8 text-slate-600 dark:text-slate-300 text-pretty">
+      {description}
+    </p>
+  </div>
+);
+
+const renderFeaturePreview = (slug, isDark) => {
+  const surface = isDark ? 'bg-slate-900/80 border-slate-700' : 'bg-white border-slate-200';
+  const label = isDark ? 'text-slate-300' : 'text-slate-700';
+  const soft = isDark ? 'bg-slate-800' : 'bg-slate-100';
+
+  if (slug === 'complaints') {
+    return (
+      <div className={`rounded-2xl border p-3 ${surface}`}>
+        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
+          <span>Complaint lifecycle</span>
+          <span>Live</span>
+        </div>
+        <div className="mt-3 space-y-2">
+          {[
+            ['Submitted', 'border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-200'],
+            ['Assigned', 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200'],
+            ['Resolved', 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200'],
+          ].map(([text, classes]) => (
+            <div key={text} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${classes}`}>
+              <span className="h-2 w-2 rounded-full bg-current" />
+              {text}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (slug === 'appointments') {
+    return (
+      <div className={`rounded-2xl border p-3 ${surface}`}>
+        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
+          <span>Schedule view</span>
+          <span>Week</span>
+        </div>
+        <div className="mt-3 grid grid-cols-4 gap-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+          {['Mon', 'Tue', 'Wed', 'Thu'].map((day) => (
+            <div key={day} className="rounded-lg bg-slate-100/80 py-2 text-center dark:bg-slate-800/80">
+              {day}
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div
+              key={index}
+              className={`h-10 rounded-xl ${index === 2 || index === 5 ? 'bg-gradient-to-r from-blue-500 to-cyan-500' : soft}`}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (slug === 'templates') {
+    return (
+      <div className={`rounded-2xl border p-3 ${surface}`}>
+        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
+          <span>Template builder</span>
+          <span>Draft</span>
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className={`rounded-xl px-3 py-2 text-xs font-medium ${soft} ${label}`}>Satisfaction score</div>
+          <div className={`rounded-xl px-3 py-2 text-xs font-medium ${soft} ${label}`}>Resolution checklist</div>
+          <div className="rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-3 py-2 text-xs font-semibold text-white">
+            Approval workflow
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`rounded-2xl border p-3 ${surface}`}>
+      <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
+        <span>Helpdesk chat</span>
+        <span>Typing</span>
+      </div>
+      <div className="mt-3 space-y-2">
+        <div className="ml-auto max-w-[82%] rounded-2xl rounded-tr-sm bg-blue-600 px-3 py-2 text-xs font-medium text-white shadow-sm">
+          Thank you, we are checking the request now.
+        </div>
+        <div className={`max-w-[82%] rounded-2xl rounded-tl-sm px-3 py-2 text-xs font-medium ${isDark ? 'bg-slate-800 text-slate-100' : 'bg-slate-100 text-slate-700'}`}>
+          Can you share the room number and preferred time?
+        </div>
+        <div className={`flex items-center gap-1 rounded-2xl rounded-tl-sm px-3 py-2 text-xs ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+          <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+          Support is typing...
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const LandingPage = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [contactForm, setContactForm] = useState({ name: '', email: '', subject: '', message: '' });
-  const [contactStatus, setContactStatus] = useState(null); // 'success' | 'error' | null
-  const [contactLoading, setContactLoading] = useState(false);
-  const [announcements, setAnnouncements] = useState([]);
-  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
-  const [announcementComments, setAnnouncementComments] = useState({});
-  const [expandedAnnouncements, setExpandedAnnouncements] = useState({});
-  const [newComments, setNewComments] = useState({});
 
-  const storedUser = localStorage.getItem('user');
-  let currentUser = null;
-  try {
-    currentUser = storedUser ? JSON.parse(storedUser) : null;
-  } catch {
-    currentUser = null;
-  }
-  const isAuthenticated = !!localStorage.getItem('token') && !!currentUser;
-
-  const loadAnnouncements = async () => {
-    setAnnouncementsLoading(true);
-    try {
-      const data = await apiService.getPublicAnnouncements();
-      setAnnouncements(Array.isArray(data) ? data : data.results || []);
-    } catch {
-      setAnnouncements([]);
-    } finally {
-      setAnnouncementsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadAnnouncements();
-  }, []);
-
-  useEffect(() => {
-    let intervalId;
-    const tick = () => {
-      setCurrentSlide((prev) => (prev + 1) % heroImages.length);
-    };
-    const start = () => {
-      if (intervalId) clearInterval(intervalId);
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      intervalId = setInterval(tick, 3000);
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        if (intervalId) clearInterval(intervalId);
-        intervalId = undefined;
-      } else {
-        start();
-      }
-    };
-    start();
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, []);
-
-  const handleToggleLike = async (announcementId) => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-
-    try {
-      await apiService.toggleAnnouncementLike(announcementId);
-      await loadAnnouncements();
-    } catch {
-      // noop
-    }
-  };
-
-  const toggleComments = async (announcementId) => {
-    const expanded = !!expandedAnnouncements[announcementId];
-    setExpandedAnnouncements((prev) => ({ ...prev, [announcementId]: !expanded }));
-
-    if (!expanded && !announcementComments[announcementId]) {
-      try {
-        const data = await apiService.getAnnouncementComments(announcementId);
-        setAnnouncementComments((prev) => ({
-          ...prev,
-          [announcementId]: Array.isArray(data) ? data : data.results || [],
-        }));
-      } catch {
-        setAnnouncementComments((prev) => ({ ...prev, [announcementId]: [] }));
-      }
-    }
-  };
-
-  const handleAddComment = async (announcementId) => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-
-    const message = (newComments[announcementId] || '').trim();
-    if (!message) return;
-
-    try {
-      await apiService.addAnnouncementComment(announcementId, message);
-      const data = await apiService.getAnnouncementComments(announcementId);
-      setAnnouncementComments((prev) => ({
-        ...prev,
-        [announcementId]: Array.isArray(data) ? data : data.results || [],
-      }));
-      setNewComments((prev) => ({ ...prev, [announcementId]: '' }));
-      await loadAnnouncements();
-    } catch {
-      // noop
-    }
-  };
-
-  const handleContact = async (e) => {
-    e.preventDefault();
-    setContactLoading(true);
-    setContactStatus(null);
-    try {
-      await apiService.sendContact(contactForm);
-      setContactStatus('success');
-      setContactForm({ name: '', email: '', subject: '', message: '' });
-    } catch {
-      setContactStatus('error');
-    } finally {
-      setContactLoading(false);
-    }
+  const scrollToSection = (id) => {
+    if (typeof document === 'undefined') return;
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+    <div className={`min-h-screen ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} scroll-smooth`}>
       <PublicNavbar />
 
-      {/* Hero Section */}
-      <section className="relative py-12 sm:py-16 lg:py-20 overflow-hidden">
-        {/* Background Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"></div>
+      <main className="relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -top-28 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-blue-500/10 blur-3xl" />
+          <div className="absolute right-[-6rem] top-32 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
+          <div className="absolute left-[-4rem] top-[42rem] h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl" />
+        </div>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 items-center">
-            <div className="text-center lg:text-left min-w-0">
-              <h1 className={`text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold ${isDark ? 'text-white' : 'text-gray-900'} mb-4 sm:mb-6 leading-tight text-balance break-words`}>
-                <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  Complaint Management and Feedback Tracking for UOG
-                </span>
-              </h1>
-
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start mb-4">
-                <button
-                  type="button"
-                  onClick={() => navigate('/login')}
-                  className="min-h-[44px] px-8 py-3.5 sm:py-4 rounded-lg text-base sm:text-lg font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:opacity-90 transition-all shadow-lg shadow-blue-500/25 touch-manipulation"
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  onClick={() => document.getElementById('announcements')?.scrollIntoView({ behavior: 'smooth' })}
-                  className={`min-h-[44px] px-8 py-3.5 sm:py-4 rounded-lg text-base sm:text-lg font-semibold transition-all border-2 active:opacity-90 touch-manipulation ${isDark
-                    ? 'border-gray-600 text-white hover:bg-gray-800'
-                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                >
-                  View Announcements
-                </button>
-              </div>
-            </div>
-
-            <div className="relative w-full min-w-0">
-              <div className="relative h-[220px] min-h-[200px] sm:h-[300px] md:h-[360px] lg:h-[420px] rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl ring-1 ring-black/10">
-                {heroImages.map((image, index) => (
-                  <img
-                    key={image}
-                    src={image}
-                    alt={`Campus view ${index + 1}`}
-                    width={1200}
-                    height={900}
-                    sizes="(max-width: 1024px) 100vw, 50vw"
-                    loading={index === 0 ? 'eager' : 'lazy'}
-                    decoding="async"
-                    fetchPriority={index === 0 ? 'high' : 'low'}
-                    className={`pointer-events-none absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-1000 ease-in-out ${currentSlide === index ? 'opacity-100 z-[1]' : 'opacity-0 z-0'}`}
-                  />
-                ))}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/10 to-transparent pointer-events-none" />
-                <div className="absolute bottom-0 left-0 right-0 p-3 sm:bottom-4 sm:left-4 sm:right-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                  <p className="text-white text-sm sm:text-base font-medium drop-shadow-sm pr-2 sm:max-w-[65%]">
-                    Enhancing student voice and service quality
+        <section id="hero" className="relative scroll-mt-28 pb-16 pt-14 sm:pb-20 sm:pt-18 lg:pb-24 lg:pt-24">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
+            <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+              <Reveal>
+                <div className="max-w-2xl">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-blue-200/70 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-700 shadow-sm backdrop-blur dark:border-blue-500/20 dark:bg-slate-900/70 dark:text-blue-300">
+                    All-in-one service operations platform
+                  </div>
+                  <h1 className="mt-6 text-4xl font-black tracking-tight text-balance sm:text-5xl lg:text-6xl">
+                    <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 bg-clip-text text-transparent">
+                      Manage Complaints, Appointments, and Support — All in One Platform
+                    </span>
+                  </h1>
+                  <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600 dark:text-slate-300 sm:text-xl">
+                    Streamline service delivery with real-time communication, structured workflows, and performance tracking.
                   </p>
-                  <div className="flex flex-wrap gap-1 justify-center sm:justify-end sm:shrink-0" role="tablist" aria-label="Hero image carousel">
-                    {heroImages.map((_, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        role="tab"
-                        aria-selected={currentSlide === index}
-                        aria-label={`Go to slide ${index + 1}`}
-                        onClick={() => setCurrentSlide(index)}
-                        className="p-2 -m-1 rounded-full touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+
+                  <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => navigate('/login')}
+                      className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-600/25"
+                    >
+                      Get Started
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scrollToSection('contact')}
+                      className={`inline-flex min-h-12 items-center justify-center rounded-2xl border px-6 py-3 text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5 ${isDark ? 'border-slate-700 bg-slate-900/60 text-slate-100 hover:border-slate-500 hover:bg-slate-900' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:text-blue-700'}`}
+                    >
+                      Request Demo
+                    </button>
+                  </div>
+
+                  <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                    {quickStats.map((stat) => (
+                      <div
+                        key={stat.label}
+                        className={`rounded-2xl border p-4 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white/90'}`}
                       >
-                        <span
-                          className={`block h-2.5 rounded-full transition-all ${currentSlide === index ? 'w-7 bg-white' : 'w-2.5 bg-white/60'}`}
-                        />
-                      </button>
+                        <div className="text-2xl font-black text-blue-600 dark:text-blue-400">{stat.value}</div>
+                        <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">{stat.label}</p>
+                      </div>
                     ))}
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
+              </Reveal>
 
-          <div className="mt-8 sm:mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            <div className={`rounded-xl p-4 border ${isDark ? 'bg-gray-900/40 border-gray-700' : 'bg-white/80 border-gray-200'}`}>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Fast Routing</p>
-              <p className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Smart complaint assignment</p>
-            </div>
-            <div className={`rounded-xl p-4 border ${isDark ? 'bg-gray-900/40 border-gray-700' : 'bg-white/80 border-gray-200'}`}>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Transparent Workflow</p>
-              <p className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Real-time status tracking</p>
-            </div>
-            <div className={`rounded-xl p-4 border ${isDark ? 'bg-gray-900/40 border-gray-700' : 'bg-white/80 border-gray-200'}`}>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Analytics Ready</p>
-              <p className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Better service decisions</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Public Announcement Board */}
-      <section id="announcements" className={`py-10 sm:py-14 ${isDark ? 'bg-gray-800/60' : 'bg-blue-50/70'}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-            <h2 className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Announcement Board
-            </h2>
-            <span className={`text-xs sm:text-sm px-3 py-1.5 rounded-full shrink-0 self-start sm:self-auto ${isDark ? 'bg-gray-700 text-gray-200' : 'bg-white text-gray-700'}`}>
-              Posted by officers
-            </span>
-          </div>
-
-          {announcementsLoading ? (
-            <p className={isDark ? 'text-gray-300' : 'text-gray-600'}>Loading announcements...</p>
-          ) : announcements.length === 0 ? (
-            <div className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900/40 border-gray-700 text-gray-300' : 'bg-white border-gray-200 text-gray-600'}`}>
-              No public announcements available right now.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {announcements.map((item) => (
-                <article
-                  key={item.id}
-                  className={`rounded-xl p-4 sm:p-5 border shadow-sm min-w-0 ${isDark ? 'bg-gray-900/50 border-gray-700' : 'bg-white border-gray-200'}`}
-                >
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                    <h3 className={`text-base sm:text-lg font-semibold break-words ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {item.is_pinned ? '📌 ' : ''}
-                      {item.title}
-                    </h3>
-                    {item.is_pinned && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 shrink-0 self-start">Pinned</span>
-                    )}
-                  </div>
-                  <p className={`mt-2 text-sm sm:text-base break-words ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{item.message}</p>
-                  <p className={`mt-3 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    By {item.created_by_name} | {new Date(item.created_at).toLocaleString()}
-                  </p>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleLike(item.id)}
-                      className={`min-h-[44px] px-4 py-2 text-sm rounded-lg border transition-colors touch-manipulation active:opacity-90 ${item.liked_by_user
-                        ? 'bg-red-50 text-red-600 border-red-200'
-                        : isDark
-                          ? 'border-gray-600 text-gray-300 hover:bg-gray-800'
-                          : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
-                    >
-                      ❤ {item.likes_count || 0}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleComments(item.id)}
-                      className={`min-h-[44px] px-4 py-2 text-sm rounded-lg border transition-colors touch-manipulation active:opacity-90 ${isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-                    >
-                      💬 {item.comments_count || 0}
-                    </button>
+              <Reveal delay={120} className="relative">
+                <div className="absolute -left-6 -top-8 h-24 w-24 rounded-full bg-blue-500/15 blur-2xl" />
+                <div className="absolute -bottom-4 right-2 h-20 w-20 rounded-full bg-cyan-400/15 blur-2xl" />
+                <div className={`relative overflow-hidden rounded-[2rem] border p-4 shadow-[0_35px_90px_rgba(15,23,42,0.18)] backdrop-blur ${isDark ? 'border-slate-800 bg-slate-900/80' : 'border-white/80 bg-white/90'}`}>
+                  <div className="flex items-center justify-between border-b border-slate-200/70 pb-4 dark:border-slate-700/70">
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full bg-red-400" />
+                      <span className="h-3 w-3 rounded-full bg-amber-400" />
+                      <span className="h-3 w-3 rounded-full bg-emerald-400" />
+                    </div>
+                    <div className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-600 dark:text-blue-300">
+                      Live operations dashboard
+                    </div>
                   </div>
 
-                  {expandedAnnouncements[item.id] && (
-                    <div className={`mt-4 rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'}`}>
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {(announcementComments[item.id] || []).length === 0 ? (
-                          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            No comments yet.
-                          </p>
-                        ) : (
-                          (announcementComments[item.id] || []).map((comment) => (
-                            <div key={comment.id} className={`rounded p-2 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-                              <p className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{comment.message}</p>
-                              <p className={`mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {comment.user_name} | {new Date(comment.created_at).toLocaleString()}
-                              </p>
-                            </div>
-                          ))
-                        )}
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+                    <div className="space-y-4">
+                      <div className={`rounded-2xl p-4 ${isDark ? 'bg-slate-950/80' : 'bg-slate-50'}`}>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Today&apos;s snapshot</p>
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                          <div className="rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-900">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Open complaints</p>
+                            <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">18</p>
+                          </div>
+                          <div className="rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-900">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Appointments</p>
+                            <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">12</p>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                        <input
-                          type="text"
-                          enterKeyHint="send"
-                          value={newComments[item.id] || ''}
-                          onChange={(e) => setNewComments((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                          placeholder={isAuthenticated ? 'Write a comment...' : 'Sign in to comment'}
-                          disabled={!isAuthenticated}
-                          className={`flex-1 min-h-[44px] px-3 py-2.5 text-base sm:text-sm border rounded-lg ${isDark ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 placeholder-gray-500'}`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleAddComment(item.id)}
-                          disabled={!isAuthenticated || !(newComments[item.id] || '').trim()}
-                          className="min-h-[44px] px-4 py-2.5 text-base sm:text-sm rounded-lg bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shrink-0 sm:w-auto w-full"
-                        >
-                          Post
-                        </button>
+                      <div className={`rounded-2xl p-4 ${isDark ? 'bg-slate-950/80' : 'bg-slate-50'}`}>
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Response trend</p>
+                          <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-300">
+                            Improving
+                          </span>
+                        </div>
+                        <div className="mt-4 flex h-28 items-end gap-2">
+                          {[42, 58, 36, 75, 64, 82, 70].map((height) => (
+                            <div key={height} className="flex-1 rounded-t-2xl bg-slate-200/70 dark:bg-slate-800/80">
+                              <div
+                                className="rounded-t-2xl bg-gradient-to-t from-blue-600 to-cyan-400"
+                                style={{ height: `${height}%` }}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  )}
-                </article>
+
+                    <div className="space-y-4">
+                      <div className={`rounded-2xl p-4 ${isDark ? 'bg-slate-950/80' : 'bg-slate-50'}`}>
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">System overview</p>
+                          <span className="text-xs font-semibold text-blue-600 dark:text-blue-300">Realtime sync</span>
+                        </div>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          {[
+                            ['Submitted', '22'],
+                            ['In review', '11'],
+                            ['Resolved', '48'],
+                          ].map(([label, value], index) => (
+                            <div key={label} className={`rounded-2xl p-3 ${index === 2 ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white' : isDark ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-900'} shadow-sm`}>
+                              <p className={`text-xs ${index === 2 ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>{label}</p>
+                              <p className="mt-1 text-2xl font-black">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className={`rounded-2xl p-4 ${isDark ? 'bg-slate-950/80' : 'bg-slate-50'}`}>
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Recent activity</p>
+                          <span className="text-xs text-slate-500 dark:text-slate-400">Live feed</span>
+                        </div>
+                        <div className="mt-4 space-y-3">
+                          {[
+                            ['Complaint routed to Facilities', '2 min ago'],
+                            ['Appointment approved for tomorrow', '12 min ago'],
+                            ['Support reply sent to user', '24 min ago'],
+                          ].map(([text, time], index) => (
+                            <div key={text} className="flex items-start gap-3">
+                              <span className={`mt-1 h-2.5 w-2.5 rounded-full ${index === 0 ? 'bg-blue-500' : index === 1 ? 'bg-cyan-500' : 'bg-emerald-500'}`} />
+                              <div>
+                                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{text}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">{time}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="absolute bottom-4 left-4 rounded-full border border-white/60 bg-white/90 px-4 py-2 text-xs font-semibold text-slate-700 shadow-lg shadow-blue-500/10 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-200 animate-float-slow">
+                    Dashboard UI mockup
+                  </div>
+                </div>
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
+        <section id="features" className="scroll-mt-28 border-t border-slate-200/70 py-16 sm:py-20 dark:border-slate-800">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
+            <Reveal>
+              <SectionHeading
+                eyebrow="Features"
+                title="Everything teams need to manage requests in one place"
+                description="A clean SaaS-style experience for complaints, appointments, service templates, and live helpdesk support."
+              />
+            </Reveal>
+
+            <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+              {featureCards.map((feature, index) => (
+                <Reveal key={feature.slug} delay={index * 90} className="h-full">
+                  <article className={`group h-full rounded-[1.75rem] border p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/20 transition-transform duration-300 group-hover:scale-105">
+                        {feature.icon}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">{feature.title}</h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{feature.description}</p>
+                      </div>
+                    </div>
+                    <div className="mt-5">{renderFeaturePreview(feature.slug, isDark)}</div>
+                  </article>
+                </Reveal>
               ))}
             </div>
-          )}
-        </div>
-      </section>
-
-      {/* Contact Section */}
-      <section id="contact" className={`py-12 sm:py-16 lg:py-20 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
-          {/* Contact Form */}
-          <div className="max-w-2xl mx-auto w-full min-w-0">
-            <h3 className={`text-xl sm:text-2xl font-bold text-center mb-6 sm:mb-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>Send Us a Message</h3>
-            <form onSubmit={handleContact} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="contact-name" className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Name *</label>
-                  <input
-                    id="contact-name"
-                    required
-                    type="text"
-                    name="name"
-                    autoComplete="name"
-                    value={contactForm.name}
-                    onChange={e => setContactForm(p => ({ ...p, name: e.target.value }))}
-                    className={`w-full min-h-[44px] px-3 py-2.5 text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="contact-email" className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Email *</label>
-                  <input
-                    id="contact-email"
-                    required
-                    type="email"
-                    name="email"
-                    autoComplete="email"
-                    inputMode="email"
-                    value={contactForm.email}
-                    onChange={e => setContactForm(p => ({ ...p, email: e.target.value }))}
-                    className={`w-full min-h-[44px] px-3 py-2.5 text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="contact-subject" className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Subject *</label>
-                <input
-                  id="contact-subject"
-                  required
-                  type="text"
-                  name="subject"
-                  autoComplete="off"
-                  value={contactForm.subject}
-                  onChange={e => setContactForm(p => ({ ...p, subject: e.target.value }))}
-                  className={`w-full min-h-[44px] px-3 py-2.5 text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                />
-              </div>
-              <div>
-                <label htmlFor="contact-message" className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Message *</label>
-                <textarea
-                  id="contact-message"
-                  required
-                  rows={5}
-                  name="message"
-                  autoComplete="off"
-                  value={contactForm.message}
-                  onChange={e => setContactForm(p => ({ ...p, message: e.target.value }))}
-                  className={`w-full px-3 py-2.5 text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-[120px] ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                />
-              </div>
-              {contactStatus === 'success' && (
-                <p className="text-green-600 dark:text-green-400 text-sm font-medium" role="status">Message sent successfully. We&apos;ll get back to you soon.</p>
-              )}
-              {contactStatus === 'error' && (
-                <p className="text-red-600 dark:text-red-400 text-sm font-medium" role="alert">Failed to send message. Please try again.</p>
-              )}
-              <button
-                type="submit"
-                disabled={contactLoading}
-                className="w-full min-h-[48px] bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg text-base font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-60 touch-manipulation active:opacity-90"
-              >
-                {contactLoading ? 'Sending...' : 'Send Message'}
-              </button>
-            </form>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <section id="workflow" className="scroll-mt-28 py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
+            <Reveal>
+              <SectionHeading
+                eyebrow="How It Works"
+                title="A simple workflow that moves requests from submission to resolution"
+                description="Use one clear flow for complaints, appointments, and service requests with visible handoffs at every step."
+              />
+            </Reveal>
+
+            <div className="relative mt-10">
+              <div className="absolute left-8 right-8 top-10 hidden h-px bg-gradient-to-r from-blue-200 via-indigo-300 to-cyan-200 lg:block dark:from-slate-800 dark:via-slate-700 dark:to-slate-800" />
+              <div className="grid gap-4 lg:grid-cols-5">
+                {workflowSteps.map((step, index) => (
+                  <Reveal key={step.title} delay={index * 90} className="relative">
+                    <article className={`h-full rounded-[1.5rem] border p-5 text-center shadow-sm ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/20">
+                        {step.icon}
+                      </div>
+                      <div className="mx-auto mt-4 inline-flex rounded-full border border-blue-200/80 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300">
+                        Step {index + 1}
+                      </div>
+                      <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white">{step.title}</h3>
+                      <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{step.description}</p>
+                    </article>
+                  </Reveal>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
+            <Reveal>
+              <div className={`grid gap-8 overflow-hidden rounded-[2rem] border p-6 lg:grid-cols-[0.9fr_1.1fr] lg:p-8 ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                <div>
+                  <SectionHeading
+                    eyebrow="Real-Time Communication"
+                    title="Stay Connected in Real Time"
+                    description="Enable instant support through integrated helpdesk and live communication tools."
+                  />
+
+                  <div className="mt-6 space-y-4">
+                    {['Typing updates', 'Live status changes', 'Fast clarifications'].map((item) => (
+                      <div key={item} className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-300">
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 12l4 4L19 6" />
+                          </svg>
+                        </span>
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{item}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute -right-4 top-0 h-24 w-24 rounded-full bg-cyan-400/20 blur-2xl" />
+                  <div className={`relative overflow-hidden rounded-[1.75rem] border shadow-[0_25px_70px_rgba(15,23,42,0.15)] ${isDark ? 'border-slate-800 bg-slate-950/80' : 'border-slate-200 bg-slate-50'}`}>
+                    <div className="flex items-center justify-between border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/70">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">Helpdesk chat</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Support channel connected</p>
+                      </div>
+                      <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
+                        Online
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 px-5 py-5">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">US</div>
+                        <div className={`max-w-[78%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm ${isDark ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-700'}`}>
+                          My complaint has been submitted. Can I track the status from the dashboard?
+                        </div>
+                      </div>
+                      <div className="flex items-start justify-end gap-3">
+                        <div className={`max-w-[78%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm`}>
+                          Yes, your request is now assigned and visible on the live timeline.
+                        </div>
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white dark:bg-slate-700">HS</div>
+                      </div>
+                      <div className={`rounded-2xl rounded-tl-sm px-4 py-3 text-sm ${isDark ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-700'}`}>
+                        <div className="mb-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                          Support is typing
+                        </div>
+                        Please share a preferred time so we can complete the appointment.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        <section className="py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
+            <Reveal>
+              <SectionHeading
+                eyebrow="Analytics & Service Quality"
+                title="Measure and improve service performance"
+                description="Track resolution time, monitor service efficiency, and analyze complaint trends to keep service quality moving forward."
+                centered
+              />
+            </Reveal>
+
+            <div className="mt-10 grid gap-5 lg:grid-cols-[1fr_1.05fr]">
+              <div className="space-y-5">
+                {serviceMetrics.map((metric, index) => (
+                  <Reveal key={metric.label} delay={index * 90}>
+                    <article className={`rounded-[1.5rem] border p-5 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">{metric.label}</p>
+                          <h3 className="mt-2 text-xl font-bold text-slate-900 dark:text-white">{metric.value}</h3>
+                          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{metric.detail}</p>
+                        </div>
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-600/20">
+                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5h15" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 16V9m5 7V6m5 10v-4" />
+                          </svg>
+                        </div>
+                      </div>
+                    </article>
+                  </Reveal>
+                ))}
+              </div>
+
+              <Reveal delay={100} className="h-full">
+                <div className={`h-full rounded-[2rem] border p-6 shadow-[0_25px_70px_rgba(15,23,42,0.1)] ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">Performance dashboard</p>
+                      <h3 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">Service quality at a glance</h3>
+                    </div>
+                    <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
+                      Updated now
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <div className={`rounded-2xl p-4 ${isDark ? 'bg-slate-950/80' : 'bg-slate-50'}`}>
+                      <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Resolution trend</p>
+                      <div className="mt-4 flex h-32 items-end gap-3">
+                        {[22, 38, 30, 62, 70, 58, 82].map((height) => (
+                          <div key={height} className="flex-1 rounded-t-2xl bg-slate-200/80 dark:bg-slate-800/80">
+                            <div
+                              className="rounded-t-2xl bg-gradient-to-t from-indigo-600 to-cyan-400"
+                              style={{ height: `${height}%` }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={`rounded-2xl p-4 ${isDark ? 'bg-slate-950/80' : 'bg-slate-50'}`}>
+                      <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Trend summary</p>
+                      <div className="mt-4 space-y-4">
+                        {[
+                          ['Faster response', '74%'],
+                          ['Higher satisfaction', '91%'],
+                          ['Lower backlog', '18%'],
+                        ].map(([label, value]) => (
+                          <div key={label}>
+                            <div className="mb-2 flex items-center justify-between text-sm">
+                              <span className="font-medium text-slate-700 dark:text-slate-200">{label}</span>
+                              <span className="font-semibold text-blue-600 dark:text-blue-300">{value}</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-800">
+                              <div className="h-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500" style={{ width: value }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-blue-200/70 bg-blue-50 px-4 py-4 text-sm text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200">
+                    Use the dashboard to analyze complaint volume, service response, and template performance without leaving the platform.
+                  </div>
+                </div>
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
+            <Reveal>
+              <div className="overflow-hidden rounded-[2rem] bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 px-6 py-10 shadow-[0_30px_80px_rgba(37,99,235,0.3)] sm:px-10 sm:py-12 lg:px-12">
+                <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">Ready to launch</p>
+                    <h2 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl text-balance">
+                      Transform Your Service Delivery Today
+                    </h2>
+                    <p className="mt-4 max-w-2xl text-base leading-8 text-white/85 sm:text-lg">
+                      Bring complaints, appointments, templates, and support together in one platform built for clarity, transparency, and fast action.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+                    <button
+                      type="button"
+                      onClick={() => navigate('/login')}
+                      className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-blue-700 shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:text-blue-800"
+                    >
+                      Get Started
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scrollToSection('contact')}
+                      className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/30 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/15"
+                    >
+                      Contact Us
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        <section id="contact" className="scroll-mt-28 py-12 sm:py-16">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
+            <Reveal>
+              <div className={`grid gap-6 rounded-[2rem] border p-6 lg:grid-cols-[1fr_auto] lg:items-center ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                <div>
+                  <SectionHeading
+                    eyebrow="Contact & Support"
+                    title="Get help, request a demo, or connect with the service team"
+                    description="Use the details below to reach the team behind the platform or to schedule a guided walkthrough."
+                  />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                  {[
+                    ['Email', 'support@platform.com'],
+                    ['Phone', '+251 000 000 000'],
+                    ['Hours', 'Mon-Fri, 8:00 - 17:00'],
+                  ].map(([label, value]) => (
+                    <div key={label} className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-slate-800 bg-slate-950/80' : 'border-slate-200 bg-slate-50'}`}>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">{label}</p>
+                      <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-200">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      </main>
 
       <PublicFooter />
     </div>

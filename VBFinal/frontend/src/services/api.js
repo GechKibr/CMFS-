@@ -677,23 +677,35 @@ class ApiService {
   }
 
   async createCategory(data) {
-    return this.request('/categories/', {
+    const res = await this.request('/categories/', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem('categories_cache_v1');
+    } catch { }
+    return res;
   }
 
   async updateCategory(id, data) {
-    return this.request(`/categories/${id}/`, {
+    const res = await this.request(`/categories/${id}/`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem('categories_cache_v1');
+    } catch { }
+    return res;
   }
 
   async deleteCategory(id) {
-    return this.request(`/categories/${id}/`, {
+    const res = await this.request(`/categories/${id}/`, {
       method: 'DELETE',
     });
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem('categories_cache_v1');
+    } catch { }
+    return res;
   }
 
   // Category Resolvers

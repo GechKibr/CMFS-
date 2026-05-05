@@ -83,7 +83,7 @@ export const CategoryManagement = () => {
     try {
       setLoading(true);
       const categoriesResponse = await apiService.getCategories(pagination.currentPage);
-      const allCategoriesResp = await apiService.getAllCategories();
+      const allCategoriesResp = await apiService.getAllCategories({ forceRefresh: true });
 
       // Handle paginated response
       if (categoriesResponse.results) {

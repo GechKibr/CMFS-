@@ -278,7 +278,7 @@ const RegisterComplete = () => {
               </div>
 
               <div>
-                <label className={labelCls}>College *</label>
+                <label className={labelCls}>College </label>
                 <select name="college" value={formData.college} onChange={handleChange} required disabled={!formData.user_campus} className={inputCls}>
                   <option value="">{formData.user_campus ? 'Select your college' : 'Select a campus first'}</option>
                   {colleges.map(college => (
@@ -305,11 +305,11 @@ const RegisterComplete = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                   <label className={labelCls}>New Password</label>
-                  <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Optional" className={inputCls} />
+                  <input type="password" name="password" value={formData.password} onChange={handleChange} className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Confirm Password</label>
-                  <input type="password" name="confirm_password" value={formData.confirm_password} onChange={handleChange} placeholder="Optional" className={inputCls} />
+                  <input type="password" name="confirm_password" value={formData.confirm_password} onChange={handleChange} className={inputCls} />
                 </div>
               </div>
 

@@ -526,6 +526,7 @@ class AppointmentAvailability(models.Model):
     available_date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField()
+    notes = models.TextField(blank=True, default='')
     is_active = models.BooleanField(default=True)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
     generated_at = models.DateTimeField(null=True, blank=True)

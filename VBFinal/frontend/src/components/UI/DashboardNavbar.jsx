@@ -74,6 +74,16 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
     }
   };
 
+  const handleDeleteNotification = async (e, notificationId) => {
+    e.stopPropagation();
+    try {
+      await apiService.deleteNotification(notificationId);
+      setNotifications((prev) => prev.filter((notification) => notification.id !== notificationId));
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+    }
+  };
+
   const handleMarkAllRead = async () => {
     try {
       await apiService.markAllNotificationsAsRead();
@@ -215,30 +225,59 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
                       <p className={`px-4 py-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>No notifications yet.</p>
                     ) : (
                       notifications.map((notification) => (
-                        <button
+                        <div
                           key={notification.id}
-                          type="button"
-                          onClick={async () => {
-                            const target = getNotificationTarget(notification);
-                            if (!notification.is_read) {
-                              await handleMarkNotificationRead(notification.id);
-                            }
-                            setNotificationsOpen(false);
-                            if (target) {
-                              navigate(target);
-                            }
-                          }}
-                          className={`w-full text-left px-4 py-3 border-b last:border-b-0 transition-colors ${isDark ? 'border-gray-700 hover:bg-gray-700' : 'border-gray-100 hover:bg-gray-50'} ${!notification.is_read ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}
+                          className={`px-4 py-3 border-b last:border-b-0 transition-colors ${isDark ? 'border-gray-700 hover:bg-gray-700/50' : 'border-gray-100 hover:bg-gray-50'} ${!notification.is_read ? (isDark ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const target = getNotificationTarget(notification);
+                                if (!notification.is_read) {
+                                  await handleMarkNotificationRead(notification.id);
+                                }
+                                setNotificationsOpen(false);
+                                if (target) {
+                                  navigate(target);
+                                }
+                              }}
+                              className="flex-1 text-left"
+                            >
                               <p className={`text-sm font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{notification.title}</p>
                               <p className={`text-xs mt-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{notification.message}</p>
                               <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{getTimeAgo(notification.created_at)}</p>
+                            </button>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {!notification.is_read && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkNotificationRead(notification.id);
+                                  }}
+                                  className={`p-1.5 rounded-md transition-colors ${isDark ? 'hover:bg-blue-500/20 text-blue-300' : 'hover:bg-blue-100 text-blue-600'}`}
+                                  title="Mark as read"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteNotification(e, notification.id)}
+                                className={`p-1.5 rounded-md transition-colors ${isDark ? 'hover:bg-red-500/20 text-red-300' : 'hover:bg-red-100 text-red-600'}`}
+                                title="Delete notification"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                              {!notification.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>}
                             </div>
-                            {!notification.is_read && <span className="mt-1 w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>}
                           </div>
-                        </button>
+                        </div>
                       ))
                     )}
                   </div>

@@ -57,7 +57,7 @@ class IsAdminRole(permissions.BasePermission):
 
 class AuthenticatedReadAdminWriteMixin:
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'by_language']:
+        if self.action in ['list', 'retrieve', 'by_language', 'officers']:
             return [permissions.IsAuthenticated()]
         return [IsAdminRole()]
 

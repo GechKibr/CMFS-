@@ -66,7 +66,7 @@ const SlotPicker = ({ preferredDate, officerId, categoryId, selectedSlot, onSele
               {new Date(date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
           </div>
-          <div className="p-3 flex flex-wrap gap-2">
+          <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {slots.map(slot => {
               const isSelected = selectedSlot?.id === slot.id;
               return (
@@ -74,8 +74,8 @@ const SlotPicker = ({ preferredDate, officerId, categoryId, selectedSlot, onSele
                   key={slot.id}
                   type="button"
                   onClick={() => onSelect(isSelected ? null : slot)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${isSelected
-                      ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-105'
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium border transition-all ${isSelected
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-[1.01]'
                       : isDark
                         ? 'bg-gray-700 border-gray-600 text-gray-200 hover:border-blue-500 hover:bg-gray-600'
                         : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400 hover:bg-blue-50'

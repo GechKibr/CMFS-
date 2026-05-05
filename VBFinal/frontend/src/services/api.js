@@ -33,7 +33,7 @@ class ApiService {
     if (!isFormData) {
       headers['Content-Type'] = 'application/json';
     }
-    // Always get fresh token from localStorage to ensure it's up to date
+
     const token = localStorage.getItem('token');
     if (token && !skipAuth) {
       headers.Authorization = `Bearer ${token}`;
@@ -59,7 +59,6 @@ class ApiService {
     }
 
     const data = await response.json();
-    // Update token in localStorage and instance
     localStorage.setItem('token', data.access);
     return data.access;
   }
@@ -74,7 +73,6 @@ class ApiService {
     try {
       let response = await fetch(url, config);
 
-      // Check for 401 using fresh token from localStorage
       if (response.status === 401 && localStorage.getItem('token')) {
         try {
           await this.refreshToken();
@@ -194,7 +192,6 @@ class ApiService {
     return { filename, contentType };
   }
 
-  // Feedback Template Management
   async getFeedbackTemplates() {
     return this.request('/feedback/templates/');
   }
@@ -277,7 +274,6 @@ class ApiService {
     return this.request('/officer/templates/');
   }
 
-  // JWT Session Management
   async getJwtConfig() {
     return this.request('/system/jwt-session/');
   }
@@ -397,7 +393,6 @@ class ApiService {
     });
   }
 
-  // Comments and Responses
   async addComplaintComment(complaintId, comment) {
     return this.request(`/complaints/${complaintId}/comments/`, {
       method: 'POST',
@@ -516,7 +511,6 @@ class ApiService {
   }
 
   async getAllUsers() {
-    // Fetch all users by getting first page and then all subsequent pages
     let allUsers = [];
     let page = 1;
     let hasMore = true;
@@ -528,11 +522,9 @@ class ApiService {
       if (Array.isArray(users)) {
         allUsers = allUsers.concat(users);
       } else {
-        // If response is not paginated, return as is
         return response;
       }
 
-      // Check if there are more pages
       hasMore = response.next !== null;
       page++;
     }
@@ -581,11 +573,7 @@ class ApiService {
     const url = campusId ? `/colleges/?campus=${campusId}` : '/colleges/';
     return this.request(url);
   }
-  // async createCollege(data) { return this.request('/colleges/', { method: 'POST', body: JSON.stringify(data) }); }
-  // async updateCollege(id, data) { return this.request(`/colleges/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
-  // async deleteCollege(id) { return this.request(`/colleges/${id}/`, { method: 'DELETE' }); }
-
-  // Departments
+  
   async getDepartments(collegeId = null) {
     const url = collegeId ? `/departments/?college=${collegeId}` : '/departments/';
     return this.request(url);
@@ -595,17 +583,9 @@ class ApiService {
   async deleteDepartment(id) { return this.request(`/departments/${id}/`, { method: 'DELETE' }); }
 
   async getStudentTypes() { return this.request('/student-types/'); }
-  // async createStudentType(data) { return this.request('/student-types/', { method: 'POST', body: JSON.stringify(data) }); }
-  // async updateStudentType(id, data) { return this.request(`/student-types/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
-  // async deleteStudentType(id) { return this.request(`/student-types/${id}/`, { method: 'DELETE' }); }
-
-  // Campuses
+  
   async getCampuses() { return this.request('/campuses/'); }
-  // async createCampus(data) { return this.request('/campuses/', { method: 'POST', body: JSON.stringify(data) }); }
-  // async updateCampus(id, data) { return this.request(`/campuses/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }); }
-  // async deleteCampus(id) { return this.request(`/campuses/${id}/`, { method: 'DELETE' }); }
-
-  // Categories
+  
   async getCategories(page = null) {
     const url = page ? `/categories/?page=${page}` : '/categories/';
     return this.request(url);
@@ -888,6 +868,13 @@ class ApiService {
   async createAvailabilitySlot(data) {
     return this.request('/appointment-availabilities/', {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAvailabilitySlot(id, data) {
+    return this.request(`/appointment-availabilities/${id}/`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   }

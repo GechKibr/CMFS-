@@ -467,7 +467,7 @@ class AppointmentAvailabilitySerializer(serializers.ModelSerializer):
         model = AppointmentAvailability
         fields = [
             "id", "officer", "officer_id", "officer_name", "rule_id", "source",
-            "available_date", "start_time", "end_time", "is_active", "is_free",
+            "available_date", "start_time", "end_time", "notes", "is_active", "is_free",
             "generated_at", "created_at", "updated_at",
         ]
         read_only_fields = [

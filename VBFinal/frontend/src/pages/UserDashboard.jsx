@@ -8,7 +8,6 @@ import DashboardNavbar from '../components/UI/DashboardNavbar';
 import Sidebar from '../components/UI/Sidebar';
 import SubmitComplaint from '../components/User/SubmitComplaint';
 import MyComplaints from '../components/User/MyComplaints';
-import Notifications from '../components/User/Notifications';
 import UserProfile from '../components/User/UserProfile';
 import MaintenanceNotification from '../components/UI/MaintenanceNotification';
 import UserFeedback from '../components/User/UserFeedback';
@@ -27,7 +26,6 @@ const UserDashboard = () => {
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [institutions, setInstitutions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState();
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -86,12 +84,6 @@ const UserDashboard = () => {
             <UserFeedback />
           </div>
         );
-      case 'notifications':
-        return (
-          <div className="max-w-4xl mx-auto">
-            <Notifications setUnreadCount={setUnreadCount} />
-          </div>
-        );
       case 'profile':
         return <UserProfile />;
       case 'appointments':
@@ -105,7 +97,7 @@ const UserDashboard = () => {
     }
   };
 
-  const menuItems = getUserNavItems(t, unreadCount);
+  const menuItems = getUserNavItems(t);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);

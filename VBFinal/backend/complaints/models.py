@@ -557,7 +557,11 @@ class AppointmentAvailability(models.Model):
             officer_id=self.officer_id,
             available_date=self.available_date,
             is_active=True,
-        ).exclude(pk=self.pk)
+        )
+        
+        # Exclude the current object if it exists (has a pk)
+        if self.pk:
+            overlapping = overlapping.exclude(pk=self.pk)
 
         for slot in overlapping:
             if self.start_time < slot.end_time and self.end_time > slot.start_time:

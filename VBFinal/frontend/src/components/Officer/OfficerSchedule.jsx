@@ -710,12 +710,33 @@ const OfficerSchedule = () => {
       closeModal();
     } catch (error) {
       console.error(error);
-      const raw = error?.message || '';
-      const message = raw.includes('overlaps')
-        ? 'This time overlaps with an existing slot.'
-        : raw.includes('after start time')
-          ? 'End time must be after start time.'
-          : 'Unable to save slot.';
+      let message = 'Unable to save slot.';
+
+      // Check for API response errors
+      if (error?.response?.data) {
+        const data = error.response.data;
+        // Handle validation errors
+        if (data.__all__ && Array.isArray(data.__all__)) {
+          message = data.__all__[0];
+        } else if (data.non_field_errors && Array.isArray(data.non_field_errors)) {
+          message = data.non_field_errors[0];
+        } else if (typeof data === 'string') {
+          message = data;
+        }
+      }
+
+      // Fallback to message parsing
+      if (message === 'Unable to save slot.') {
+        const raw = error?.message || '';
+        if (raw.includes('overlaps')) {
+          message = 'This time overlaps with an existing slot.';
+        } else if (raw.includes('already exists')) {
+          message = 'A slot with these exact times already exists. Please delete it first or choose different times.';
+        } else if (raw.includes('after start time')) {
+          message = 'End time must be after start time.';
+        }
+      }
+
       toast.error(message, 'Calendar');
       throw new Error(message);
     } finally {

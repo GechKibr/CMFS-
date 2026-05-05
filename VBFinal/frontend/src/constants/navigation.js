@@ -9,11 +9,10 @@ export const OFFICER_NAV_ITEMS = [
   { id: 'profile', name: 'Profile', icon: '👤' },
 ];
 
-export const getUserNavItems = (t, unreadCount = 0) => [
+export const getUserNavItems = (t) => [
   { id: 'submit', icon: '📝', name: t('submit_complaint') },
   { id: 'my-complaints', icon: '📋', name: t('my_complaints') },
   { id: 'appointments', icon: '📅', name: t('appointments') },
-  { id: 'notifications', icon: '🔔', name: t('notifications'), badge: unreadCount },
   { id: 'feedback', icon: '💬', name: t('feedback') },
   { id: 'helpdesk', icon: '🎧', name: 'Helpdesk' },
   { id: 'profile', icon: '👤', name: t('profile') },

@@ -19,7 +19,9 @@ const SessionList = ({
   sessions = [],
   onOpenSession = null,
   onDeleteSession = null,
+  onManageParticipants = null,
   canDeleteSession = null,
+  canManageParticipants = null,
   deletingSessionId = null,
   emptyText = 'No helpdesk sessions found.',
 }) => {
@@ -42,6 +44,7 @@ const SessionList = ({
           : [];
 
         const canDelete = typeof canDeleteSession === 'function' ? canDeleteSession(session) : false;
+        const canManage = typeof canManageParticipants === 'function' ? canManageParticipants(session) : false;
         const isDeleting = deletingSessionId === session.id;
 
         return (
@@ -70,6 +73,15 @@ const SessionList = ({
                 <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClassMap[session.status] || 'bg-slate-100 text-slate-700'}`}>
                   {session.status}
                 </span>
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => onManageParticipants?.(session)}
+                    className="rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 hover:bg-cyan-100"
+                  >
+                    Manage
+                  </button>
+                )}
                 {canDelete && (
                   <button
                     type="button"

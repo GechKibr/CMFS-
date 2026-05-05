@@ -56,6 +56,14 @@ const helpdeskApi = {
   async getLivekitToken(sessionId) {
     return apiService.getHelpdeskLivekitToken(sessionId);
   },
+
+  async addParticipants(sessionId, participantIds) {
+    return apiService.addHelpdeskSessionParticipants(sessionId, participantIds);
+  },
+
+  async removeParticipants(sessionId, participantIds) {
+    return apiService.removeHelpdeskSessionParticipants(sessionId, participantIds);
+  },
 };
 
 export default helpdeskApi;

@@ -573,7 +573,7 @@ class ApiService {
     const url = campusId ? `/colleges/?campus=${campusId}` : '/colleges/';
     return this.request(url);
   }
-  
+
   async getDepartments(collegeId = null) {
     const url = collegeId ? `/departments/?college=${collegeId}` : '/departments/';
     return this.request(url);
@@ -583,9 +583,9 @@ class ApiService {
   async deleteDepartment(id) { return this.request(`/departments/${id}/`, { method: 'DELETE' }); }
 
   async getStudentTypes() { return this.request('/student-types/'); }
-  
+
   async getCampuses() { return this.request('/campuses/'); }
-  
+
   async getCategories(page = null) {
     const url = page ? `/categories/?page=${page}` : '/categories/';
     return this.request(url);
@@ -1009,6 +1009,26 @@ class ApiService {
   async getHelpdeskLivekitToken(sessionId) {
     return this.request(`/helpdesk/sessions/${sessionId}/livekit-token/`, {
       method: 'POST',
+    });
+  }
+
+  async addHelpdeskSessionParticipants(sessionId, participantIds) {
+    if (!Array.isArray(participantIds) || participantIds.length === 0) {
+      throw new Error('No participants provided');
+    }
+    return this.request(`/helpdesk/sessions/${sessionId}/add-participants/`, {
+      method: 'POST',
+      body: JSON.stringify({ participant_ids: participantIds }),
+    });
+  }
+
+  async removeHelpdeskSessionParticipants(sessionId, participantIds) {
+    if (!Array.isArray(participantIds) || participantIds.length === 0) {
+      throw new Error('No participants provided');
+    }
+    return this.request(`/helpdesk/sessions/${sessionId}/remove-participants/`, {
+      method: 'POST',
+      body: JSON.stringify({ participant_ids: participantIds }),
     });
   }
 }

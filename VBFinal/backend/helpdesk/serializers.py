@@ -91,3 +91,11 @@ class HelpdeskSessionCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError('You are not allowed to add one or more selected participants.')
 
         return list(participant_ids)
+
+
+class HelpdeskManageParticipantsSerializer(serializers.Serializer):
+    """Serializer for adding/removing participants from a session."""
+    participant_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False,
+    )

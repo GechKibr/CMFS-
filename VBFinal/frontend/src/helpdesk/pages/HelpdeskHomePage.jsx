@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import SessionList from '../components/SessionList';
+import ManageParticipantsModal from '../components/ManageParticipantsModal';
 import helpdeskApi from '../services/helpdeskApi';
 import HelpdeskShell from '../components/HelpdeskShell';
 
@@ -17,6 +18,9 @@ const HelpdeskHomePage = () => {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [deletingSessionId, setDeletingSessionId] = useState(null);
+  const [candidates, setCandidates] = useState([]);
+  const [manageModalOpen, setManageModalOpen] = useState(false);
+  const [selectedSessionForManage, setSelectedSessionForManage] = useState(null);
 
   const loadSessions = async () => {
     setLoading(true);
@@ -31,8 +35,18 @@ const HelpdeskHomePage = () => {
     }
   };
 
+  const loadCandidates = async () => {
+    try {
+      const payload = await helpdeskApi.getSessionCandidates();
+      setCandidates(payload);
+    } catch {
+      // Silently fail, candidates are optional
+    }
+  };
+
   useEffect(() => {
     loadSessions();
+    loadCandidates();
   }, []);
 
   const pageTitle = useMemo(() => {
@@ -73,6 +87,11 @@ const HelpdeskHomePage = () => {
     return Boolean(isAdmin?.() || String(session.created_by_id) === String(user?.id));
   };
 
+  const canManageParticipants = (session) => {
+    if (!session) return false;
+    return Boolean(isAdmin?.() || String(session.created_by_id) === String(user?.id));
+  };
+
   const handleDeleteSession = async (session) => {
     if (!session?.id) return;
     if (!canDeleteSession(session)) {
@@ -94,6 +113,16 @@ const HelpdeskHomePage = () => {
     } finally {
       setDeletingSessionId(null);
     }
+  };
+
+  const handleManageParticipants = (session) => {
+    setSelectedSessionForManage(session);
+    setManageModalOpen(true);
+  };
+
+  const handleManageParticipantsSuccess = () => {
+    // Reload sessions to get updated participant list
+    loadSessions();
   };
 
   return (
@@ -174,10 +203,20 @@ const HelpdeskHomePage = () => {
             emptyText="No sessions match your current filters."
             onOpenSession={(session) => navigate(`/helpdesk/${session.id}`)}
             onDeleteSession={handleDeleteSession}
+            onManageParticipants={handleManageParticipants}
             canDeleteSession={canDeleteSession}
+            canManageParticipants={canManageParticipants}
             deletingSessionId={deletingSessionId}
           />
         )}
+
+        <ManageParticipantsModal
+          session={selectedSessionForManage}
+          isOpen={manageModalOpen}
+          onClose={() => setManageModalOpen(false)}
+          onSuccess={handleManageParticipantsSuccess}
+          candidates={candidates}
+        />
       </div>
     </HelpdeskShell>
   );

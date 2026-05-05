@@ -151,5 +151,91 @@ class HelpdeskService:
             payload=payload,
         )
 
+    @staticmethod
+    def ensure_session_creator_access(user, session):
+        """Ensure the user is the session creator or admin."""
+        if not user or not user.is_authenticated:
+            raise PermissionDenied('Authentication required.')
+
+        if HelpdeskService._is_admin(user):
+            return
+
+        if session.created_by_id != user.id:
+            raise PermissionDenied('Only the session creator can manage participants.')
+
+    @staticmethod
+    @transaction.atomic
+    def add_participants(user, session, participant_ids):
+        """Add participants to a helpdesk session."""
+        HelpdeskService.ensure_session_creator_access(user, session)
+
+        participant_ids = set(participant_ids or [])
+        if not participant_ids:
+            raise ValidationError('At least one participant must be provided.')
+
+        # Validate that all users exist and are active
+        participants = list(User.objects.filter(id__in=participant_ids, is_active=True))
+        if len(participants) != len(participant_ids):
+            raise ValidationError('One or more participants were not found or inactive.')
+
+        # Validate that the user has permission to add these participants
+        allowed_roles = HelpdeskService.allowed_invitee_roles(user)
+        disallowed_participants = [
+            participant for participant in participants if participant.role not in allowed_roles
+        ]
+        if disallowed_participants:
+            raise ValidationError('You are not allowed to add one or more selected participants.')
+
+        # Exclude participants already in the session
+        existing_ids = set(session.participants.values_list('user_id', flat=True))
+        new_participant_ids = participant_ids - existing_ids
+
+        if not new_participant_ids:
+            raise ValidationError('All selected participants are already in this session.')
+
+        # Create new participant entries
+        new_participants = []
+        for user_id in new_participant_ids:
+            new_participants.append(
+                HelpdeskSessionParticipant(
+                    session=session,
+                    user_id=user_id,
+                    role=HelpdeskSessionParticipant.ROLE_PARTICIPANT,
+                )
+            )
+        HelpdeskSessionParticipant.objects.bulk_create(new_participants)
+
+        # Send notifications to new participants
+        invitees = User.objects.filter(id__in=new_participant_ids, is_active=True)
+        for invitee in invitees:
+            Notification.objects.create(
+                user=invitee,
+                notification_type='helpdesk_invitation',
+                helpdesk_session_id=session.id,
+                title='Helpdesk invitation',
+                message=f"You were invited to a helpdesk {session.get_kind_display().lower()} session{f' titled \"{session.title}\"' if session.title else ''}.",
+            )
+
+        return session
+
+    @staticmethod
+    @transaction.atomic
+    def remove_participants(user, session, participant_ids):
+        """Remove participants from a helpdesk session."""
+        HelpdeskService.ensure_session_creator_access(user, session)
+
+        participant_ids = set(participant_ids or [])
+        if not participant_ids:
+            raise ValidationError('At least one participant must be provided.')
+
+        # Prevent removing the session creator
+        if user.id in participant_ids:
+            raise ValidationError('Cannot remove the session creator.')
+
+        # Remove the participants
+        session.participants.filter(user_id__in=participant_ids).delete()
+
+        return session
+
 
 service = HelpdeskService()

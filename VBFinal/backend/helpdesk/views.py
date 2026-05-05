@@ -11,6 +11,7 @@ from .serializers import (
 	HelpdeskMessageSerializer,
 	HelpdeskSessionCreateSerializer,
 	HelpdeskSessionSerializer,
+	HelpdeskManageParticipantsSerializer,
 )
 from .service import service
 
@@ -131,6 +132,62 @@ class HelpdeskSessionViewSet(viewsets.ModelViewSet):
 				'session_id': str(session.id),
 				'participant_user_id': identity_base,
 			},
+			status=status.HTTP_200_OK,
+		)
+
+
+	@action(detail=True, methods=['post'], url_path='add-participants')
+	def add_participants(self, request, pk=None):
+		"""Add participants to a helpdesk session."""
+		session = self.get_object()
+		serializer = HelpdeskManageParticipantsSerializer(data=request.data)
+		try:
+			serializer.is_valid(raise_exception=True)
+		except Exception as exc:
+			# Log incoming payload and validation errors to aid debugging
+			try:
+				import logging
+				logger = logging.getLogger(__name__)
+				logger.error('add-participants validation failed; payload=%s; errors=%s', request.data, getattr(serializer, 'errors', str(exc)))
+			except Exception:
+				pass
+			raise
+		
+		service.add_participants(
+			request.user,
+			session,
+			serializer.validated_data['participant_ids'],
+		)
+		
+		return Response(
+			HelpdeskSessionSerializer(session, context={'request': request}).data,
+			status=status.HTTP_200_OK,
+		)
+
+	@action(detail=True, methods=['post'], url_path='remove-participants')
+	def remove_participants(self, request, pk=None):
+		"""Remove participants from a helpdesk session."""
+		session = self.get_object()
+		serializer = HelpdeskManageParticipantsSerializer(data=request.data)
+		try:
+			serializer.is_valid(raise_exception=True)
+		except Exception as exc:
+			try:
+				import logging
+				logger = logging.getLogger(__name__)
+				logger.error('remove-participants validation failed; payload=%s; errors=%s', request.data, getattr(serializer, 'errors', str(exc)))
+			except Exception:
+				pass
+			raise
+		
+		service.remove_participants(
+			request.user,
+			session,
+			serializer.validated_data['participant_ids'],
+		)
+		
+		return Response(
+			HelpdeskSessionSerializer(session, context={'request': request}).data,
 			status=status.HTTP_200_OK,
 		)
 

@@ -89,9 +89,10 @@ class ComplaintThreadConsumer(AsyncJsonWebsocketConsumer):
 
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
+        snapshot = await database_sync_to_async(build_thread_snapshot)(complaint)
         await self.send_json({
             'type': 'thread.snapshot',
-            **build_thread_snapshot(complaint),
+            **snapshot,
         })
 
     async def disconnect(self, close_code):

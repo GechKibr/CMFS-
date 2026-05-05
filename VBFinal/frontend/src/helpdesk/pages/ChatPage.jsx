@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Room, RoomEvent, Track } from 'livekit-client';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import ChatComposer from '../components/ChatComposer';
 import ChatMessageBubble from '../components/ChatMessageBubble';
 import HelpdeskShell from '../components/HelpdeskShell';
@@ -133,6 +134,7 @@ const requestCameraAccess = async () => {
 const ChatPage = () => {
   const { sessionId } = useParams();
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const bottomRef = useRef(null);
   const roomRef = useRef(null);
 
@@ -149,6 +151,11 @@ const ChatPage = () => {
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isCameraEnabled, setIsCameraEnabled] = useState(false);
   const [cameraPermissionBlocked, setCameraPermissionBlocked] = useState(false);
+  const [candidates, setCandidates] = useState([]);
+  const [removingParticipantId, setRemovingParticipantId] = useState(null);
+  const [addingParticipants, setAddingParticipants] = useState(false);
+  const [showAddParticipantsForm, setShowAddParticipantsForm] = useState(false);
+  const [selectedCandidates, setSelectedCandidates] = useState([]);
   const canConnectRealtime = !loading && !error && Boolean(session?.id);
   const supportsLivekit = ['audio_call', 'video_call', 'audio_conference', 'video_conference'].includes(session?.kind);
   const isVideoSession = ['video_call', 'video_conference'].includes(session?.kind);
@@ -212,12 +219,14 @@ const ChatPage = () => {
       setLoading(true);
       setError('');
       try {
-        const [sessionPayload, messagePayload] = await Promise.all([
+        const [sessionPayload, messagePayload, candidatesPayload] = await Promise.all([
           helpdeskApi.getSession(sessionId),
           helpdeskApi.getMessages(sessionId),
+          helpdeskApi.getSessionCandidates().catch(() => []),
         ]);
         setSession(sessionPayload);
         setMessages(messagePayload);
+        setCandidates(candidatesPayload || []);
       } catch (err) {
         setError(err.message || 'Failed to load chat session.');
       } finally {
@@ -294,6 +303,43 @@ const ChatPage = () => {
       setUpdatingSession(false);
     }
   };
+
+  const handleRemoveParticipant = async (participantId) => {
+    if (!session?.id || !participantId) return;
+    const confirmed = window.confirm('Remove this participant from the session?');
+    if (!confirmed) return;
+
+    setRemovingParticipantId(participantId);
+    try {
+      const updated = await helpdeskApi.removeParticipants(session.id, [participantId]);
+      setSession(updated);
+    } catch (err) {
+      setSendError(err.message || 'Failed to remove participant.');
+    } finally {
+      setRemovingParticipantId(null);
+    }
+  };
+
+  const handleAddParticipants = async () => {
+    if (!session?.id || selectedCandidates.length === 0) return;
+
+    setAddingParticipants(true);
+    try {
+      const updated = await helpdeskApi.addParticipants(session.id, selectedCandidates);
+      setSession(updated);
+      setSelectedCandidates([]);
+      setShowAddParticipantsForm(false);
+    } catch (err) {
+      setSendError(err.message || 'Failed to add participants.');
+    } finally {
+      setAddingParticipants(false);
+    }
+  };
+
+  const isSessionCreator = session && String(session.created_by_id) === String(user?.id);
+  const sessionParticipants = Array.isArray(session?.participants) ? session.participants : [];
+  const participantIds = new Set(sessionParticipants.map((p) => p.user_id));
+  const availableCandidates = (candidates || []).filter((c) => !participantIds.has(c.id));
 
   const handleJoinConference = async () => {
     if (!session?.id) return;
@@ -457,8 +503,6 @@ const ChatPage = () => {
     };
   }, []);
 
-  const participants = Array.isArray(session?.participants) ? session.participants : [];
-
   return (
     <HelpdeskShell activeItem="sessions">
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_300px]">
@@ -607,19 +651,101 @@ const ChatPage = () => {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Session Details</h2>
           <div className="mt-3 space-y-2 text-sm text-slate-700">
             <p><span className="font-semibold">Type:</span> {session?.kind || 'N/A'}</p>
-            <p><span className="font-semibold">Participants:</span> {participants.length}</p>
+            <p><span className="font-semibold">Participants:</span> {sessionParticipants.length}</p>
             <p><span className="font-semibold">Created:</span> {session?.created_at ? new Date(session.created_at).toLocaleString() : 'N/A'}</p>
           </div>
 
           <h3 className="mt-6 text-sm font-semibold uppercase tracking-wide text-slate-500">People</h3>
           <div className="mt-2 space-y-2">
-            {participants.length === 0 && <p className="text-sm text-slate-500">No participants available.</p>}
-            {participants.map((participant) => (
-              <div key={`${participant.user_id}-${participant.joined_at}`} className="rounded-lg border border-slate-200 px-3 py-2">
-                <p className="text-sm font-semibold text-slate-900">{participant.full_name || 'Unknown user'}</p>
-                <p className="text-xs text-slate-500">{participant.role_name || 'member'} | {participant.role}</p>
+            {sessionParticipants.length === 0 && <p className="text-sm text-slate-500">No participants available.</p>}
+            {sessionParticipants.map((participant) => (
+              <div
+                key={`${participant.user_id}-${participant.joined_at}`}
+                className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-600 bg-gray-700' : 'border-slate-200 bg-slate-50'
+                  }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      {participant.full_name || 'Unknown user'}
+                    </p>
+                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
+                      {participant.role_name || 'member'} {participant.role === 'host' && '(Host)'}
+                    </p>
+                  </div>
+                  {isSessionCreator && participant.role !== 'host' && (
+                    <button
+                      onClick={() => handleRemoveParticipant(participant.user_id)}
+                      disabled={removingParticipantId === participant.user_id}
+                      className={`flex-shrink-0 rounded px-2 py-1 text-xs font-semibold transition ${isDark
+                        ? 'bg-rose-900 text-rose-200 hover:bg-rose-800'
+                        : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                        } disabled:cursor-not-allowed disabled:opacity-50`}
+                      title="Remove participant"
+                    >
+                      {removingParticipantId === participant.user_id ? '...' : '✕'}
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
+
+            {isSessionCreator && availableCandidates.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowAddParticipantsForm(!showAddParticipantsForm)}
+                  className={`w-full rounded-lg border-2 px-3 py-2 text-xs font-semibold transition ${isDark
+                    ? 'border-cyan-700 text-cyan-300 hover:bg-cyan-900'
+                    : 'border-cyan-200 text-cyan-700 hover:bg-cyan-50'
+                    }`}
+                >
+                  {showAddParticipantsForm ? '✕ Cancel' : '+ Add Participants'}
+                </button>
+
+                {showAddParticipantsForm && (
+                  <div className={`rounded-lg border p-3 ${isDark ? 'border-gray-600 bg-gray-700' : 'border-slate-200 bg-slate-50'}`}>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {availableCandidates.map((candidate) => (
+                        <label
+                          key={candidate.id}
+                          className={`flex cursor-pointer items-center rounded p-2 transition ${selectedCandidates.includes(candidate.id)
+                            ? isDark
+                              ? 'bg-cyan-900'
+                              : 'bg-cyan-50'
+                            : isDark
+                              ? 'hover:bg-gray-600'
+                              : 'hover:bg-white'
+                            }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedCandidates.includes(candidate.id)}
+                            onChange={() => {
+                              if (selectedCandidates.includes(candidate.id)) {
+                                setSelectedCandidates(selectedCandidates.filter((id) => id !== candidate.id));
+                              } else {
+                                setSelectedCandidates([...selectedCandidates, candidate.id]);
+                              }
+                            }}
+                            className="h-4 w-4 rounded"
+                          />
+                          <span className={`ml-2 text-xs ${isDark ? 'text-gray-200' : 'text-slate-700'}`}>
+                            {candidate.full_name || candidate.email}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      onClick={handleAddParticipants}
+                      disabled={selectedCandidates.length === 0 || addingParticipants}
+                      className="mt-2 w-full rounded-lg bg-cyan-600 px-2 py-1 text-xs font-semibold text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {addingParticipants ? 'Adding...' : 'Add Selected'}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </aside>
       </div>

@@ -937,12 +937,6 @@ class ApiService {
     });
   }
 
-  async toggleAnnouncementLike(id) {
-    return this.request(`/announcements/${id}/toggle-like/`, {
-      method: 'POST',
-    });
-  }
-
   async getAnnouncementComments(id) {
     return this.request(`/announcements/${id}/comments/`);
   }
@@ -951,6 +945,19 @@ class ApiService {
     return this.request(`/announcements/${id}/comments/`, {
       method: 'POST',
       body: JSON.stringify({ message }),
+    });
+  }
+
+  async updateAnnouncementComment(id, message) {
+    return this.request(`/announcement-comments/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ message }),
+    });
+  }
+
+  async deleteAnnouncementComment(id) {
+    return this.request(`/announcement-comments/${id}/`, {
+      method: 'DELETE',
     });
   }
 

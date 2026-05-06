@@ -9,6 +9,7 @@ from .views import (
     AssignmentViewSet,
     ResponseViewSet,
     PublicAnnouncementViewSet,
+    AnnouncementCommentViewSet,
     AppointmentAvailabilityViewSet,
     AppointmentViewSet,
     AvailabilityBlockViewSet,
@@ -25,6 +26,7 @@ router.register(r'comments', CommentViewSet, basename='comment')
 router.register(r'assignments', AssignmentViewSet, basename='assignment')
 router.register(r'responses', ResponseViewSet, basename='response')
 router.register(r'announcements', PublicAnnouncementViewSet, basename='announcement')
+router.register(r'announcement-comments', AnnouncementCommentViewSet, basename='announcement-comment')
 router.register(r'appointment-availabilities', AppointmentAvailabilityViewSet, basename='appointment-availability')
 router.register(r'appointments', AppointmentViewSet, basename='appointment')
 router.register(r'availability-rules', AvailabilityRuleViewSet, basename='availability-rule')

@@ -116,7 +116,29 @@ class UserViewSet(viewsets.ModelViewSet):
             return [permissions.AllowAny()]
         if action in ['me', 'logout']:
             return [permissions.IsAuthenticated()]
+        # Allow authenticated users to update their own profile via detail PATCH/PUT
+        if action in ['update', 'partial_update']:
+            return [permissions.IsAuthenticated()]
         return [IsAdminRole()]
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # If non-admin updating their own profile, use SelfUserSerializer
+        if request.user.is_authenticated and request.user.id == instance.id and not request.user.is_admin():
+            serializer = SelfUserSerializer(instance, data=request.data, partial=False, context={'request': request})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if request.user.is_authenticated and request.user.id == instance.id and not request.user.is_admin():
+            serializer = SelfUserSerializer(instance, data=request.data, partial=True, context={'request': request})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
+        return super().partial_update(request, *args, **kwargs)
 
     @action(detail=False, methods=['post'], url_path='login')
     def login(self, request):

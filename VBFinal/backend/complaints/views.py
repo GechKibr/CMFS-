@@ -14,7 +14,6 @@ from accounts.models import User
 
 from .models import (
     AnnouncementComment,
-    AnnouncementLike,
     Appointment,
     AppointmentAvailability,
     AvailabilityBlock,
@@ -762,6 +761,7 @@ class PublicAnnouncementViewSet(viewsets.ModelViewSet):
         queryset = PublicAnnouncement.objects.select_related('created_by').all()
         user = self.request.user
 
+        # Allow public listing/retrieving of active announcements
         if self.action in ['list', 'retrieve']:
             if user.is_authenticated and getattr(user, 'role', None) in ('officer', 'admin'):
                 if user.role == 'admin':
@@ -772,6 +772,22 @@ class PublicAnnouncementViewSet(viewsets.ModelViewSet):
             return queryset.filter(is_active=True).filter(
                 models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=now)
             )
+
+        # Allow comments action to access active announcements for listing by anyone,
+        # and for posting by authenticated users.
+        if self.action == 'comments':
+            now = timezone.now()
+            active_qs = queryset.filter(is_active=True).filter(
+                models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=now)
+            )
+            # GET comments: public
+            if self.request.method == 'GET':
+                return active_qs
+            # POST comments: require authenticated user
+            if self.request.method == 'POST':
+                if user.is_authenticated:
+                    return active_qs
+                return PublicAnnouncement.objects.none()
 
         if not user.is_authenticated:
             return PublicAnnouncement.objects.none()
@@ -791,25 +807,6 @@ class PublicAnnouncementViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
-
-    @action(detail=True, methods=['post'], url_path='toggle-like')
-    def toggle_like(self, request, pk=None):
-        announcement = self.get_object()
-        existing = AnnouncementLike.objects.filter(announcement=announcement, user=request.user).first()
-        if existing:
-            existing.delete()
-            liked = False
-        else:
-            AnnouncementLike.objects.create(announcement=announcement, user=request.user)
-            liked = True
-
-        return DRFResponse(
-            {
-                'liked': liked,
-                'likes_count': announcement.likes.count(),
-            },
-            status=status.HTTP_200_OK,
-        )
 
     @action(detail=True, methods=['get', 'post'], url_path='comments')
     def comments(self, request, pk=None):
@@ -857,6 +854,34 @@ class PublicAnnouncementViewSet(viewsets.ModelViewSet):
         announcement.is_active = True
         announcement.save(update_fields=['is_active', 'updated_at'])
         return DRFResponse(PublicAnnouncementSerializer(announcement).data, status=status.HTTP_200_OK)
+
+
+class AnnouncementCommentViewSet(viewsets.ModelViewSet):
+    """ViewSet to allow users to edit/delete their own announcement comments."""
+    queryset = AnnouncementComment.objects.all()
+    serializer_class = AnnouncementCommentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated and getattr(user, 'role', None) == 'admin':
+            return AnnouncementComment.objects.select_related('user', 'announcement').all()
+        # Allow users to see comments for active announcements and their own comments
+        return AnnouncementComment.objects.select_related('user', 'announcement').filter(
+            models.Q(announcement__is_active=True) | models.Q(user=user)
+        )
+
+    def perform_update(self, serializer):
+        comment = self.get_object()
+        if comment.user_id != self.request.user.id:
+            raise PermissionDenied('You can only edit your own comments')
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        comment = self.get_object()
+        if comment.user_id != request.user.id and not request.user.is_admin():
+            return DRFResponse({'error': 'You can only delete your own comments'}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
 
 
 class AssignmentViewSet(viewsets.ModelViewSet):

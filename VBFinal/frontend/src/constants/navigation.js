@@ -12,8 +12,9 @@ export const OFFICER_NAV_ITEMS = [
 export const getUserNavItems = (t) => [
   { id: 'submit', icon: '📝', name: t('submit_complaint') },
   { id: 'my-complaints', icon: '📋', name: t('my_complaints') },
+  { id: 'announcements', icon: '📢', name: t('announcements') },
   { id: 'appointments', icon: '📅', name: t('appointments') },
   { id: 'feedback', icon: '💬', name: t('feedback') },
-  { id: 'helpdesk', icon: '🎧', name: 'Helpdesk' },
+  { id: 'helpdesk', icon: '🎧', name: t('helpdesk') },
   { id: 'profile', icon: '👤', name: t('profile') },
 ];

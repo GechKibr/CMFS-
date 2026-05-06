@@ -304,7 +304,7 @@ class Complaint(models.Model):
         super().save(*args, **kwargs)
 
     def escalate_to_next_level(self):
-        """Escalate complaint to the next broader resolver scope."""
+        """Escalate complaint to the next broader resolver scope within the same category."""
         if not self.category or not self.current_resolver:
             return False
 
@@ -336,7 +336,43 @@ class Complaint(models.Model):
 
         return True
 
-        return False
+    def escalate_to_parent_category(self):
+        """Escalate complaint to parent category with broadest scope resolver."""
+        if not self.category or not self.category.parent:
+            return False
+
+        parent_category = self.category.parent
+        
+        # Find resolvers for parent category that match complaint scope, ordered by broadest scope first
+        candidates = [
+            resolver for resolver in CategoryResolver.objects.filter(
+                category=parent_category,
+                active=True,
+            ).select_related("officer", "category")
+            if resolver.matches_complaint_scope(self)
+        ]
+
+        if not candidates:
+            return False
+
+        # Select resolver with broadest scope (highest scope_rank)
+        parent_resolver = max(candidates, key=lambda resolver: (resolver.scope_rank(), -resolver.id))
+
+        Assignment.objects.create(
+            complaint=self,
+            officer=parent_resolver.officer,
+            resolver=parent_resolver,
+            reason='parent_escalation'
+        )
+
+        self.category = parent_category
+        self.current_resolver = parent_resolver
+        self.assigned_officer = parent_resolver.officer
+        self.status = 'escalated'
+        self.set_escalation_deadline(parent_resolver.escalation_time, base_time=self.created_at)
+        self.save()
+
+        return True
 
 
 class ComplaintCC(models.Model):
@@ -676,24 +712,6 @@ class PublicAnnouncement(models.Model):
 
     def __str__(self):
         return f"{self.title} ({'active' if self.is_active else 'inactive'})"
-
-
-class AnnouncementLike(models.Model):
-    announcement = models.ForeignKey(
-        PublicAnnouncement,
-        on_delete=models.CASCADE,
-        related_name='likes'
-    )
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='announcement_likes'
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('announcement', 'user')
-        ordering = ['-created_at']
 
 
 class AnnouncementComment(models.Model):

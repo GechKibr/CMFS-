@@ -368,16 +368,14 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
 class PublicAnnouncementSerializer(serializers.ModelSerializer):
     created_by_name = serializers.SerializerMethodField(read_only=True)
-    likes_count = serializers.SerializerMethodField(read_only=True)
     comments_count = serializers.SerializerMethodField(read_only=True)
-    liked_by_user = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = PublicAnnouncement
         fields = [
             "id", "title", "message", "created_by", "created_by_name",
             "is_active", "is_pinned", "expires_at", "created_at", "updated_at",
-            "likes_count", "comments_count", "liked_by_user",
+            "comments_count",
         ]
         read_only_fields = ["id", "created_by", "created_by_name", "created_at", "updated_at"]
 
@@ -385,17 +383,8 @@ class PublicAnnouncementSerializer(serializers.ModelSerializer):
         full_name = f"{obj.created_by.first_name} {obj.created_by.last_name}".strip()
         return full_name or obj.created_by.email
 
-    def get_likes_count(self, obj):
-        return obj.likes.count()
-
     def get_comments_count(self, obj):
         return obj.comments.count()
-
-    def get_liked_by_user(self, obj):
-        request = self.context.get("request")
-        if not request or not request.user.is_authenticated:
-            return False
-        return obj.likes.filter(user=request.user).exists()
 
 
 class AnnouncementCommentSerializer(serializers.ModelSerializer):

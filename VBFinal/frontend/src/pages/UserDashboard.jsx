@@ -12,6 +12,7 @@ import UserProfile from '../components/User/UserProfile';
 import MaintenanceNotification from '../components/UI/MaintenanceNotification';
 import UserFeedback from '../components/User/UserFeedback';
 import Appointments from '../components/User/Appointments';
+import UserAnnouncements from '../components/User/UserAnnouncements';
 import { getUserNavItems } from '../constants/navigation';
 
 const UserDashboard = () => {
@@ -92,6 +93,13 @@ const UserDashboard = () => {
             <Appointments />
           </div>
         );
+      case 'announcements':
+        return (
+          <div>
+            <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-white">Announcements</h1>
+            <UserAnnouncements />
+          </div>
+           );
       default:
         return <SubmitComplaint institutions={institutions} setSubmitSuccess={setSubmitSuccess} />;
     }

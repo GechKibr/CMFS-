@@ -141,6 +141,10 @@ const FeedbackFormBuilder = ({ onSave }) => {
       options: fieldType === 'choice' || fieldType === 'checkbox' ? ['Option 1'] : [],
       order: fields.length
     };
+    if (fieldType === 'number') {
+      newField.min = '';
+      newField.max = '';
+    }
     setFields([...fields, newField]);
   };
 
@@ -502,6 +506,33 @@ const FieldEditor = ({ field, index, totalFields, onUpdate, onRemove, onMove }) 
         </div>
       )}
 
+      {field.field_type === 'number' && (
+        <div className="my-4 p-3 bg-white rounded space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Value</label>
+              <input
+                type="number"
+                value={field.min || ''}
+                onChange={(e) => onUpdate({ min: e.target.value ? Number(e.target.value) : '' })}
+                placeholder="Min (optional)"
+                className="w-full p-2 border border-gray-300 rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Value</label>
+              <input
+                type="number"
+                value={field.max || ''}
+                onChange={(e) => onUpdate({ max: e.target.value ? Number(e.target.value) : '' })}
+                placeholder="Max (optional)"
+                className="w-full p-2 border border-gray-300 rounded"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 p-3 bg-white rounded border border-gray-200">
         <FieldPreview field={field} />
       </div>
@@ -514,7 +545,23 @@ const FieldPreview = ({ field }) => {
     case 'text':
       return <input type="text" placeholder={field.label} disabled className="w-full p-2 border border-gray-300 rounded" />;
     case 'number':
-      return <input type="number" placeholder={field.label} disabled className="w-full p-2 border border-gray-300 rounded" />;
+      return (
+        <div className="space-y-2">
+          <input
+            type="number"
+            placeholder={field.label}
+            disabled
+            min={field.min || undefined}
+            max={field.max || undefined}
+            className="w-full p-2 border border-gray-300 rounded"
+          />
+          {(field.min !== '' || field.max !== '') && (
+            <p className="text-xs text-gray-500">
+              Range: {field.min !== '' ? field.min : '−∞'} to {field.max !== '' ? field.max : '+∞'}
+            </p>
+          )}
+        </div>
+      );
     case 'rating':
       return (
         <div className="flex">

@@ -263,6 +263,10 @@ class ApiService {
     return this.request(endpoint);
   }
 
+  async getFeedbackResponses(templateId) {
+    return this.request(`/feedback/templates/${templateId}/responses/`);
+  }
+
   async submitFeedbackResponse(data) {
     return this.request('/feedback/responses/', {
       method: 'POST',

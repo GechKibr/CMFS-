@@ -3,6 +3,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FeedbackFormBuilder, FeedbackAnalytics } from '../components/feedback';
+import FeedbackResponsesTable from '../components/feedback/FeedbackResponsesTable';
 import MaintenanceNotification from '../components/UI/MaintenanceNotification';
 import DashboardNavbar from '../components/UI/DashboardNavbar';
 import Sidebar from '../components/UI/Sidebar';
@@ -45,6 +46,7 @@ const OfficerDashboard = () => {
   const [reassignOfficerId, setReassignOfficerId] = useState('');
   const [reassignReason, setReassignReason] = useState('');
   const [officers, setOfficers] = useState([]);
+  const [viewingTemplateResponses, setViewingTemplateResponses] = useState(null);
 
   const menuItems = OFFICER_NAV_ITEMS;
 
@@ -613,6 +615,29 @@ const OfficerDashboard = () => {
         );
 
       case 'manage-templates':
+        if (viewingTemplateResponses) {
+          const templateForResponses = templates.find(t => t.id === viewingTemplateResponses.id);
+          return (
+            <div>
+              <div className="mb-6 flex items-center gap-4">
+                <button
+                  onClick={() => setViewingTemplateResponses(null)}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                >
+                  ← Back to Templates
+                </button>
+                <h2 className="text-2xl font-bold text-gray-800">Responses for: {templateForResponses?.title}</h2>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <FeedbackResponsesTable
+                  templateId={viewingTemplateResponses.id}
+                  templateTitle={templateForResponses?.title}
+                />
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div>
             <div className="flex justify-between items-center mb-6">
@@ -644,7 +669,8 @@ const OfficerDashboard = () => {
                   <div key={template.id} className="bg-white rounded-lg shadow p-6 border border-gray-200">
                     <div className="flex justify-between items-start mb-4">
                       <h3 className="text-xl font-semibold text-gray-800">{template.title}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${template.status === 'draft' ? 'bg-gray-100 text-gray-600' :
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${
+                        template.status === 'draft' ? 'bg-gray-100 text-gray-600' :
                         template.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                           template.status === 'active' ? 'bg-green-100 text-green-800' :
                             template.status === 'inactive' ? 'bg-slate-100 text-slate-700' :
@@ -665,6 +691,12 @@ const OfficerDashboard = () => {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setViewingTemplateResponses(template)}
+                        className="px-3 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700"
+                      >
+                        View Responses
+                      </button>
                       <button
                         onClick={() => {
                           setSelectedTemplate(template.id);

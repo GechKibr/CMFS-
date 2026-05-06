@@ -243,6 +243,40 @@ class FeedbackTemplateViewSet(viewsets.ModelViewSet):
         serializer = FeedbackAnalyticsSerializer(analytics_data)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['get'])
+    def responses(self, request, pk=None):
+        template = self.get_object()
+        if not (request.user.is_admin() or (request.user.is_officer() and template.created_by_id == request.user.id)):
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        responses = FeedbackResponse.objects.filter(template=template).prefetch_related('answers')
+        
+        responses_data = []
+        for response in responses:
+            response_dict = {
+                'id': str(response.id),
+                'submitted_at': response.submitted_at.isoformat(),
+                'answers': {}
+            }
+            
+            # Collect all answers for this response
+            for answer in response.answers.all():
+                field_label = answer.field.label
+                if answer.field.field_type == TemplateField.FIELD_TEXT:
+                    response_dict['answers'][field_label] = answer.text_value or ''
+                elif answer.field.field_type == TemplateField.FIELD_NUMBER:
+                    response_dict['answers'][field_label] = answer.number_value
+                elif answer.field.field_type == TemplateField.FIELD_RATING:
+                    response_dict['answers'][field_label] = answer.rating_value
+                elif answer.field.field_type == TemplateField.FIELD_CHOICE:
+                    response_dict['answers'][field_label] = answer.choice_value
+                elif answer.field.field_type == TemplateField.FIELD_CHECKBOX:
+                    response_dict['answers'][field_label] = answer.checkbox_values
+            
+            responses_data.append(response_dict)
+        
+        return Response({'responses': responses_data})
+
 
 class FeedbackResponseViewSet(viewsets.ModelViewSet):
     queryset = FeedbackResponse.objects.all()

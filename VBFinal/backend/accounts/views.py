@@ -408,11 +408,20 @@ class SystemViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get', 'post', 'patch'], url_path='maintenance')
     def maintenance(self, request):
-        config = MaintenanceConfiguration.get_solo()
-
         if request.method == 'GET':
-            return Response(MaintenanceConfigurationSerializer(config).data)
+            # Cache maintenance config for 60 seconds to reduce DB load
+            cache_key = 'maintenance_config_get'
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return Response(cached_data)
+            
+            config = MaintenanceConfiguration.get_solo()
+            data = MaintenanceConfigurationSerializer(config).data
+            cache.set(cache_key, data, 60)  # Cache for 1 minute
+            return Response(data)
 
+        # POST/PATCH: fetch fresh config, update, and invalidate cache
+        config = MaintenanceConfiguration.get_solo()
         serializer = MaintenanceConfigurationSerializer(
             config,
             data=request.data,
@@ -421,7 +430,12 @@ class SystemViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save(updated_by=request.user)
         config.refresh_from_db()
-        return Response(MaintenanceConfigurationSerializer(config).data, status=status.HTTP_200_OK)
+        
+        # Invalidate cache after update
+        cache.delete('maintenance_config_get')
+        
+        data = MaintenanceConfigurationSerializer(config).data
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class MicrosoftAuthViewSet(viewsets.ViewSet):

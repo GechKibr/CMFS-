@@ -47,7 +47,7 @@ const UserAnnouncements = () => {
     try {
       const data = await apiService.getAnnouncementComments(announcementId);
       setCommentsMap(prev => ({ ...prev, [announcementId]: Array.isArray(data) ? data : data.results || [] }));
-    } catch (_err) {
+    } catch {
       setCommentsMap(prev => ({ ...prev, [announcementId]: [] }));
     }
   };
@@ -59,7 +59,7 @@ const UserAnnouncements = () => {
       await apiService.addAnnouncementComment(announcementId, message);
       setCommentInput(prev => ({ ...prev, [announcementId]: '' }));
       await loadComments(announcementId);
-    } catch (_err) {
+    } catch {
       // noop
     }
   };
@@ -71,7 +71,7 @@ const UserAnnouncements = () => {
       await apiService.updateAnnouncementComment(comment.id, newMsg);
       setEditingComment(prev => ({ ...prev, [comment.id]: undefined }));
       await loadComments(comment.announcement);
-    } catch (_err) {
+    } catch {
       // noop
     }
   };
@@ -80,7 +80,7 @@ const UserAnnouncements = () => {
     try {
       await apiService.deleteAnnouncementComment(comment.id);
       await loadComments(comment.announcement);
-    } catch (err) {
+    } catch {
       // noop
     }
   };

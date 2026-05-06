@@ -15,6 +15,8 @@ const PublicAnnouncementBoard = () => {
     is_pinned: false,
     expires_at: ''
   });
+  const [commentsMap, setCommentsMap] = useState({});
+  const [openComments, setOpenComments] = useState({});
 
   const loadAnnouncements = async () => {
     setLoading(true);
@@ -27,6 +29,23 @@ const PublicAnnouncementBoard = () => {
       setError(err.message || 'Failed to load announcements');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadComments = async (announcementId) => {
+    try {
+      const data = await apiService.getAnnouncementComments(announcementId);
+      const comments = Array.isArray(data) ? data : data.results || [];
+      setCommentsMap((prev) => ({ ...prev, [announcementId]: comments }));
+    } catch {
+      setCommentsMap((prev) => ({ ...prev, [announcementId]: [] }));
+    }
+  };
+
+  const toggleComments = async (announcementId) => {
+    setOpenComments((prev) => ({ ...prev, [announcementId]: !prev[announcementId] }));
+    if (!commentsMap[announcementId]) {
+      await loadComments(announcementId);
     }
   };
 
@@ -202,10 +221,15 @@ const PublicAnnouncementBoard = () => {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h4 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {item.is_pinned ? '📌 ' : ''}
-                      {item.title}
-                    </h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {item.is_pinned ? '📌 ' : ''}
+                        {item.title}
+                      </h4>
+                      <span className={`text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}>
+                        {item.comments_count ?? 0} comments
+                      </span>
+                    </div>
                     <p className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{item.message}</p>
                     <p className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       Created: {new Date(item.created_at).toLocaleString()}
@@ -230,6 +254,12 @@ const PublicAnnouncementBoard = () => {
                       Edit
                     </button>
                     <button
+                      onClick={() => toggleComments(item.id)}
+                      className="px-3 py-1.5 text-xs rounded bg-indigo-500 text-white hover:bg-indigo-600"
+                    >
+                      {openComments[item.id] ? 'Hide Comments' : 'View Comments'}
+                    </button>
+                    <button
                       onClick={() => handleDelete(item.id)}
                       className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700"
                     >
@@ -237,6 +267,26 @@ const PublicAnnouncementBoard = () => {
                     </button>
                   </div>
                 </div>
+                {openComments[item.id] && (
+                  <div className={`mt-4 rounded-lg border p-4 ${isDark ? 'border-gray-700 bg-gray-900/50' : 'border-gray-200 bg-white'}`}>
+                    <h5 className={`font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Comments</h5>
+                    {commentsMap[item.id] && commentsMap[item.id].length > 0 ? (
+                      <div className="space-y-3">
+                        {commentsMap[item.id].map((comment) => (
+                          <div key={comment.id} className={`rounded-lg p-3 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-gray-50 border border-gray-200'}`}>
+                            <div className="flex items-center justify-between gap-3">
+                              <span className={`font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{comment.user_name || 'Anonymous'}</span>
+                              <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{new Date(comment.updated_at || comment.created_at).toLocaleString()}</span>
+                            </div>
+                            <p className={`mt-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{comment.message}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>No comments yet.</p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

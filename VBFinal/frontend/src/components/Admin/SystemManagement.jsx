@@ -62,11 +62,31 @@ const SystemManagement = () => {
       recent_complaints: 0
     }
   });
+  // Backend maintenance configuration fields - aligned with MaintenanceConfiguration model
+  const [maintenanceConfig, setMaintenanceConfig] = useState({
+    is_enabled: false,
+    message: 'System is under maintenance. Please try again later.',
+    scheduled_start: null,
+    scheduled_end: null,
+    updated_at: null,
+  });
+  const [maintenanceLoading, setMaintenanceLoading] = useState(true);
+
+  // Form state for editing
+  const [editingMaintenance, setEditingMaintenance] = useState(false);
+  const [formData, setFormData] = useState({
+    is_enabled: false,
+    message: 'System is under maintenance. Please try again later.',
+    scheduled_start: '',
+    scheduled_end: '',
+  });
+
+  // Local schedules for planning (separate from backend config)
   const [scheduledMaintenanceTime, setScheduledMaintenanceTime] = useState('');
-  const [maintenanceMessage, setMaintenanceMessage] = useState('System is under maintenance. Please try again later.');
   const [maintenanceDuration, setMaintenanceDuration] = useState(30);
   const [maintenanceSchedules, setMaintenanceSchedules] = useState([]);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
+  
   const [jwtSessionTimeout, setJwtSessionTimeout] = useState(30);
   const [availableTimeouts, setAvailableTimeouts] = useState([15, 30, 60, 120, 240]);
 
@@ -108,18 +128,34 @@ const SystemManagement = () => {
     }
   }, []);
 
+  // Load backend maintenance configuration
+  const loadMaintenanceConfig = useCallback(async () => {
+    try {
+      setMaintenanceLoading(true);
+      const config = await apiService.getMaintenanceStatus();
+      setMaintenanceConfig(config);
+      // Initialize form with current backend values
+      setFormData({
+        is_enabled: config.is_enabled || false,
+        message: config.message || 'System is under maintenance. Please try again later.',
+        scheduled_start: config.scheduled_start ? toDateTimeLocalValue(config.scheduled_start) : '',
+        scheduled_end: config.scheduled_end ? toDateTimeLocalValue(config.scheduled_end) : '',
+      });
+    } catch (error) {
+      console.error('Failed to load maintenance configuration:', error);
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadSystemStats();
-
     loadJwtConfig();
+    loadMaintenanceConfig();
 
     return () => {
     };
-  }, [loadJwtConfig, loadSystemStats]);
-
-  useEffect(() => {
-    setMaintenanceMessage(currentMaintenanceMessage || 'System is under maintenance. Please try again later.');
-  }, [currentMaintenanceMessage]);
+  }, [loadJwtConfig, loadSystemStats, loadMaintenanceConfig]);
 
   useEffect(() => {
     setMaintenanceSchedules(parseStoredSchedules());
@@ -149,13 +185,13 @@ const SystemManagement = () => {
         title: 'Active Maintenance Window',
         scheduled_start: startIso,
         scheduled_end: maintenanceEndTime,
-        message: currentMaintenanceMessage || maintenanceMessage,
+        message: currentMaintenanceMessage,
         duration_minutes: durationMinutes,
         status: 'active',
       },
       ...prev,
     ]);
-  }, [currentMaintenanceMessage, maintenanceDuration, maintenanceEndTime, maintenanceMessage, maintenanceSchedules]);
+  }, [currentMaintenanceMessage, maintenanceDuration, maintenanceEndTime, maintenanceSchedules]);
 
   // Real-time system stats from backend
   const updateJwtTimeout = async (timeoutMinutes) => {
@@ -310,6 +346,35 @@ const SystemManagement = () => {
     }
   };
 
+  // Handle maintenance configuration form submission
+  const handleSaveMaintenanceConfig = async () => {
+    try {
+      const payload = {
+        is_enabled: formData.is_enabled,
+        message: formData.message,
+        scheduled_start: formData.scheduled_start ? new Date(formData.scheduled_start).toISOString() : null,
+        scheduled_end: formData.scheduled_end ? new Date(formData.scheduled_end).toISOString() : null,
+      };
+
+      const updated = await updateMaintenanceConfiguration(payload);
+      setMaintenanceConfig(updated);
+      setEditingMaintenance(false);
+      alert('Maintenance configuration saved successfully.');
+    } catch (error) {
+      alert(`Failed to save maintenance configuration: ${error.message}`);
+    }
+  };
+
+  const handleResetForm = () => {
+    setFormData({
+      is_enabled: maintenanceConfig.is_enabled || false,
+      message: maintenanceConfig.message || 'System is under maintenance. Please try again later.',
+      scheduled_start: maintenanceConfig.scheduled_start ? toDateTimeLocalValue(maintenanceConfig.scheduled_start) : '',
+      scheduled_end: maintenanceConfig.scheduled_end ? toDateTimeLocalValue(maintenanceConfig.scheduled_end) : '',
+    });
+    setEditingMaintenance(false);
+  };
+
   const renderSystemOverview = () => (
     <div className="space-y-6">
       {/* System Overview */}
@@ -344,247 +409,327 @@ const SystemManagement = () => {
     </div>
   );
 
-  const renderMaintenance = () => (
-    <div className="space-y-6">
-      {/* Maintenance Mode Status */}
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-          Maintenance Mode Status
-        </h3>
-        <div className={`p-4 rounded-lg border-2 ${isMaintenanceMode
-          ? isDark ? 'border-red-500 bg-red-900/20' : 'border-red-300 bg-red-50'
-          : isDark ? 'border-green-500 bg-green-900/20' : 'border-green-300 bg-green-50'
-          }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className={`text-3xl ${isMaintenanceMode ? 'animate-pulse' : ''}`}>
-                {isMaintenanceMode ? '🚫' : '✅'}
-              </div>
-              <div>
-                <div className={`font-medium ${isMaintenanceMode ? 'text-red-600' : 'text-green-600'
-                  }`}>
-                  Maintenance Mode: {isMaintenanceMode ? 'ENABLED' : 'DISABLED'}
+  const renderMaintenance = () => {
+    if (maintenanceLoading) {
+      return (
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
+          <div className="text-center py-8">
+            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Loading maintenance configuration...
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Backend Maintenance Configuration */}
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Maintenance Configuration
+            </h3>
+            {!editingMaintenance && (
+              <button
+                onClick={() => setEditingMaintenance(true)}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+
+          {!editingMaintenance ? (
+            // Display View
+            <div className={`p-4 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-700/40' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                    Status
+                  </label>
+                  <div className={`text-sm px-3 py-2 rounded inline-block ${maintenanceConfig.is_enabled
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-green-100 text-green-700'
+                    }`}>
+                    {maintenanceConfig.is_enabled ? '🚫 ENABLED' : '✅ DISABLED'}
+                  </div>
                 </div>
-                <div className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {isMaintenanceMode
-                    ? 'Only administrators can access the system'
-                    : 'System is accessible to all users'
-                  }
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                    Message
+                  </label>
+                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'} p-3 rounded ${isDark ? 'bg-gray-700' : 'bg-white border border-gray-300'}`}>
+                    {maintenanceConfig.message}
+                  </div>
                 </div>
-                {isMaintenanceMode && maintenanceEndTime && (
-                  <div className={`text-xs mt-1 ${isDark ? 'text-red-400' : 'text-red-500'}`}>
-                    Auto-disable: {new Date(maintenanceEndTime).toLocaleString()}
+
+                {maintenanceConfig.scheduled_start && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                        Scheduled Start
+                      </label>
+                      <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {new Date(maintenanceConfig.scheduled_start).toLocaleString()}
+                      </div>
+                    </div>
+                    {maintenanceConfig.scheduled_end && (
+                      <div>
+                        <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                          Scheduled End
+                        </label>
+                        <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {new Date(maintenanceConfig.scheduled_end).toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {maintenanceConfig.updated_at && (
+                  <div>
+                    <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
+                      Last Updated
+                    </label>
+                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {new Date(maintenanceConfig.updated_at).toLocaleString()}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
+          ) : (
+            // Edit View
+            <div className={`p-4 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-700/40' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Enable Maintenance Mode
+                  </label>
+                  <input
+                    type="checkbox"
+                    checked={formData.is_enabled}
+                    onChange={(e) => setFormData({ ...formData, is_enabled: e.target.checked })}
+                    className="w-4 h-4 rounded"
+                  />
+                  <span className={`ml-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {formData.is_enabled ? 'Maintenance mode is enabled' : 'Maintenance mode is disabled'}
+                  </span>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Message
+                  </label>
+                  <textarea
+                    value={formData.message}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                    className={`w-full p-3 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                    rows="4"
+                    placeholder="Enter maintenance message..."
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Scheduled Start (Optional)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={formData.scheduled_start}
+                    onChange={(e) => setFormData({ ...formData, scheduled_start: e.target.value })}
+                    className={`w-full p-3 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Scheduled End (Optional)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={formData.scheduled_end}
+                    onChange={(e) => setFormData({ ...formData, scheduled_end: e.target.value })}
+                    className={`w-full p-3 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveMaintenanceConfig}
+                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                  >
+                    Save Configuration
+                  </button>
+                  <button
+                    onClick={handleResetForm}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Actions */}
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
+          <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
+            Quick Actions
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               onClick={handleMaintenanceToggle}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${isMaintenanceMode
+              className={`px-4 py-3 rounded-lg font-medium transition-colors ${isMaintenanceMode
                 ? 'bg-green-500 text-white hover:bg-green-600'
                 : 'bg-red-500 text-white hover:bg-red-600'
                 }`}
             >
-              {isMaintenanceMode ? 'Disable' : 'Enable'}
+              {isMaintenanceMode ? '✅ Disable Maintenance' : '🚫 Enable Maintenance'}
             </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Maintenance Duration */}
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-          Maintenance Duration
-        </h3>
-        <div className="space-y-4">
-          <div>
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              Duration (minutes)
-            </label>
-            <select
-              value={maintenanceDuration}
-              onChange={(e) => setMaintenanceDuration(parseInt(e.target.value))}
-              disabled={isMaintenanceMode}
-              className={`w-full p-3 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'} disabled:opacity-50`}
-            >
-              <option value={15}>15 minutes</option>
-              <option value={30}>30 minutes</option>
-              <option value={60}>1 hour</option>
-              <option value={120}>2 hours</option>
-              <option value={240}>4 hours</option>
-              <option value={480}>8 hours</option>
-            </select>
-            <p className={`text-sm mt-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Maintenance mode will automatically disable after this duration
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Maintenance Message */}
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-          Maintenance Message
-        </h3>
-        <div className="space-y-4">
-          <textarea
-            value={maintenanceMessage}
-            onChange={(e) => setMaintenanceMessage(e.target.value)}
-            className={`w-full p-3 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-            rows="3"
-            placeholder="Enter message to display to users during maintenance..."
-          />
-          <button
-            onClick={async () => {
-              if (isMaintenanceMode) {
-                try {
-                  await updateMaintenanceConfiguration({ message: maintenanceMessage });
-                  alert('Maintenance message updated!');
-                } catch (error) {
-                  alert(`Failed to update maintenance message: ${error.message}`);
-                }
-              }
-            }}
-            disabled={!isMaintenanceMode}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Update Message
-          </button>
-        </div>
-      </div>
-
-      {/* Schedule Maintenance */}
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-          Schedule Maintenance
-        </h3>
-        <div className="space-y-4">
-          <div>
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              Scheduled Date & Time
-            </label>
-            <input
-              type="datetime-local"
-              value={scheduledMaintenanceTime}
-              onChange={(e) => setScheduledMaintenanceTime(e.target.value)}
-              className={`w-full p-3 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={handleScheduleMaintenance}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-            >
-              {editingScheduleId ? 'Update Schedule' : 'Add Schedule'}
-            </button>
-            {editingScheduleId && (
-              <button
-                onClick={() => {
-                  setEditingScheduleId(null);
-                  setScheduledMaintenanceTime('');
-                }}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                Cancel Edit
-              </button>
-            )}
             <button
               onClick={handleCancelBackendSchedule}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              className="px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-medium"
             >
-              Cancel Backend Schedule
+              📅 Clear Schedule
             </button>
           </div>
         </div>
-      </div>
 
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-          Maintenance Schedule Manager
-        </h3>
-
-        {maintenanceSchedules.length === 0 ? (
-          <div className={`p-4 rounded-lg text-sm ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-50 text-gray-600'}`}>
-            No schedules yet. Add your first maintenance schedule above.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {maintenanceSchedules
-              .slice()
-              .sort((a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime())
-              .map((schedule) => (
-                <div
-                  key={schedule.id}
-                  className={`p-4 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-700/40' : 'border-gray-200 bg-gray-50'}`}
+        {/* Local Schedule Planner */}
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
+          <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
+            Plan Maintenance Schedule
+          </h3>
+          <div className="space-y-4">
+            <div>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                Scheduled Date & Time
+              </label>
+              <input
+                type="datetime-local"
+                value={scheduledMaintenanceTime}
+                onChange={(e) => setScheduledMaintenanceTime(e.target.value)}
+                className={`w-full p-3 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+              />
+            </div>
+            <div>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                Duration (minutes)
+              </label>
+              <select
+                value={maintenanceDuration}
+                onChange={(e) => setMaintenanceDuration(parseInt(e.target.value))}
+                className={`w-full p-3 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+              >
+                <option value={15}>15 minutes</option>
+                <option value={30}>30 minutes</option>
+                <option value={60}>1 hour</option>
+                <option value={120}>2 hours</option>
+                <option value={240}>4 hours</option>
+                <option value={480}>8 hours</option>
+              </select>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleScheduleMaintenance}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+              >
+                {editingScheduleId ? 'Update Schedule' : 'Add Schedule'}
+              </button>
+              {editingScheduleId && (
+                <button
+                  onClick={() => {
+                    setEditingScheduleId(null);
+                    setScheduledMaintenanceTime('');
+                  }}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {schedule.title || 'Maintenance Window'}
+                  Cancel Edit
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Scheduled Maintenance List */}
+        {maintenanceSchedules.length > 0 && (
+          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
+            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
+              Maintenance Schedule Manager
+            </h3>
+            <div className="space-y-3">
+              {maintenanceSchedules
+                .slice()
+                .sort((a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime())
+                .map((schedule) => (
+                  <div
+                    key={schedule.id}
+                    className={`p-4 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-700/40' : 'border-gray-200 bg-gray-50'}`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {schedule.title || 'Maintenance Window'}
+                        </div>
+                        <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                          {new Date(schedule.scheduled_start).toLocaleString()} - {new Date(schedule.scheduled_end).toLocaleString()}
+                        </div>
+                        <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Duration: {schedule.duration_minutes || getDurationMinutes(schedule.scheduled_start, schedule.scheduled_end, 30)} min
+                        </div>
                       </div>
-                      <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                        {new Date(schedule.scheduled_start).toLocaleString()} - {new Date(schedule.scheduled_end).toLocaleString()}
-                      </div>
-                      <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Duration: {schedule.duration_minutes || getDurationMinutes(schedule.scheduled_start, schedule.scheduled_end, 30)} min | Source: {schedule.source === 'backend-live' ? 'Backend' : 'Local'}
-                      </div>
+                      <span className={`text-xs px-2 py-1 rounded-full font-semibold ${schedule.status === 'active'
+                        ? 'bg-red-100 text-red-700'
+                        : schedule.status === 'applied'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-700'
+                        }`}>
+                        {(schedule.status || 'scheduled').toUpperCase()}
+                      </span>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full font-semibold ${schedule.status === 'active'
-                      ? 'bg-red-100 text-red-700'
-                      : schedule.status === 'applied'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-gray-700'
-                      }`}>
-                      {(schedule.status || 'scheduled').toUpperCase()}
-                    </span>
-                  </div>
 
-                  <div className={`text-sm mt-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {schedule.message}
-                  </div>
+                    <div className={`text-sm mt-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {schedule.message}
+                    </div>
 
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => handleApplySchedule(schedule)}
-                      className="px-3 py-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm"
-                    >
-                      Apply to Backend
-                    </button>
-                    <button
-                      onClick={() => handleRunScheduleNow(schedule)}
-                      className="px-3 py-1.5 rounded bg-orange-500 text-white hover:bg-orange-600 text-sm"
-                    >
-                      Run Now
-                    </button>
-                    <button
-                      onClick={() => handleEditSchedule(schedule)}
-                      className="px-3 py-1.5 rounded bg-emerald-500 text-white hover:bg-emerald-600 text-sm"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteSchedule(schedule.id)}
-                      className="px-3 py-1.5 rounded bg-rose-500 text-white hover:bg-rose-600 text-sm"
-                    >
-                      Delete
-                    </button>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleApplySchedule(schedule)}
+                        className="px-3 py-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm"
+                      >
+                        Apply to Backend
+                      </button>
+                      <button
+                        onClick={() => handleRunScheduleNow(schedule)}
+                        className="px-3 py-1.5 rounded bg-orange-500 text-white hover:bg-orange-600 text-sm"
+                      >
+                        Run Now
+                      </button>
+                      <button
+                        onClick={() => handleEditSchedule(schedule)}
+                        className="px-3 py-1.5 rounded bg-emerald-500 text-white hover:bg-emerald-600 text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSchedule(schedule.id)}
+                        className="px-3 py-1.5 rounded bg-rose-500 text-white hover:bg-rose-600 text-sm"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+            </div>
           </div>
         )}
       </div>
-
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-          System Actions
-        </h3>
-        <div className={`p-4 rounded-lg text-sm ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-50 text-gray-600'}`}>
-          Service-level actions are now managed from the backend. This panel focuses on maintenance, logs, sessions, and configuration.
-        </div>
-      </div>
-    </div >
-  );
+    );
+  };
 
 
 

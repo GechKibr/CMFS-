@@ -483,7 +483,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                             >
                               <span className="flex items-center justify-between gap-3">
                                 <span>
-                                  <span className={`block text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{cat.label}</span>
+                                  <span className={`block text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{cat.name || cat.office_name}</span>
                                   {cat.office_description && (
                                     <span className={`mt-1 block overflow-hidden text-xs transition-all duration-200 ${isDark ? 'text-gray-400' : 'text-gray-500'} max-h-0 opacity-0 group-hover:max-h-20 group-hover:opacity-100`}>
                                       {cat.office_description}
@@ -521,7 +521,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                   {selectedCategory ? (
                     <>
                       <div className={`mt-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                        <p className="font-medium">{selectedCategory.label}</p>
+                        <p className="font-medium">{selectedCategory.name || selectedCategory.office_name}</p>
                         {selectedCategory.office_description && (
                           <p className={`mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{selectedCategory.office_description}</p>
                         )}
@@ -802,7 +802,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                                 : 'border-gray-200 bg-white hover:border-blue-300'} `}
                             >
                               <span className="flex items-center justify-between gap-3">
-                                <span className={`text-sm ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{office.label}</span>
+                                <span className={`text-sm ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{office.name || office.office_name}</span>
                                 <span className={`h-5 w-5 rounded-full border flex items-center justify-center ${isDark ? 'border-gray-500 text-transparent' : 'border-gray-300 text-transparent'}`}>
                                   +
                                 </span>
@@ -828,7 +828,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                           className={`rounded-full px-3 py-1 flex items-center gap-2 ${isDark ? 'bg-gray-700' : 'bg-blue-100 text-blue-700'}`}
                           title={language === 'am' ? 'አስወግድ' : 'Remove'}
                         >
-                          <span>{office.label}</span>
+                          <span>{office.name || office.office_name}</span>
                           <span className="text-[10px]">✕</span>
                         </button>
                       ))}
@@ -963,7 +963,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                         <p className="font-semibold mb-1">{language === 'am' ? 'የተመረጡ ቢሮዎች ዝርዝር' : 'Selected office list'}:</p>
                         <ul className="list-disc list-inside space-y-1">
                           {selectedCcOffices.map((office) => (
-                            <li key={office.value}>{office.label}</li>
+                            <li key={office.value}>{office.name || office.office_name}</li>
                           ))}
                         </ul>
                       </div>

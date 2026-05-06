@@ -1,26 +1,64 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import DashboardNavbar from '../../components/UI/DashboardNavbar';
 import Sidebar from '../../components/UI/Sidebar';
+import { OFFICER_NAV_ITEMS, getUserNavItems } from '../../constants/navigation';
 
-const HelpdeskShell = ({ activeItem = 'sessions', children }) => {
+const ADMIN_NAV_ITEMS = [
+  { id: 'overview', name: 'Dashboard', icon: '📊' },
+  { id: 'complaints', name: 'Complaints', icon: '📝' },
+  { id: 'institutions', name: 'Institutions', icon: '🏛️' },
+  { id: 'users', name: 'Users', icon: '👤' },
+  { id: 'feedback-templates', name: 'Feedback Templates', icon: '📋' },
+  { id: 'contact', name: 'Contact', icon: '✉️' },
+  { id: 'system', name: 'System', icon: '⚙️' },
+  { id: 'helpdesk', name: 'Helpdesk', icon: '🎧' },
+  { id: 'profile', name: 'Profile', icon: '👤' },
+];
+
+const HelpdeskShell = ({
+  children,
+  contentClassName = 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8',
+  showChrome = true,
+}) => {
   const { isDark } = useTheme();
-  const { logout } = useAuth();
+  const { t } = useLanguage();
+  const { logout, getUserRole } = useAuth();
   const navigate = useNavigate();
+  const role = getUserRole();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
 
-  const menuItems = useMemo(
-    () => [
-      { id: 'sessions', name: 'All Sessions', icon: '🎧' },
-      { id: 'new', name: 'New Session', icon: '➕' },
-      { id: 'dashboard', name: 'Back To Dashboard', icon: '🏠' },
-    ],
-    []
-  );
+  const menuItems = useMemo(() => {
+    if (role === 'admin') return ADMIN_NAV_ITEMS;
+    if (role === 'officer') return OFFICER_NAV_ITEMS;
+    return getUserNavItems(t);
+  }, [role, t]);
+
+  const activeItem = 'helpdesk';
+
+  const navigateToRolePage = (id) => {
+    if (role === 'admin') {
+      if (id === 'helpdesk') return navigate('/helpdesk');
+      if (id === 'overview') return navigate('/admin');
+      return navigate(`/admin?tab=${id}`);
+    }
+
+    if (role === 'officer') {
+      if (id === 'helpdesk') return navigate('/helpdesk');
+      if (id === 'dashboard') return navigate('/officer');
+      if (id === 'profile') return navigate('/officer?tab=profile');
+      return navigate(`/officer?tab=${id}`);
+    }
+
+    if (id === 'helpdesk') return navigate('/helpdesk');
+    if (id === 'profile') return navigate('/user?tab=profile');
+    return navigate(`/user?tab=${id}`);
+  };
 
   const handleSidebarToggle = () => {
     if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
@@ -31,47 +69,49 @@ const HelpdeskShell = ({ activeItem = 'sessions', children }) => {
   };
 
   const handleItemClick = (id) => {
-    if (id === 'sessions') {
-      navigate('/helpdesk');
-    } else if (id === 'new') {
-      navigate('/helpdesk/new');
-    } else {
-      navigate('/');
-    }
+    navigateToRolePage(id);
     setSidebarOpen(false);
   };
 
+  const showBottomSection = role !== 'admin';
+
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <DashboardNavbar onSidebarToggle={handleSidebarToggle} />
+      {showChrome ? (
+        <>
+          <DashboardNavbar onSidebarToggle={handleSidebarToggle} />
 
-      <div className="flex pt-20">
-        <Sidebar
-          isOpen={sidebarOpen}
-          isCollapsed={isDesktopSidebarCollapsed}
-          items={menuItems}
-          activeItem={activeItem}
-          onItemClick={handleItemClick}
-          onLogout={() => {
-            logout();
-            navigate('/login');
-          }}
-          onProfileClick={() => { }}
-          onHideSidebar={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
-          showBottomSection={true}
-        />
+          <div className="flex pt-20">
+            <Sidebar
+              isOpen={sidebarOpen}
+              isCollapsed={isDesktopSidebarCollapsed}
+              items={menuItems}
+              activeItem={activeItem}
+              onItemClick={handleItemClick}
+              onLogout={() => {
+                logout();
+                navigate('/login');
+              }}
+              onProfileClick={() => { }}
+              onHideSidebar={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
+              showBottomSection={showBottomSection}
+            />
 
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-20"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
+            {sidebarOpen && (
+              <div
+                className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-20"
+                onClick={() => setSidebarOpen(false)}
+              />
+            )}
 
-        <main className={`flex-1 ${isDesktopSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{children}</div>
-        </main>
-      </div>
+            <main className={`flex-1 ${isDesktopSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
+              <div className={contentClassName}>{children}</div>
+            </main>
+          </div>
+        </>
+      ) : (
+        <div className={contentClassName}>{children}</div>
+      )}
     </div>
   );
 };

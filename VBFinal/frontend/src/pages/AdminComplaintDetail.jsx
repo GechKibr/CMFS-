@@ -296,12 +296,22 @@ const AdminComplaintDetail = () => {
               </div>
 
               <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Submitted by:</span>
-                  <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {complaint.submitted_by?.first_name} {complaint.submitted_by?.last_name}
-                  </span>
-                </div>
+                {!complaint.is_anonymous && (
+                  <div>
+                    <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Submitted by:</span>
+                    <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {complaint.submitted_by?.first_name} {complaint.submitted_by?.last_name}
+                    </span>
+                  </div>
+                )}
+                {complaint.is_anonymous && (
+                  <div>
+                    <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Submitted by:</span>
+                    <span className={`ml-2 ${isDark ? 'text-red-400' : 'text-red-600'} font-medium`}>
+                      Anonymous
+                    </span>
+                  </div>
+                )}
                 <div>
                   <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Created:</span>
                   <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>

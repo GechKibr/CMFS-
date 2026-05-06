@@ -222,6 +222,12 @@ const OfficerComplaintDetail = () => {
                 <p>Status: {complaint.status}</p>
                 <p>Category: {complaint.category?.office_name || complaint.category?.name || 'Uncategorized'}</p>
                 <p>Created: {new Date(complaint.created_at).toLocaleString()}</p>
+                {!complaint.is_anonymous && complaint.submitted_by && (
+                  <p>Submitted by: {complaint.submitted_by?.first_name} {complaint.submitted_by?.last_name}</p>
+                )}
+                {complaint.is_anonymous && (
+                  <p className="text-red-600 font-medium">Submitted by: Anonymous</p>
+                )}
               </div>
             </section>
 

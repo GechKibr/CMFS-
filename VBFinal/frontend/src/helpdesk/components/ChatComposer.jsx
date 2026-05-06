@@ -13,14 +13,22 @@ const ChatComposer = ({ onSend, disabled = false }) => {
     setText('');
   };
 
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      submit(event);
+    }
+  };
+
   return (
-    <form onSubmit={submit} className="flex items-end gap-3 border-t border-slate-200 bg-white p-4">
+    <form onSubmit={submit} className="flex max-h-40 flex-shrink-0 items-end gap-3 border-t border-slate-200 bg-white p-4">
       <textarea
         rows={1}
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
         placeholder="Type your message..."
-        className="max-h-40 min-h-[44px] flex-1 resize-y rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
+        className="max-h-32 min-h-[44px] flex-1 resize-none overflow-y-auto rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none"
       />
       <button
         type="submit"

@@ -14,7 +14,9 @@ const UserProfile = ({ user: propUser }) => {
   const [campuses, setCampuses] = useState([]);
   const [colleges, setColleges] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [studentTypes, setStudentTypes] = useState([]);
   const [, setFetchingData] = useState(true);
+  const [assignedResolvers, setAssignedResolvers] = useState([]);
 
   // Password change state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -34,34 +36,55 @@ const UserProfile = ({ user: propUser }) => {
     user_campus: user?.user_campus || null,
     college: user?.college || null,
     department: user?.department || null,
+    student_type: user?.student_type || '',
+    year_of_study: user?.year_of_study || '',
     phone: user?.phone || ''
   });
+
+  useEffect(() => {
+    setFormData({
+      first_name: user?.first_name || '',
+      last_name: user?.last_name || '',
+      username: user?.username || '',
+      gmail_account: user?.gmail_account || '',
+      campus_id: user?.campus_id || '',
+      user_campus: user?.user_campus || null,
+      college: user?.college || null,
+      department: user?.department || null,
+      student_type: user?.student_type || '',
+      year_of_study: user?.year_of_study || '',
+      phone: user?.phone || ''
+    });
+  }, [user?.id, user?.first_name, user?.last_name, user?.username, user?.gmail_account, user?.campus_id, user?.user_campus, user?.college, user?.department, user?.student_type, user?.year_of_study, user?.phone]);
 
   // Fetch campuses on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
         setFetchingData(true);
-        // Fetch all campuses
-        const campusesData = await apiService.getCampuses();
-        const campusList = Array.isArray(campusesData) ? campusesData : campusesData.results || [];
-        setCampuses(campusList);
+        const [campusesData, studentTypesData] = await Promise.all([
+          apiService.getCampuses(),
+          apiService.getStudentTypes()
+        ]);
 
-        // If user has a campus, fetch colleges for that campus
+        const campusList = Array.isArray(campusesData) ? campusesData : campusesData.results || [];
+        const studentTypeList = Array.isArray(studentTypesData) ? studentTypesData : studentTypesData.results || [];
+        setCampuses(campusList);
+        setStudentTypes(studentTypeList.filter(item => item && item.is_active !== false).sort((a, b) => (a.type_name || '').localeCompare(b.type_name || '')));
+
         if (user?.user_campus) {
           const collegesData = await apiService.getColleges(user.user_campus);
           const collegesList = Array.isArray(collegesData) ? collegesData : collegesData.results || [];
           setColleges(collegesList);
+        }
 
-          // If user has a college, fetch departments for that college
-          if (user?.college) {
-            const departmentsData = await apiService.getDepartments(user.college);
-            const departmentsList = Array.isArray(departmentsData) ? departmentsData : departmentsData.results || [];
-            setDepartments(departmentsList);
-          }
+        if (user?.college) {
+          const departmentsData = await apiService.getDepartments(user.college);
+          const departmentsList = Array.isArray(departmentsData) ? departmentsData : departmentsData.results || [];
+          setDepartments(departmentsList);
         }
       } catch (error) {
-        console.error('Failed to fetch campus/college/department data:', error);
+        console.error('Failed to fetch campus/college/department/student type data:', error);
       } finally {
         setFetchingData(false);
       }
@@ -69,6 +92,24 @@ const UserProfile = ({ user: propUser }) => {
 
     fetchData();
   }, [user?.user_campus, user?.college]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAssignedResolvers = async () => {
+      if (!user || user.role !== 'officer') return;
+      try {
+        const data = await apiService.getAllCategoryResolvers();
+        const resolvers = data?.results || data || [];
+        const my = resolvers.filter(r => String(r.officer) === String(user.id));
+        if (!cancelled) setAssignedResolvers(my);
+      } catch (err) {
+        console.error('Failed to fetch assigned resolvers:', err);
+      }
+    };
+
+    fetchAssignedResolvers();
+    return () => { cancelled = true; };
+  }, [user]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -146,6 +187,8 @@ const UserProfile = ({ user: propUser }) => {
         user_campus: formData.user_campus,
         college: formData.college,
         department: formData.department,
+        student_type: formData.student_type || null,
+        year_of_study: formData.year_of_study ? parseInt(formData.year_of_study, 10) : null,
         phone: formData.phone
       };
 
@@ -174,6 +217,8 @@ const UserProfile = ({ user: propUser }) => {
       user_campus: user?.user_campus || null,
       college: user?.college || null,
       department: user?.department || null,
+      student_type: user?.student_type || '',
+      year_of_study: user?.year_of_study || '',
       phone: user?.phone || ''
     });
     setIsEditing(false);
@@ -486,7 +531,7 @@ const UserProfile = ({ user: propUser }) => {
                   } ${!isEditing ? 'cursor-not-allowed' : ''} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
               />
               <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Must be a valid @gmail.com address.
+                Must be a valid Google account address.
               </p>
             </div>
 
@@ -581,6 +626,63 @@ const UserProfile = ({ user: propUser }) => {
 
             <div>
               <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                Student Type
+              </label>
+              {isEditing ? (
+                studentTypes && studentTypes.length > 0 ? (
+                  <select
+                    name="student_type"
+                    value={formData.student_type || ''}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+                  >
+                    <option value="">Select student type</option>
+                    {studentTypes.map(st => (
+                      <option key={st.id || st.type_name} value={st.type_name}>{st.type_name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    name="student_type"
+                    value={formData.student_type}
+                    onChange={handleInputChange}
+                    placeholder="Enter student type"
+                    className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+                  />
+                )
+              ) : (
+                <input
+                  type="text"
+                  name="student_type"
+                  value={formData.student_type}
+                  readOnly
+                  placeholder="Not provided"
+                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
+                />
+              )}
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                Year of Study
+              </label>
+              <input
+                type="text"
+                name="year_of_study"
+                value={formData.year_of_study}
+                onChange={handleInputChange}
+                readOnly={!isEditing}
+                placeholder={isEditing ? "Enter year of study" : "Not provided"}
+                className={`w-full px-3 py-2 border rounded-lg ${isEditing
+                  ? isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
+                  : isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
+                  } ${!isEditing ? 'cursor-not-allowed' : ''} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+              />
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                 Phone Number
               </label>
               <input
@@ -598,17 +700,35 @@ const UserProfile = ({ user: propUser }) => {
             </div>
           </div>
 
-          <div className={`mt-6 p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-blue-50'} border ${isDark ? 'border-gray-600' : 'border-blue-200'}`}>
-            <h4 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-blue-900'} mb-2`}>
-              📝 Profile Information
-            </h4>
-            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-blue-800'}`}>
-              {isEditing
-                ? 'You can edit your personal information. Email address cannot be changed for security reasons.'
-                : 'Click "Edit Profile" to update your personal information. Some fields may require admin approval.'
-              }
-            </p>
-          </div>
+          {user?.role === 'officer' && (
+            <div className="mt-6 px-6">
+              <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Assigned Resolvers</h4>
+              {assignedResolvers.length === 0 ? (
+                <p className={`text-sm mt-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>No resolver assignments.</p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {assignedResolvers.map(r => (
+                    <li key={r.id} className={`px-3 py-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'}`}>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-medium">{r.category_name || r.category}</div>
+                          <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>{r.scope_label || `${r.campus_name || ''} ${r.college_name || ''} ${r.department_name || ''}`}</div>
+                        </div>
+                        <div className="text-sm">
+                          {r.active ? (
+                            <span className="px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs">Active</span>
+                          ) : (
+                            <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-800 text-xs">Inactive</span>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
     </div>

@@ -26,6 +26,7 @@ const normalizeSummary = (data) => ({
   daily_trend: Array.isArray(data?.daily_trend) ? data.daily_trend : [],
   category_breakdown: Array.isArray(data?.category_breakdown) ? data.category_breakdown : [],
   recent_complaints: Array.isArray(data?.recent_complaints) ? data.recent_complaints : [],
+  admin_dashboard: data?.admin_dashboard || null,
 });
 
 const buildSummaryFromComplaints = (complaints = [], scope = 'officer') => {
@@ -207,11 +208,63 @@ const ComplaintAnalyticsPanel = ({
   }, [loadAnalytics]);
 
   const safeSummary = useMemo(() => summary || normalizeSummary({}), [summary]);
+  const adminDashboard = safeSummary?.admin_dashboard || null;
+  const adminSummary = adminDashboard?.summary || {};
+  const statusDistribution = Array.isArray(adminDashboard?.status_distribution)
+    ? adminDashboard.status_distribution
+    : [];
+  const collegePerformance = Array.isArray(adminDashboard?.college_performance)
+    ? adminDashboard.college_performance
+    : [];
+  const departmentPerformance = Array.isArray(adminDashboard?.department_performance)
+    ? adminDashboard.department_performance
+    : [];
+  const campusPerformance = Array.isArray(adminDashboard?.campus_performance)
+    ? adminDashboard.campus_performance
+    : [];
+  const staffPerformance = Array.isArray(adminDashboard?.top_staff)
+    ? adminDashboard.top_staff
+    : [];
+  const adminDailyTrend = useMemo(
+    () => (Array.isArray(adminDashboard?.daily_trend) ? adminDashboard.daily_trend : []),
+    [adminDashboard],
+  );
+  const adminMonthlyTrend = useMemo(
+    () => (Array.isArray(adminDashboard?.monthly_trend) ? adminDashboard.monthly_trend : []),
+    [adminDashboard],
+  );
+  const adminCategoryStats = Array.isArray(adminDashboard?.category_statistics) ? adminDashboard.category_statistics : [];
+  const adminTransparency = adminDashboard?.transparency || null;
+  const adminSla = adminDashboard?.sla || null;
 
   const trendMax = useMemo(() => {
     if (!safeSummary?.daily_trend?.length) return 0;
     return Math.max(...safeSummary.daily_trend.map((item) => item.count), 1);
   }, [safeSummary]);
+
+  const adminTrendMax = useMemo(() => {
+    if (!adminDailyTrend.length) return 0;
+    return Math.max(...adminDailyTrend.map((item) => item.count), 1);
+  }, [adminDailyTrend]);
+
+  const statusTotal = statusDistribution.reduce((sum, item) => sum + Number(item.count || 0), 0) || 1;
+  const donutSegments = statusDistribution.map((item) => {
+    const accentClass = adminDashboard?.color_map?.[item.key] || statusColors[item.key] || 'bg-gray-500';
+    const colorMap = {
+      'bg-yellow-500': '#EAB308',
+      'bg-blue-500': '#3B82F6',
+      'bg-orange-500': '#F97316',
+      'bg-green-500': '#22C55E',
+      'bg-red-500': '#EF4444',
+      'bg-gray-500': '#6B7280',
+    };
+
+    return {
+      ...item,
+      color: colorMap[accentClass] || '#3B82F6',
+      percent: (Number(item.count || 0) / statusTotal) * 100,
+    };
+  });
 
   const statusEntries = Object.keys(statusLabels).map((key) => ({
     key,
@@ -354,6 +407,264 @@ const ComplaintAnalyticsPanel = ({
           )}
         </div>
       </div>
+
+      {adminDashboard && (
+        <div className="mt-8 space-y-6">
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Admin Intelligence</p>
+                <h4 className="mt-1 text-xl font-bold text-gray-900">System-wide statistics</h4>
+              </div>
+              <p className="text-sm text-gray-500">Realtime metrics for complaints, staff, SLA, and transparency.</p>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
+              {[
+                ['Total complaints', adminSummary.total_complaints ?? 0],
+                ['Resolved', adminSummary.total_resolved_complaints ?? 0],
+                ['Pending', adminSummary.total_pending_complaints ?? 0],
+                ['In progress', adminSummary.total_in_progress_complaints ?? 0],
+                ['Resolution rate', `${adminSummary.complaint_resolution_rate ?? 0}%`],
+                ['Avg resolution', adminSummary.average_resolution_time_label || `${adminSummary.average_resolution_time_hours ?? 0} hrs`],
+                ['Students', adminSummary.total_registered_students ?? 0],
+                ['Active staff', adminSummary.total_active_staff ?? 0],
+                ['Today', adminSummary.complaints_submitted_today ?? 0],
+                ['This month', adminSummary.complaints_this_month ?? 0],
+                ['This year', adminSummary.complaints_this_year ?? 0],
+                ['SLA compliance', `${adminSummary.sla_compliance_rate ?? 0}%`],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+                  <p className="mt-2 text-2xl font-black text-gray-900">{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1fr_1.1fr]">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h4 className="text-lg font-bold text-gray-900">Complaint status distribution</h4>
+                <span className="text-xs text-gray-500">Pie / Donut</span>
+              </div>
+              <div className="mt-5 flex flex-col items-center gap-6 lg:flex-row lg:items-start">
+                <div
+                  className="h-48 w-48 rounded-full"
+                  style={{
+                    background: donutSegments.length
+                      ? `conic-gradient(${donutSegments.map((segment, index) => `${segment.color} ${donutSegments.slice(0, index).reduce((sum, item) => sum + item.percent, 0)}% ${donutSegments.slice(0, index + 1).reduce((sum, item) => sum + item.percent, 0)}%`).join(', ')})`
+                      : '#E5E7EB',
+                  }}
+                >
+                  <div className="mx-auto mt-12 flex h-24 w-24 items-center justify-center rounded-full bg-white text-center shadow-inner">
+                    <div>
+                      <div className="text-lg font-black text-gray-900">{statusTotal === 1 ? 0 : adminSummary.total_complaints ?? 0}</div>
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400">Total</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid flex-1 gap-3">
+                  {donutSegments.map((segment) => (
+                    <div key={segment.key} className="flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2">
+                      <div className="flex items-center gap-3">
+                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: segment.color }} />
+                        <span className="text-sm font-medium text-gray-700">{segment.label}</span>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-500">{segment.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h4 className="text-lg font-bold text-gray-900">Monthly complaint trend</h4>
+                <span className="text-xs text-gray-500">Last 30 days</span>
+              </div>
+              <div className="mt-5 flex h-56 items-end gap-2 overflow-x-auto pb-2">
+                {(adminDailyTrend.length ? adminDailyTrend : safeSummary.daily_trend).map((item) => {
+                  const height = Math.max(8, Math.min(100, ((item.count || item.complaints || 0) / (adminTrendMax || trendMax || 1)) * 100));
+                  return (
+                    <div key={item.date || item.label} className="flex min-w-[24px] flex-1 flex-col items-center gap-2">
+                      <div className="flex h-44 w-full items-end">
+                        <div className={`w-full rounded-t-lg ${accent === 'emerald' ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ height: `${height}%` }} />
+                      </div>
+                      <span className="text-[10px] text-gray-500">{item.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h4 className="text-lg font-bold text-gray-900">College performance</h4>
+                <span className="text-xs text-gray-500">Resolution rank</span>
+              </div>
+              <div className="mt-4 space-y-3">
+                {(collegePerformance.length ? collegePerformance : []).slice(0, 6).map((item) => (
+                  <div key={item.label} className="rounded-xl border border-gray-200 p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-gray-800">{item.label}</span>
+                      <span className="text-gray-500">{item.resolution_rate}%</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.max(item.resolution_rate || 0, 8)}%` }} />
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-500">
+                      <span>Total: {item.total}</span>
+                      <span>Resolved: {item.resolved}</span>
+                      <span>Top: {item.most_common_category}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h4 className="text-lg font-bold text-gray-900">Campus comparison</h4>
+                <span className="text-xs text-gray-500">Fastest vs most active</span>
+              </div>
+              <div className="mt-4 space-y-3">
+                {(campusPerformance.length ? campusPerformance : []).slice(0, 6).map((item) => (
+                  <div key={item.label} className="flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2">
+                    <div>
+                      <p className="font-medium text-gray-800">{item.label}</p>
+                      <p className="text-xs text-gray-500">Total {item.total} | Avg time {item.average_resolution_time} hrs</p>
+                    </div>
+                    <div className="text-right text-sm">
+                      <p className="font-semibold text-gray-900">{item.resolution_rate}%</p>
+                      <p className="text-xs text-gray-500">Resolved</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h4 className="text-lg font-bold text-gray-900">Department performance</h4>
+              <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                    <tr>
+                      <th className="px-4 py-3">Department</th>
+                      <th className="px-4 py-3">Total</th>
+                      <th className="px-4 py-3">Resolution</th>
+                      <th className="px-4 py-3">First response</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {(departmentPerformance.length ? departmentPerformance : []).slice(0, 6).map((item) => (
+                      <tr key={item.label}>
+                        <td className="px-4 py-3 font-medium text-gray-800">{item.label}</td>
+                        <td className="px-4 py-3 text-gray-600">{item.total}</td>
+                        <td className="px-4 py-3 text-gray-600">{item.resolution_rate}%</td>
+                        <td className="px-4 py-3 text-gray-600">{item.first_response_time} hrs</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h4 className="text-lg font-bold text-gray-900">Top staff performance</h4>
+              <div className="mt-4 space-y-3">
+                {(staffPerformance.length ? staffPerformance : []).slice(0, 5).map((item, index) => (
+                  <div key={item.label} className="rounded-xl border border-gray-200 p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-800">#{index + 1} {item.label}</p>
+                        <p className="text-xs text-gray-500">Overdue {item.overdue} | Escalated {item.escalated}</p>
+                      </div>
+                      <div className="text-right text-sm text-gray-600">
+                        <p>Resolution {item.resolution_rate}%</p>
+                        <p>Avg {item.average_resolution_time} hrs</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h4 className="text-lg font-bold text-gray-900">Monthly comparison</h4>
+              <span className="text-xs text-gray-500">Year view</span>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
+              {adminMonthlyTrend.slice(-6).map((item) => (
+                <div key={item.label} className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs text-gray-500">{item.label}</p>
+                  <div className="mt-2 h-24 rounded-lg bg-white p-2">
+                    <div
+                      className={`h-full rounded-lg ${accent === 'emerald' ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                      style={{ height: `${Math.max(10, Math.min(100, (item.count || 0) * 15))}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-lg font-black text-gray-900">{item.count}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h4 className="text-lg font-bold text-gray-900">SLA monitoring</h4>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {[
+                  ['Within deadline', adminSla?.within_deadline ?? 0],
+                  ['Overdue', adminSla?.overdue ?? 0],
+                  ['Compliance', `${adminSla?.compliance_rate ?? 0}%`],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-gray-50 p-4">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
+                    <p className="mt-2 text-2xl font-black text-gray-900">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h4 className="text-lg font-bold text-gray-900">Transparency & accountability</h4>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {[
+                  ['Anonymous', adminTransparency?.anonymous ?? adminSummary.anonymous_complaints ?? 0],
+                  ['Identified', adminTransparency?.identified ?? adminSummary.identified_complaints ?? 0],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-gray-50 p-4">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
+                    <p className="mt-2 text-2xl font-black text-gray-900">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h4 className="text-lg font-bold text-gray-900">Complaint categories</h4>
+              <span className="text-xs text-gray-500">Most common</span>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {adminCategoryStats.slice(0, 8).map((item) => (
+                <div key={item.label} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-sm font-medium text-gray-800">{item.label}</p>
+                  <p className="mt-2 text-2xl font-black text-gray-900">{item.count}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

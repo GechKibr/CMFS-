@@ -12,10 +12,10 @@ const PublicFooter = () => {
   ];
 
   const socialLinks = [
-    { label: 'Facebook', href: 'https://www.facebook.com/' },
-    { label: 'Twitter', href: 'https://x.com/' },
-    { label: 'LinkedIn', href: 'https://www.linkedin.com/' },
-    { label: 'YouTube', href: 'https://www.youtube.com/' },
+    { label: 'Facebook', href: 'https://web.facebook.com/TheUniversityofGondar' },
+    { label: 'Twitter', href: 'https://x.com/UoGondar' },
+    { label: 'LinkedIn', href: 'https://et.linkedin.com/school/university-of-gondar' },
+    { label: 'YouTube', href: 'https://www.youtube.com/@UniversityGondar' },
   ];
 
   return (
@@ -37,7 +37,7 @@ const PublicFooter = () => {
             </div>
 
             <p className={`max-w-2xl text-sm leading-7 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              A modern service operations platform for transparent complaint tracking, appointment handling,
+              A modern service operations platform for  complaint tracking, appointment handling,
               quality templates, and real-time helpdesk communication.
             </p>
 
@@ -98,7 +98,7 @@ const PublicFooter = () => {
         </div>
 
         <div className={`mt-10 flex flex-col gap-3 border-t pt-6 text-sm sm:flex-row sm:items-center sm:justify-between ${isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-600'}`}>
-          <p>© {currentYear} Complaint Management and Service Handling Platform. All rights reserved.</p>
+          <p>© {currentYear} Complaint Management and Feedback Tracking Platform.</p>
           <a
             href="/landing"
             className={`font-medium transition-colors ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-700 hover:text-slate-900'}`}

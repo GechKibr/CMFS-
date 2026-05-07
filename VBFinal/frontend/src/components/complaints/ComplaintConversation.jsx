@@ -120,7 +120,6 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
       message: comment.message,
       title: null,
       response_type: comment.comment_type,
-      rating: comment.rating,
       created_at: comment.created_at,
       updated_at: comment.updated_at,
       own: comment.author?.id === user?.id,

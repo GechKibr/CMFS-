@@ -3,8 +3,8 @@ from datetime import timedelta
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from accounts.models import Officer, User
-from complaints.models import Category, CategoryResolver, Comment, Complaint, ComplaintCC, Response
+from accounts.models import Department, Officer, Student, User
+from complaints.models import Appointment, Category, CategoryResolver, Comment, Complaint, ComplaintCC, Response
 
 
 class ComplaintSecurityAPITests(APITestCase):
@@ -99,6 +99,124 @@ class ComplaintSecurityAPITests(APITestCase):
         created = Complaint.objects.get(title='CC office complaint')
         cc_emails = list(created.cc_list.values_list('email', flat=True))
         self.assertIn(self.officer_one.email, cc_emails)
+
+    def test_public_dashboard_stats_endpoint_returns_summary(self):
+        Appointment.objects.create(
+            requested_by=self.user_one,
+            officer=self.officer_one,
+            description='Landing page stats appointment',
+            status='pending',
+        )
+
+        response = self.client.get(reverse('complaint-public-stats'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('summary', response.data)
+        self.assertIn('daily_trend', response.data)
+        self.assertIn('recent_activity', response.data)
+        self.assertGreaterEqual(response.data['summary']['total_complaints'], 3)
+
+    def test_complaint_creation_filters_cc_office_resolvers_by_scope(self):
+        department_one = Department.objects.create(
+            department_name='Business Operations',
+            department_college='business_economics',
+        )
+        department_two = Department.objects.create(
+            department_name='Accounting',
+            department_college='business_economics',
+        )
+        Student.objects.create(
+            user=self.user_one,
+            student_type='undergraduate',
+            campus_id='maraki',
+            department=department_one,
+            year_of_study=2,
+        )
+
+        CategoryResolver.objects.create(
+            category=self.category,
+            campus=None,
+            college=None,
+            department=department_one,
+            officer=self.officer_one,
+            escalation_time=timedelta(hours=1),
+        )
+        CategoryResolver.objects.create(
+            category=self.category,
+            campus=None,
+            college=None,
+            department=department_two,
+            officer=self.officer_two,
+            escalation_time=timedelta(hours=1),
+        )
+
+        self.client.force_authenticate(user=self.user_one)
+        response = self.client.post(
+            reverse('complaint-list'),
+            {
+                'title': 'Scoped CC office complaint',
+                'description': 'Complaint with scope-aware CC office selection',
+                'category': self.category.pk,
+                'cc_office_ids': [self.category.pk],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        created = Complaint.objects.get(title='Scoped CC office complaint')
+        cc_emails = set(created.cc_list.values_list('email', flat=True))
+        self.assertSetEqual(cc_emails, {self.officer_one.email})
+
+    def test_complaint_routed_to_all_matching_resolvers_for_same_scope(self):
+        department = Department.objects.create(
+            department_name='Business Operations',
+            department_college='business_economics',
+        )
+        Student.objects.create(
+            user=self.user_one,
+            student_type='undergraduate',
+            campus_id='maraki',
+            department=department,
+            year_of_study=2,
+        )
+        resolver_one = CategoryResolver.objects.create(
+            category=self.category,
+            campus=None,
+            college=None,
+            department=department,
+            officer=self.officer_one,
+            escalation_time=timedelta(hours=1),
+        )
+        resolver_two = CategoryResolver.objects.create(
+            category=self.category,
+            campus=None,
+            college=None,
+            department=department,
+            officer=self.officer_two,
+            escalation_time=timedelta(hours=1),
+        )
+
+        self.client.force_authenticate(user=self.user_one)
+        response = self.client.post(
+            reverse('complaint-list'),
+            {
+                'title': 'Department scoped complaint',
+                'description': 'Complaint for all department resolvers',
+                'category': self.category.pk,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        complaint = Complaint.objects.get(title='Department scoped complaint')
+        assignments = complaint.assignments.all()
+        self.assertEqual(assignments.count(), 2)
+        self.assertIsNone(complaint.assigned_officer)
+        self.assertEqual(complaint.current_resolver.department, department)
+        self.assertSetEqual(
+            set(assignments.values_list('resolver_id', flat=True)),
+            {resolver_one.id, resolver_two.id},
+        )
 
     def test_admin_can_bulk_assign_multiple_officers_to_category(self):
         self.client.force_authenticate(user=self.admin)
@@ -250,3 +368,22 @@ class ComplaintSecurityAPITests(APITestCase):
         complaint.refresh_from_db()
         self.assertEqual(complaint.assigned_officer, self.officer_two)
         self.assertEqual(complaint.current_resolver.officer, self.officer_two)
+
+    def test_admin_analytics_includes_dashboard_statistics(self):
+        Appointment.objects.create(
+            requested_by=self.user_one,
+            officer=self.officer_one,
+            description='Dashboard stats appointment',
+            status='pending',
+        )
+
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(reverse('complaint-analytics'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('admin_dashboard', response.data)
+        self.assertIsNotNone(response.data['admin_dashboard'])
+        self.assertIn('summary', response.data['admin_dashboard'])
+        self.assertIn('status_distribution', response.data['admin_dashboard'])
+        self.assertIn('college_performance', response.data['admin_dashboard'])
+        self.assertIn('staff_performance', response.data['admin_dashboard'])

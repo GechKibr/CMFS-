@@ -33,21 +33,23 @@ class ComplaintService:
             if not candidates:
                 return None
 
-            matched_resolver = max(candidates, key=lambda resolver: (resolver.scope_rank(), -resolver.id))
+            top_rank = max(resolver.scope_rank() for resolver in candidates)
+            matched_resolvers = [resolver for resolver in candidates if resolver.scope_rank() == top_rank]
+            representative = matched_resolvers[0]
 
-            complaint.assigned_officer = matched_resolver.officer
-            complaint.current_resolver = matched_resolver
-            complaint.set_escalation_deadline(matched_resolver.escalation_time, base_time=complaint.created_at)
+            complaint.current_resolver = representative
+            complaint.set_escalation_deadline(representative.escalation_time, base_time=complaint.created_at)
             complaint.save()
 
-            Assignment.objects.create(
-                complaint=complaint,
-                officer=matched_resolver.officer,
-                resolver=matched_resolver,
-                reason='initial',
-            )
+            for resolver in matched_resolvers:
+                Assignment.objects.create(
+                    complaint=complaint,
+                    officer=resolver.officer,
+                    resolver=resolver,
+                    reason='initial',
+                )
 
-            return matched_resolver.officer
+            return matched_resolvers
         except Exception as e:
             logger.error(f"Assignment failed: {e}")
             return None

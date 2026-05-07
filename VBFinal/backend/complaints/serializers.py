@@ -236,12 +236,12 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
 
         cc_office_officer_ids = set()
         if office_categories.exists():
-            cc_office_officer_ids.update(
-                CategoryResolver.objects.filter(
-                    category__in=office_categories,
-                    active=True,
-                ).values_list("officer_id", flat=True)
-            )
+            for resolver in CategoryResolver.objects.filter(
+                category__in=office_categories,
+                active=True,
+            ).select_related("category", "department", "officer"):
+                if resolver.matches_complaint_scope(complaint):
+                    cc_office_officer_ids.add(resolver.officer_id)
 
         cc_officer_ids = {int(officer_id) for officer_id in cc_officer_ids}
         cc_officer_ids.update(cc_office_officer_ids)
@@ -346,7 +346,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Comment
-        fields = ["id", "complaint", "author", "comment_type", "message", "rating", "created_at", "updated_at"]
+        fields = ["id", "complaint", "author", "comment_type", "message", "created_at", "updated_at"]
 
 
 class ResponseSerializer(serializers.ModelSerializer):

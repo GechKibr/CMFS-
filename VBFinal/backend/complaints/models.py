@@ -448,7 +448,6 @@ class Assignment(models.Model):
 class Comment(models.Model):
     COMMENT_TYPE_CHOICES = [
         ('comment', 'Comment'),
-        ('rating', 'Rating'),
     ]
 
     complaint = models.ForeignKey(Complaint,on_delete=models.CASCADE, related_name="comments")
@@ -463,13 +462,6 @@ class Comment(models.Model):
     )
     message = models.TextField()
     
-    # Rating fields
-    rating = models.IntegerField(
-        null=True,
-        blank=True,
-        help_text="Rating from 1 to 5 stars"
-    )
-    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -481,14 +473,9 @@ class Comment(models.Model):
         ]
 
     def clean(self):
-        from django.core.exceptions import ValidationError
-        if self.comment_type == 'rating':
-            if not self.rating or self.rating < 1 or self.rating > 5:
-                raise ValidationError("Rating must be between 1 and 5")
+        pass
         
     def __str__(self):
-        if self.comment_type == 'rating':
-            return f"Rating ({self.rating}/5) by {self.author} on {self.complaint.complaint_id}"
         return f"Comment by {self.author} on {self.complaint.complaint_id}"
 
 

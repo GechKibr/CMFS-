@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import PublicNavbar from '../components/UI/PublicNavbar';
 import PublicFooter from '../components/UI/PublicFooter';
+import apiService from '../services/api';
 
 const featureCards = [
   {
@@ -121,7 +122,7 @@ const serviceMetrics = [
   },
 ];
 
-const quickStats = [
+const baseQuickStats = [
   { label: 'Live dashboards', value: '01' },
   { label: 'Service channels', value: '04' },
   { label: 'Workflow stages', value: '05' },
@@ -276,6 +277,49 @@ const renderFeaturePreview = (slug, isDark) => {
 const LandingPage = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchDashboardStats = async () => {
+      try {
+        setStatsLoading(true);
+        const data = await apiService.getPublicDashboardStats();
+        if (!cancelled) {
+          setDashboardStats(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDashboardStats(null);
+        }
+        console.error('Failed to load landing dashboard stats:', error);
+      } finally {
+        if (!cancelled) {
+          setStatsLoading(false);
+        }
+      }
+    };
+
+    fetchDashboardStats();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const summary = dashboardStats?.summary || {};
+  const today = dashboardStats?.today || {};
+  const dailyTrend = Array.isArray(dashboardStats?.daily_trend) ? dashboardStats.daily_trend : [];
+  const activityFeed = Array.isArray(dashboardStats?.recent_activity) ? dashboardStats.recent_activity : [];
+
+  const quickStats = statsLoading
+    ? baseQuickStats
+    : [
+        { label: 'Open complaints', value: String(summary.open_complaints ?? 0).padStart(2, '0') },
+        { label: 'Today\'s complaints', value: String(today.complaints_created ?? 0).padStart(2, '0') },
+        { label: 'Active resolvers', value: String(summary.active_category_resolvers ?? 0).padStart(2, '0') },
+      ];
 
   const scrollToSection = (id) => {
     if (typeof document === 'undefined') return;
@@ -363,11 +407,15 @@ const LandingPage = () => {
                         <div className="mt-3 grid grid-cols-2 gap-3">
                           <div className="rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-900">
                             <p className="text-xs text-slate-500 dark:text-slate-400">Open complaints</p>
-                            <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">18</p>
+                            <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
+                              {statsLoading ? '—' : String(summary.open_complaints ?? 0)}
+                            </p>
                           </div>
                           <div className="rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-900">
                             <p className="text-xs text-slate-500 dark:text-slate-400">Appointments</p>
-                            <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">12</p>
+                            <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
+                              {statsLoading ? '—' : String(summary.total_appointments ?? 0)}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -376,18 +424,29 @@ const LandingPage = () => {
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Response trend</p>
                           <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-300">
-                            Improving
+                            {statsLoading ? 'Loading' : 'Live data'}
                           </span>
                         </div>
                         <div className="mt-4 flex h-28 items-end gap-2">
-                          {[42, 58, 36, 75, 64, 82, 70].map((height) => (
-                            <div key={height} className="flex-1 rounded-t-2xl bg-slate-200/70 dark:bg-slate-800/80">
-                              <div
-                                className="rounded-t-2xl bg-gradient-to-t from-blue-600 to-cyan-400"
-                                style={{ height: `${height}%` }}
-                              />
-                            </div>
-                          ))}
+                          {(dailyTrend.length > 0 ? dailyTrend : [
+                            { label: 'Mon', complaints: 3 },
+                            { label: 'Tue', complaints: 5 },
+                            { label: 'Wed', complaints: 4 },
+                            { label: 'Thu', complaints: 6 },
+                            { label: 'Fri', complaints: 5 },
+                            { label: 'Sat', complaints: 7 },
+                            { label: 'Sun', complaints: 6 },
+                          ]).map((item) => {
+                            const barHeight = Math.max(18, Math.min(100, (item.complaints ?? item.count ?? 0) * 12));
+                            return (
+                              <div key={item.label} className="flex-1 rounded-t-2xl bg-slate-200/70 dark:bg-slate-800/80">
+                                <div
+                                  className="rounded-t-2xl bg-gradient-to-t from-blue-600 to-cyan-400"
+                                  style={{ height: `${barHeight}%` }}
+                                />
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -400,13 +459,13 @@ const LandingPage = () => {
                         </div>
                         <div className="mt-4 grid gap-3 sm:grid-cols-3">
                           {[
-                            ['Submitted', '22'],
-                            ['In review', '11'],
-                            ['Resolved', '48'],
+                            ['Submitted', summary.total_complaints ?? 0],
+                            ['In review', summary.open_complaints ?? 0],
+                            ['Resolved', summary.resolved_complaints ?? 0],
                           ].map(([label, value], index) => (
                             <div key={label} className={`rounded-2xl p-3 ${index === 2 ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white' : isDark ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-900'} shadow-sm`}>
                               <p className={`text-xs ${index === 2 ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>{label}</p>
-                              <p className="mt-1 text-2xl font-black">{value}</p>
+                              <p className="mt-1 text-2xl font-black">{statsLoading ? '—' : value}</p>
                             </div>
                           ))}
                         </div>
@@ -418,16 +477,18 @@ const LandingPage = () => {
                           <span className="text-xs text-slate-500 dark:text-slate-400">Live feed</span>
                         </div>
                         <div className="mt-4 space-y-3">
-                          {[
-                            ['Complaint routed to Facilities', '2 min ago'],
-                            ['Appointment approved for tomorrow', '12 min ago'],
-                            ['Support reply sent to user', '24 min ago'],
-                          ].map(([text, time], index) => (
-                            <div key={text} className="flex items-start gap-3">
+                          {(activityFeed.length > 0 ? activityFeed : [
+                            { kind: 'complaint', title: 'Complaint routed to Facilities', detail: 'Facilities', timestamp: '2 min ago' },
+                            { kind: 'appointment', title: 'Appointment approved for tomorrow', detail: 'Support follow-up', timestamp: '12 min ago' },
+                            { kind: 'complaint', title: 'Support reply sent to user', detail: 'Live helpdesk', timestamp: '24 min ago' },
+                          ]).map((item, index) => (
+                            <div key={`${item.kind || 'item'}-${item.title}-${index}`} className="flex items-start gap-3">
                               <span className={`mt-1 h-2.5 w-2.5 rounded-full ${index === 0 ? 'bg-blue-500' : index === 1 ? 'bg-cyan-500' : 'bg-emerald-500'}`} />
                               <div>
-                                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{text}</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">{time}</p>
+                                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{item.title}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  {item.detail} • {statsLoading ? item.timestamp : new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
                               </div>
                             </div>
                           ))}

@@ -487,19 +487,6 @@ class ApiService {
     });
   }
 
-  // Ratings
-  async addComplaintRating(complaintId, rating, feedback) {
-    return this.request('/comments/', {
-      method: 'POST',
-      body: JSON.stringify({
-        complaint: complaintId,
-        comment_type: 'rating',
-        message: feedback || 'No feedback provided',
-        rating: rating
-      }),
-    });
-  }
-
   async getUsers(page = null, pageSize = null) {
     let url = '/accounts/';
     const params = new URLSearchParams();
@@ -731,6 +718,12 @@ class ApiService {
     }
 
     return { results: allResolvers, count: allResolvers.length };
+  }
+
+  async getPublicDashboardStats() {
+    return this.request('/complaints/public-stats/', {
+      skipAuth: true,
+    });
   }
 
   async createCategoryResolver(data) {

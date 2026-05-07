@@ -477,7 +477,6 @@ const ChatPage = () => {
               <div>
                 <p className="text-xs uppercase tracking-wider text-slate-500">Video Conference</p>
                 <h1 className="text-lg font-semibold text-slate-900">{session?.title || 'Session Conversation'}</h1>
-                <p className="mt-1 text-xs text-slate-600">Live participants, camera feeds, and call controls stay on the left.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className={`rounded-full px-3 py-1 font-semibold ${conferenceConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -683,10 +682,6 @@ const ChatPage = () => {
                 )}
               </div>
             </div>
-
-            <p className="text-[11px] text-slate-500">
-              Multi-user conference runs on LiveKit SFU. Ensure LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET are configured in backend.
-            </p>
           </div>
         </section>
 

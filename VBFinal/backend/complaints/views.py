@@ -45,7 +45,7 @@ from .serializers import (
     PublicAnnouncementSerializer,
     ResponseSerializer,
 )
-from .realtime import build_complaint_analytics
+from .realtime import build_complaint_analytics, build_public_dashboard_stats
 from notifications.realtime import broadcast_notification_update
 from .service import service
 from .availability_service import AvailabilityService
@@ -396,6 +396,10 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    @action(detail=False, methods=['get'], url_path='public-stats', permission_classes=[permissions.AllowAny])
+    def public_stats(self, request):
+        return DRFResponse(build_public_dashboard_stats(), status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'], url_path='assign')
     def assign(self, request, pk=None):
         complaint = get_object_or_404(Complaint, pk=pk)
@@ -675,10 +679,10 @@ class CommentViewSet(viewsets.ModelViewSet):
             raise PermissionDenied('You do not have access to this complaint.')
 
         comment_type = serializer.validated_data.get('comment_type', 'comment')
-        if complaint.submitted_by == user and comment_type in ['comment', 'rating']:
+        if complaint.submitted_by == user and comment_type == 'comment':
             has_response = Response.objects.filter(complaint=complaint).exists()
             if not has_response:
-                raise ValidationError({'detail': 'You can add a comment or rating only after an officer responds to your complaint.'})
+                raise ValidationError({'detail': 'You can add a comment only after an officer responds to your complaint.'})
 
         serializer.save(author=user)
 

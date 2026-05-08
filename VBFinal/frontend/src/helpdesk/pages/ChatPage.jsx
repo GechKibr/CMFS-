@@ -25,7 +25,7 @@ const LivekitTrackTile = ({ publication, participantName, isLocal }) => {
   }, [track]);
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2">
+    <div className="grid h-full w-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2">
       {isVideo ? (
         <video ref={mediaRef} autoPlay playsInline muted={isLocal} className="aspect-video w-full rounded-lg bg-slate-100 object-cover" />
       ) : (

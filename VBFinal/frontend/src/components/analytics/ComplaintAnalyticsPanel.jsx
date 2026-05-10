@@ -421,10 +421,7 @@ const ComplaintAnalyticsPanel = ({
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
               {[
-                ['Total complaints', adminSummary.total_complaints ?? 0],
-                ['Resolved', adminSummary.total_resolved_complaints ?? 0],
-                ['Pending', adminSummary.total_pending_complaints ?? 0],
-                ['In progress', adminSummary.total_in_progress_complaints ?? 0],
+               
                 ['Resolution rate', `${adminSummary.complaint_resolution_rate ?? 0}%`],
                 ['Avg resolution', adminSummary.average_resolution_time_label || `${adminSummary.average_resolution_time_hours ?? 0} hrs`],
                 ['Students', adminSummary.total_registered_students ?? 0],

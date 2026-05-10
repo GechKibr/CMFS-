@@ -214,11 +214,11 @@ const RegisterComplete = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className={labelCls}>First Name *</label>
+                  <label className={labelCls}>First Name </label>
                   <input type="text" name="first_name" value={formData.first_name} onChange={handleChange} className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Last Name *</label>
+                  <label className={labelCls}>Last Name </label>
                   <input type="text" name="last_name" value={formData.last_name} onChange={handleChange} className={inputCls} />
                 </div>
               </div>
@@ -235,13 +235,13 @@ const RegisterComplete = () => {
               </div>
 
               <div>
-                <label className={labelCls}>Campus ID *</label>
+                <label className={labelCls}>Campus ID </label>
                 <input type="text" name="campus_id" required value={formData.campus_id} onChange={handleChange} placeholder="UoG/..." className={inputCls} />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className={labelCls}>Student Type</label>
+                  <label className={labelCls}>Program Status </label>
                   <select name="student_type" value={formData.student_type} onChange={handleChange} className={inputCls}>
                     <option value="">{studentTypeLoading ? 'Loading student types...' : 'Select student type'}</option>
                     {studentTypes.map((type) => (
@@ -251,7 +251,7 @@ const RegisterComplete = () => {
                 </div>
                 <div>
                   <label className={labelCls}>Phone Number</label>
-                  <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="+251..." className={inputCls} />
+                  <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="09.." className={inputCls} />
                 </div>
               </div>
 
@@ -268,7 +268,7 @@ const RegisterComplete = () => {
               </div>
 
               <div>
-                <label className={labelCls}>Campus *</label>
+                <label className={labelCls}>Campus </label>
                 <select name="user_campus" value={formData.user_campus} onChange={handleChange} required className={inputCls}>
                   <option value="">Select your campus</option>
                   {campuses.map(campus => (
@@ -288,7 +288,7 @@ const RegisterComplete = () => {
               </div>
 
               <div>
-                <label className={labelCls}>Department *</label>
+                <label className={labelCls}>Department </label>
                 <select name="department" value={formData.department} onChange={handleChange} required disabled={!formData.college} className={inputCls}>
                   <option value="">{formData.college ? 'Select your department' : 'Select a college first'}</option>
                   {departments.map(department => (

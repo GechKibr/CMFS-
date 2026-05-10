@@ -167,6 +167,8 @@ class TemplateField(models.Model):
     options = models.JSONField(default=list, blank=True)  # For choice/checkbox fields
     is_required = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
+    min_value = models.FloatField(null=True, blank=True)  # For number fields
+    max_value = models.FloatField(null=True, blank=True)  # For number fields
     
     class Meta:
         ordering = ['order']

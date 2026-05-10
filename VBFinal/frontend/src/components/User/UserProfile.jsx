@@ -7,6 +7,7 @@ const UserProfile = ({ user: propUser }) => {
   const { isDark } = useTheme();
   const { user: authUser, setAuth } = useAuth();
   const user = propUser || authUser;
+  const studentProfile = user?.student_profile || {};
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -32,12 +33,12 @@ const UserProfile = ({ user: propUser }) => {
     last_name: user?.last_name || '',
     username: user?.username || '',
     gmail_account: user?.gmail_account || '',
-    campus_id: user?.campus_id || '',
-    user_campus: user?.user_campus || null,
-    college: user?.college || null,
-    department: user?.department || null,
-    student_type: user?.student_type || '',
-    year_of_study: user?.year_of_study || '',
+    campus_id: user?.campus_id || studentProfile.campus_id || '',
+    user_campus: user?.user_campus || studentProfile.campus_id || null,
+    college: user?.college || studentProfile.department_detail?.department_college || null,
+    department: user?.department || studentProfile.department || null,
+    student_type: user?.student_type || studentProfile.student_type || '',
+    year_of_study: user?.year_of_study || studentProfile.year_of_study || '',
     phone: user?.phone || ''
   });
 
@@ -47,15 +48,15 @@ const UserProfile = ({ user: propUser }) => {
       last_name: user?.last_name || '',
       username: user?.username || '',
       gmail_account: user?.gmail_account || '',
-      campus_id: user?.campus_id || '',
-      user_campus: user?.user_campus || null,
-      college: user?.college || null,
-      department: user?.department || null,
-      student_type: user?.student_type || '',
-      year_of_study: user?.year_of_study || '',
+      campus_id: user?.campus_id || studentProfile.campus_id || '',
+      user_campus: user?.user_campus || studentProfile.campus_id || null,
+      college: user?.college || studentProfile.department_detail?.department_college || null,
+      department: user?.department || studentProfile.department || null,
+      student_type: user?.student_type || studentProfile.student_type || '',
+      year_of_study: user?.year_of_study || studentProfile.year_of_study || '',
       phone: user?.phone || ''
     });
-  }, [user?.id, user?.first_name, user?.last_name, user?.username, user?.gmail_account, user?.campus_id, user?.user_campus, user?.college, user?.department, user?.student_type, user?.year_of_study, user?.phone]);
+  }, [user?.id, user?.first_name, user?.last_name, user?.username, user?.gmail_account, user?.campus_id, user?.user_campus, user?.college, user?.department, user?.student_type, user?.year_of_study, user?.phone, studentProfile.campus_id, studentProfile.student_type, studentProfile.year_of_study, studentProfile.department, studentProfile.department_detail?.department_college]);
 
   // Fetch campuses on mount
   useEffect(() => {
@@ -72,14 +73,16 @@ const UserProfile = ({ user: propUser }) => {
         setCampuses(campusList);
         setStudentTypes(studentTypeList.filter(item => item && item.is_active !== false).sort((a, b) => (a.type_name || '').localeCompare(b.type_name || '')));
 
-        if (user?.user_campus) {
-          const collegesData = await apiService.getColleges(user.user_campus);
+        const campusCode = user?.user_campus || studentProfile.campus_id;
+        if (campusCode) {
+          const collegesData = await apiService.getColleges(campusCode);
           const collegesList = Array.isArray(collegesData) ? collegesData : collegesData.results || [];
           setColleges(collegesList);
         }
 
-        if (user?.college) {
-          const departmentsData = await apiService.getDepartments(user.college);
+        const collegeCode = user?.college || studentProfile.department_detail?.department_college;
+        if (collegeCode) {
+          const departmentsData = await apiService.getDepartments(collegeCode);
           const departmentsList = Array.isArray(departmentsData) ? departmentsData : departmentsData.results || [];
           setDepartments(departmentsList);
         }
@@ -91,7 +94,7 @@ const UserProfile = ({ user: propUser }) => {
     };
 
     fetchData();
-  }, [user?.user_campus, user?.college]);
+  }, [user?.user_campus, user?.college, studentProfile.campus_id, studentProfile.department_detail?.department_college]);
 
   useEffect(() => {
     let cancelled = false;
@@ -283,6 +286,10 @@ const UserProfile = ({ user: propUser }) => {
     const dept = departments.find(d => d.id === deptId);
     return dept?.department_name || 'Unknown Department';
   }
+
+  const resolvedCampus = formData.user_campus || user?.user_campus || studentProfile.campus_id || '';
+  const resolvedCollege = formData.college || user?.college || studentProfile.department_detail?.department_college || '';
+  const resolvedDepartment = formData.department || user?.department || studentProfile.department || '';
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -555,7 +562,7 @@ const UserProfile = ({ user: propUser }) => {
               ) : (
                 <input
                   type="text"
-                  value={getCampusName(user?.user_campus)}
+                  value={getCampusName(resolvedCampus)}
                   readOnly
                   className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
                 />
@@ -572,8 +579,8 @@ const UserProfile = ({ user: propUser }) => {
                   onChange={handleCollegeChange}
                   disabled={!formData.user_campus}
                   className={`w-full px-3 py-2 border rounded-lg ${!formData.user_campus
-                      ? isDark ? 'bg-gray-600 border-gray-600 text-gray-400' : 'bg-gray-100 border-gray-300 text-gray-500'
-                      : isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
+                    ? isDark ? 'bg-gray-600 border-gray-600 text-gray-400' : 'bg-gray-100 border-gray-300 text-gray-500'
+                    : isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
                     } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
                 >
                   <option value="">Select College</option>
@@ -586,7 +593,7 @@ const UserProfile = ({ user: propUser }) => {
               ) : (
                 <input
                   type="text"
-                  value={getCollegeName(user?.college)}
+                  value={getCollegeName(resolvedCollege)}
                   readOnly
                   className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
                 />
@@ -603,8 +610,8 @@ const UserProfile = ({ user: propUser }) => {
                   onChange={handleDepartmentChange}
                   disabled={!formData.college}
                   className={`w-full px-3 py-2 border rounded-lg ${!formData.college
-                      ? isDark ? 'bg-gray-600 border-gray-600 text-gray-400' : 'bg-gray-100 border-gray-300 text-gray-500'
-                      : isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
+                    ? isDark ? 'bg-gray-600 border-gray-600 text-gray-400' : 'bg-gray-100 border-gray-300 text-gray-500'
+                    : isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
                     } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
                 >
                   <option value="">Select Department</option>
@@ -617,7 +624,7 @@ const UserProfile = ({ user: propUser }) => {
               ) : (
                 <input
                   type="text"
-                  value={getDepartmentName(user?.department)}
+                  value={getDepartmentName(resolvedDepartment)}
                   readOnly
                   className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
                 />

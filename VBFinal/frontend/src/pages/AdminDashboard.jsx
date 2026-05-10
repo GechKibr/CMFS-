@@ -10,7 +10,6 @@ import UserManagement from '../components/Admin/UserManagement';
 import SystemManagement from '../components/Admin/SystemManagement';
 import FeedbackTemplateManagement from '../components/Admin/FeedbackTemplateManagement';
 import AdminComplaints from '../components/Admin/AdminComplaints';
-import ContactManagement from '../components/Admin/ContactManagement';
 import AdminProfile from '../components/Admin/AdminProfile';
 import ComplaintAnalyticsPanel from '../components/analytics/ComplaintAnalyticsPanel';
 
@@ -42,7 +41,6 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
       'institutions',
       'users',
       'feedback-templates',
-      'contact',
       'system',
       'profile',
     ];
@@ -98,7 +96,6 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
     { id: 'institutions', name: 'Institutions', icon: '🏛️' },
     { id: 'users', name: 'Users', icon: '👤' },
     { id: 'feedback-templates', name: 'Feedback Templates', icon: '📋' },
-    { id: 'contact', name: 'Contact', icon: '✉️' },
     { id: 'system', name: 'System', icon: '⚙️' },
     { id: 'helpdesk', name: 'Helpdesk', icon: '🎧' },
     { id: 'profile', name: 'Profile', icon: '👤' }
@@ -138,8 +135,6 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
         return <UserManagement />;
       case 'feedback-templates':
         return <FeedbackTemplateManagement />;
-      case 'contact':
-        return <ContactManagement />;
       case 'system':
         return <SystemManagement />;
       case 'profile':

@@ -8,7 +8,7 @@ import hashlib
 class TemplateFieldSerializer(serializers.ModelSerializer):
     class Meta:
         model = TemplateField
-        fields = ['id', 'label', 'field_type', 'options', 'is_required', 'order']
+        fields = ['id', 'label', 'field_type', 'options', 'is_required', 'order', 'min_value', 'max_value']
 
 
 class FeedbackTemplateSerializer(serializers.ModelSerializer):

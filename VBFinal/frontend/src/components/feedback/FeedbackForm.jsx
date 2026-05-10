@@ -35,6 +35,43 @@ const FeedbackForm = ({ templateId, onSubmit }) => {
     e.preventDefault();
     setSubmitting(true);
 
+    // Validate number fields with min/max constraints
+    let validationError = null;
+    for (const field of template.fields) {
+      const value = answers[field.id];
+
+      if (field.field_type === 'number' && value !== '' && value != null) {
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          if (field.min_value != null && numValue < field.min_value) {
+            validationError = `"${field.label}" must be at least ${field.min_value}`;
+            break;
+          }
+          if (field.max_value != null && numValue > field.max_value) {
+            validationError = `"${field.label}" must not exceed ${field.max_value}`;
+            break;
+          }
+        }
+      }
+
+      // Check required fields
+      if (field.is_required) {
+        if (field.field_type === 'checkbox' && (!value || value.length === 0)) {
+          validationError = `"${field.label}" is required`;
+          break;
+        } else if (field.field_type !== 'checkbox' && (!value || (typeof value === 'string' && value.trim() === ''))) {
+          validationError = `"${field.label}" is required`;
+          break;
+        }
+      }
+    }
+
+    if (validationError) {
+      alert(validationError);
+      setSubmitting(false);
+      return;
+    }
+
     const formattedAnswers = template.fields.map(field => {
       const answer = { field_id: field.id };
       const value = answers[field.id];

@@ -513,8 +513,8 @@ const FieldEditor = ({ field, index, totalFields, onUpdate, onRemove, onMove }) 
               <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Value</label>
               <input
                 type="number"
-                value={field.min || ''}
-                onChange={(e) => onUpdate({ min: e.target.value ? Number(e.target.value) : '' })}
+                value={field.min_value || ''}
+                onChange={(e) => onUpdate({ min_value: e.target.value ? Number(e.target.value) : null })}
                 placeholder="Min (optional)"
                 className="w-full p-2 border border-gray-300 rounded"
               />
@@ -523,8 +523,8 @@ const FieldEditor = ({ field, index, totalFields, onUpdate, onRemove, onMove }) 
               <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Value</label>
               <input
                 type="number"
-                value={field.max || ''}
-                onChange={(e) => onUpdate({ max: e.target.value ? Number(e.target.value) : '' })}
+                value={field.max_value || ''}
+                onChange={(e) => onUpdate({ max_value: e.target.value ? Number(e.target.value) : null })}
                 placeholder="Max (optional)"
                 className="w-full p-2 border border-gray-300 rounded"
               />
@@ -551,13 +551,13 @@ const FieldPreview = ({ field }) => {
             type="number"
             placeholder={field.label}
             disabled
-            min={field.min || undefined}
-            max={field.max || undefined}
+            min={field.min_value || undefined}
+            max={field.max_value || undefined}
             className="w-full p-2 border border-gray-300 rounded"
           />
-          {(field.min !== '' || field.max !== '') && (
+          {(field.min_value != null || field.max_value != null) && (
             <p className="text-xs text-gray-500">
-              Range: {field.min !== '' ? field.min : '−∞'} to {field.max !== '' ? field.max : '+∞'}
+              Range: {field.min_value != null ? field.min_value : '−∞'} to {field.max_value != null ? field.max_value : '+∞'}
             </p>
           )}
         </div>

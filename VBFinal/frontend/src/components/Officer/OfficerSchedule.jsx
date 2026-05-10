@@ -1254,11 +1254,6 @@ const OfficerSchedule = () => {
 
       <div className="space-y-6 p-4 sm:p-6 xl:p-8">
         <div className={`${panelCls} flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between`}>
-          <div>
-            <p className={`text-xs font-semibold uppercase tracking-[0.35em] ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>Officer Calendar</p>
-            <h2 className={`mt-2 text-2xl font-bold sm:text-3xl ${isDark ? 'text-white' : 'text-gray-900'}`}>Scheduling studio</h2>
-
-          </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -1309,7 +1304,6 @@ const OfficerSchedule = () => {
         <div className={`${panelCls} flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between`}>
           <div>
             <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{viewLabel}</p>
-            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Drag inside the weekly grid to create slots in 15-minute increments.</p>
           </div>
           <div className="flex flex-wrap gap-3 text-sm">
             <span className={`rounded-full border px-3 py-1 ${SLOT_STYLE.available.chip}`}>Available {stats.available}</span>

@@ -3,6 +3,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useMaintenanceMode } from '../../contexts/MaintenanceContext';
 import apiService from '../../services/api';
 import systemLogger from '../../services/systemLogger';
+import ContactManagement from './ContactManagement';
 
 const MAINTENANCE_SCHEDULE_STORAGE_KEY = 'cmfs_maintenance_schedules_v1';
 
@@ -86,14 +87,15 @@ const SystemManagement = () => {
   const [maintenanceDuration, setMaintenanceDuration] = useState(30);
   const [maintenanceSchedules, setMaintenanceSchedules] = useState([]);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
-  
+
   const [jwtSessionTimeout, setJwtSessionTimeout] = useState(30);
   const [availableTimeouts, setAvailableTimeouts] = useState([15, 30, 60, 120, 240]);
 
   const systemTabs = [
     { id: 'overview', name: 'Overview', icon: '📊' },
     { id: 'maintenance', name: 'Maintenance', icon: '🔧' },
-    { id: 'security', name: 'Security & Configuration', icon: '🔒' }
+    { id: 'security', name: 'Security & Configuration', icon: '🔒' },
+    { id: 'contact', name: 'Contact', icon: '✉️' }
   ];
 
   const loadSystemStats = useCallback(async () => {
@@ -384,24 +386,10 @@ const SystemManagement = () => {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-            <div className="text-2xl font-bold text-green-500">{systemStats.django.total_complaints || systemStats.totalComplaints}</div>
-            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Complaints</div>
-            <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-              {systemStats.django.pending_complaints || 0} pending
-            </div>
-          </div>
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
             <div className="text-2xl font-bold text-blue-500">{systemStats.django.active_users || systemStats.activeUsers}</div>
             <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Active Users</div>
             <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
               {systemStats.django.total_users || 0} total
-            </div>
-          </div>
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-            <div className="text-2xl font-bold text-purple-500">{systemStats.uptime}</div>
-            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>System Uptime</div>
-            <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-              {systemStats.django.recent_complaints || 0} recent complaints
             </div>
           </div>
         </div>
@@ -781,6 +769,8 @@ const SystemManagement = () => {
         return renderMaintenance();
       case 'security':
         return renderSecurity();
+      case 'contact':
+        return <ContactManagement />;
       default:
         return renderMaintenance();
     }

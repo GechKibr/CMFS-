@@ -605,7 +605,6 @@ const ChatPage = () => {
               {supportsLivekit && (
                 <div>
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Live Video Grid</h2>
                     <p className="text-xs text-slate-500">{participantTracks.length} active feed{participantTracks.length === 1 ? '' : 's'}</p>
                   </div>
 

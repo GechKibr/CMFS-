@@ -186,6 +186,12 @@ class UserProfileMixin:
             raise serializers.ValidationError('Gmail account must be a valid @gmail.com address.')
         return value.lower() if value else value
 
+    def _reload_user_with_profiles(self, user):
+        return User.objects.select_related(
+            'student_profile__department',
+            'officer_profile__department',
+        ).get(pk=user.pk)
+
     def _extract_profile_data(self, validated_data):
         return {
             'campus_id': validated_data.pop('campus_id', serializers.empty),
@@ -353,8 +359,7 @@ class UserProfileMixin:
 
         instance.save()
         self._sync_profiles(instance, profile_data, role)
-        instance.refresh_from_db()
-        return instance
+        return self._reload_user_with_profiles(instance)
 
 
 class UserReadWriteBaseSerializer(UserProfileMixin, serializers.ModelSerializer):
@@ -421,6 +426,28 @@ class UserReadWriteBaseSerializer(UserProfileMixin, serializers.ModelSerializer)
                 raise serializers.ValidationError({'confirm_password': 'Passwords do not match.'})
         return data
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        student_profile = getattr(instance, 'student_profile', None)
+        if student_profile is not None:
+            data['campus_id'] = student_profile.campus_id
+            data['user_campus'] = student_profile.campus_id
+            data['student_type'] = student_profile.student_type
+            data['year_of_study'] = student_profile.year_of_study
+            data['department'] = student_profile.department_id
+            data['college'] = student_profile.department.department_college if student_profile.department_id else None
+
+        officer_profile = getattr(instance, 'officer_profile', None)
+        if officer_profile is not None:
+            data['employee_id'] = officer_profile.employee_id
+            data['department'] = officer_profile.department_id
+            data['college'] = officer_profile.college or (
+                officer_profile.department.department_college if officer_profile.department_id else None
+            )
+
+        return data
+
     @transaction.atomic
     def update(self, instance, validated_data):
         return self._apply_user_updates(instance, validated_data)
@@ -472,8 +499,7 @@ class AdminUserSerializer(UserReadWriteBaseSerializer):
             raise serializers.ValidationError({'detail': 'Unable to create account with the provided data.'})
 
         self._sync_profiles(user, profile_data, user.role)
-        user.refresh_from_db()
-        return user
+        return self._reload_user_with_profiles(user)
 
 
 class LoginSerializer(serializers.Serializer):
@@ -560,8 +586,7 @@ class RegisterSerializer(UserProfileMixin, serializers.ModelSerializer):
         try:
             user = User.objects.create_user(email=email, password=password, **validated_data)
             self._sync_profiles(user, profile_data, user.role)
-            user.refresh_from_db()
-            return user
+            return self._reload_user_with_profiles(user)
         except IntegrityError as exc:
             message = str(exc)
             if 'accounts_user_username' in message:

@@ -90,7 +90,7 @@ const PublicNavbar = () => {
           <div className="hidden lg:flex items-center space-x-1">
             {navItems.map((item) => (
               <a key={item.name} href={item.path}
-                className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${location.pathname === item.path || (item.path.includes('#') && location.pathname === '/landing')
+                className={`px-9 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${location.pathname === item.path || (item.path.includes('#') && location.pathname === '/landing')
                   ? activeLinkClasses
                   : defaultLinkClasses
                   }`}>

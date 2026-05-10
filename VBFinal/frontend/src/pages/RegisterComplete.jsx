@@ -241,7 +241,7 @@ const RegisterComplete = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className={labelCls}>Program Status </label>
+                  <label className={labelCls}>Admit Type </label>
                   <select name="student_type" value={formData.student_type} onChange={handleChange} className={inputCls}>
                     <option value="">{studentTypeLoading ? 'Loading student types...' : 'Select student type'}</option>
                     {studentTypes.map((type) => (

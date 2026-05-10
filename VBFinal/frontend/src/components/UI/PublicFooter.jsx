@@ -31,7 +31,7 @@ const PublicFooter = () => {
                 </svg>
               </div>
               <div>
-                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Complaint Management Platform</h3>
+                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Complaint Management and Feedback Tracking Platform</h3>
                 <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Unified complaints, scheduling, and service handling.</p>
               </div>
             </div>
@@ -78,9 +78,8 @@ const PublicFooter = () => {
               Contact & Social
             </h4>
             <div className={`mt-4 space-y-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              <p>Email: support@platform.com</p>
-              <p>Phone: +251 000 000 000</p>
-              <p>Support: Mon-Fri, 8:00 - 17:00</p>
+              <p>Email: xxxxx@xxxx.com</p>
+              <p>Phone: +251 xxxx xxx xx</p>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">

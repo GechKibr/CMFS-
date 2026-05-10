@@ -421,9 +421,7 @@ const SlotDetails = ({ isDark, slot, appointment, onEdit, onDelete }) => {
         <div>
           <p className={`text-xs font-semibold uppercase tracking-[0.3em] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Slot Details</p>
           <h4 className={`mt-1 text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatLongDate(slot.available_date)}</h4>
-          <p className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-            {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
-          </p>
+          {/*  */}
         </div>
         <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${style.chip}`}>{style.label}</span>
       </div>
@@ -1078,9 +1076,7 @@ const OfficerSchedule = () => {
       <div className="space-y-4">
         <div className={`rounded-3xl border p-5 ${isDark ? 'border-gray-700 bg-gray-900/80' : 'border-gray-200 bg-white'}`}>
           <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Week Summary</h3>
-          <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            A fast glance at your current calendar load.
-          </p>
+
           <div className="mt-4 grid grid-cols-2 gap-3">
             {[
               { label: 'Total', value: stats.total },

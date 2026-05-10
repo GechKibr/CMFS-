@@ -263,7 +263,7 @@ const renderFeaturePreview = (slug, isDark) => {
           Thank you, we are checking the request now.
         </div>
         <div className={`max-w-[82%] rounded-2xl rounded-tl-sm px-3 py-2 text-xs font-medium ${isDark ? 'bg-slate-800 text-slate-100' : 'bg-slate-100 text-slate-700'}`}>
-          Can you share the room number and preferred time?
+          we can communicate with helpdesk.
         </div>
         <div className={`flex items-center gap-1 rounded-2xl rounded-tl-sm px-3 py-2 text-xs ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
           <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
@@ -316,10 +316,10 @@ const LandingPage = () => {
   const quickStats = statsLoading
     ? baseQuickStats
     : [
-        { label: 'Open complaints', value: String(summary.open_complaints ?? 0).padStart(2, '0') },
-        { label: 'Today\'s complaints', value: String(today.complaints_created ?? 0).padStart(2, '0') },
-        { label: 'Active resolvers', value: String(summary.active_category_resolvers ?? 0).padStart(2, '0') },
-      ];
+      { label: 'Open complaints', value: String(summary.open_complaints ?? 0).padStart(2, '0') },
+      { label: 'Today\'s complaints', value: String(today.complaints_created ?? 0).padStart(2, '0') },
+      { label: 'Active resolvers', value: String(summary.active_category_resolvers ?? 0).padStart(2, '0') },
+    ];
 
   const scrollToSection = (id) => {
     if (typeof document === 'undefined') return;
@@ -508,13 +508,13 @@ const LandingPage = () => {
 
         <section id="features" className="scroll-mt-28 border-t border-slate-200/70 py-16 sm:py-20 dark:border-slate-800">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
-            <Reveal>
+            {/* <Reveal>
               <SectionHeading
                 eyebrow="Features"
                 title="Everything teams need to manage requests in one place"
                 description="A clean SaaS-style experience for complaints, appointments, service templates, and live helpdesk support."
               />
-            </Reveal>
+            </Reveal> */}
 
             <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
               {featureCards.map((feature, index) => (
@@ -566,72 +566,6 @@ const LandingPage = () => {
                 ))}
               </div>
             </div>
-          </div>
-        </section>
-
-        <section className="py-16 sm:py-20">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
-            <Reveal>
-              <div className={`grid gap-8 overflow-hidden rounded-[2rem] border p-6 lg:grid-cols-[0.9fr_1.1fr] lg:p-8 ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
-                <div>
-                  <SectionHeading
-                    eyebrow="Real-Time Communication"
-                    title="Stay Connected in Real Time"
-                    description="Enable instant support through integrated helpdesk and live communication tools."
-                  />
-
-                  <div className="mt-6 space-y-4">
-                    {['Typing updates', 'Live status changes', 'Fast clarifications'].map((item) => (
-                      <div key={item} className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-300">
-                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 12l4 4L19 6" />
-                          </svg>
-                        </span>
-                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{item}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <div className="absolute -right-4 top-0 h-24 w-24 rounded-full bg-cyan-400/20 blur-2xl" />
-                  <div className={`relative overflow-hidden rounded-[1.75rem] border shadow-[0_25px_70px_rgba(15,23,42,0.15)] ${isDark ? 'border-slate-800 bg-slate-950/80' : 'border-slate-200 bg-slate-50'}`}>
-                    <div className="flex items-center justify-between border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/70">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white">Helpdesk chat</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Support channel connected</p>
-                      </div>
-                      <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
-                        Online
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 px-5 py-5">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">US</div>
-                        <div className={`max-w-[78%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm ${isDark ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-700'}`}>
-                          My complaint has been submitted. Can I track the status from the dashboard?
-                        </div>
-                      </div>
-                      <div className="flex items-start justify-end gap-3">
-                        <div className={`max-w-[78%] rounded-2xl rounded-tr-sm px-4 py-3 text-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 shadow-sm`}>
-                          Yes, your request is now assigned and visible on the live timeline.
-                        </div>
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white dark:bg-slate-700">HS</div>
-                      </div>
-                      <div className={`rounded-2xl rounded-tl-sm px-4 py-3 text-sm ${isDark ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-700'}`}>
-                        <div className="mb-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                          <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-                          Support is typing
-                        </div>
-                        Please share a preferred time so we can complete the appointment.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Reveal>
           </div>
         </section>
 

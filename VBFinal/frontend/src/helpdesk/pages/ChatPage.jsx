@@ -216,6 +216,46 @@ const ChatPage = () => {
   });
 
   useEffect(() => {
+    if (!sessionId) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const refreshMessages = async () => {
+      try {
+        const latestMessages = await helpdeskApi.getMessages(sessionId);
+        if (cancelled) {
+          return;
+        }
+
+        setMessages((prev) => {
+          const next = [...prev];
+          const seen = new Set(prev.map((message) => message.id));
+
+          latestMessages.forEach((message) => {
+            if (!seen.has(message.id)) {
+              next.push(message);
+            }
+          });
+
+          return next.sort((left, right) => new Date(left.created_at) - new Date(right.created_at));
+        });
+      } catch {
+        // Keep the existing websocket stream as the primary source of updates.
+      }
+    };
+
+    refreshMessages();
+    const intervalId = setInterval(refreshMessages, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
     const load = async () => {
       setLoading(true);
       setError('');

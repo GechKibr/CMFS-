@@ -8,6 +8,20 @@ const resolveWebSocketBase = () => {
     return normalized;
   }
 
+  const apiUrl = import.meta.env.VITE_API_URL?.trim();
+  if (apiUrl) {
+    try {
+      const parsed = new URL(apiUrl, typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:8000');
+      parsed.pathname = '';
+      parsed.search = '';
+      parsed.hash = '';
+      parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+      return parsed.toString().replace(/\/+$/, '');
+    } catch {
+      // Fall through to the remaining local defaults.
+    }
+  }
+
   if (import.meta.env.DEV) {
     return 'ws://127.0.0.1:8000';
   }

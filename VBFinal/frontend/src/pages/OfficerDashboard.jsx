@@ -669,8 +669,7 @@ const OfficerDashboard = () => {
                   <div key={template.id} className="bg-white rounded-lg shadow p-6 border border-gray-200">
                     <div className="flex justify-between items-start mb-4">
                       <h3 className="text-xl font-semibold text-gray-800">{template.title}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${
-                        template.status === 'draft' ? 'bg-gray-100 text-gray-600' :
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${template.status === 'draft' ? 'bg-gray-100 text-gray-600' :
                         template.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                           template.status === 'active' ? 'bg-green-100 text-green-800' :
                             template.status === 'inactive' ? 'bg-slate-100 text-slate-700' :
@@ -772,7 +771,7 @@ const OfficerDashboard = () => {
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <DashboardNavbar onSidebarToggle={handleSidebarToggle} showOfficerNotifications />
 
-      <div className="flex pt-20">
+      <div className="flex pt-16">
         {/* Sidebar */}
         <Sidebar
           isOpen={sidebarOpen}
@@ -781,7 +780,7 @@ const OfficerDashboard = () => {
           activeItem={activeTab}
           onItemClick={(id) => {
             if (id === 'helpdesk') {
-              navigate('/helpdesk');
+              navigate('/helpdesk', { replace: true });
               setSidebarOpen(false);
               return;
             }
@@ -802,7 +801,7 @@ const OfficerDashboard = () => {
         {/* Mobile Overlay */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-20"
+            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-16"
             onClick={() => setSidebarOpen(false)}
           />
         )}

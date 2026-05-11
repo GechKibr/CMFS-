@@ -31,6 +31,13 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   const [resolverOfficerIds, setResolverOfficerIds] = useState([]);
   const [ccSearchText, setCcSearchText] = useState('');
   const [ccRegexEnabled, setCcRegexEnabled] = useState(false);
+  const [ccFilters, setCcFilters] = useState({
+    campus: '',
+    college: '',
+    department: '',
+  });
+  const [ccOfficerIds, setCcOfficerIds] = useState([]);
+  const [ccSelectionValue, setCcSelectionValue] = useState('');
   const totalSteps = 4;
 
   const getCategoryId = (category) => String(category.category_id || category.id || '');
@@ -114,6 +121,9 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     setResolverFilters({ campus: '', college: '', department: '' });
     setCcSearchText('');
     setCcRegexEnabled(false);
+    setCcFilters({ campus: '', college: '', department: '' });
+    setCcOfficerIds([]);
+    setCcSelectionValue('');
     setFormErrors({});
     setCurrentStep(1);
   };
@@ -133,6 +143,32 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
       .sort((a, b) => priority(b) - priority(a) || String(a.scope_label || '').localeCompare(String(b.scope_label || '')) || String(a.officer_name || '').localeCompare(String(b.officer_name || '')));
   }, [categoryResolvers, complaintForm.category]);
 
+  // Auto-select all officers when all three filters (campus, college, department) are filled
+  useEffect(() => {
+    if (
+      resolverFilters.campus &&
+      resolverFilters.college &&
+      resolverFilters.department &&
+      selectedCategoryResolvers.length > 0
+    ) {
+      // Get all officers matching the current filters
+      const matchingOfficers = selectedCategoryResolvers.filter((resolver) => {
+        return (
+          resolver.campus_name === resolverFilters.campus &&
+          resolver.college_name === resolverFilters.college &&
+          resolver.department_name === resolverFilters.department
+        );
+      });
+
+      if (matchingOfficers.length > 0) {
+        // Auto-select all matching officers
+        const officerIds = matchingOfficers.map((resolver) => String(resolver.id));
+        setSelectedResolverIds(officerIds);
+        setResolverSelectionValue('');
+      }
+    }
+  }, [resolverFilters.campus, resolverFilters.college, resolverFilters.department, selectedCategoryResolvers]);
+
   const selectCategory = (categoryValue) => {
     setComplaintForm((prev) => ({ ...prev, category: categoryValue }));
     setResolverFilters({ campus: '', college: '', department: '' });
@@ -140,21 +176,6 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     setResolverSelectionValue('');
     setResolverOfficerIds([]);
   };
-
-  const ccOfficeOptions = useMemo(() => (
-    categories.filter((office) => String(office.value) !== String(complaintForm.category))
-  ), [categories, complaintForm.category]);
-
-  const selectedCcOffices = ccOfficeOptions.filter((office) => ccOfficeIds.includes(String(office.value)));
-  const availableCcOffices = ccOfficeOptions.filter((office) => !ccOfficeIds.includes(String(office.value)));
-
-  useEffect(() => {
-    if (!complaintForm.category) {
-      return;
-    }
-
-    setCcOfficeIds((prev) => prev.filter((officeId) => String(officeId) !== String(complaintForm.category)));
-  }, [complaintForm.category]);
 
   const buildSearchMatcher = useCallback((query, useRegex, invalidRegexMessage) => {
     const trimmed = query.trim();
@@ -190,6 +211,11 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   const toSearchableText = useCallback((category) => (
     [
       category?.label,
+      category?.officer_name,
+      category?.scope_label,
+      category?.campus_name,
+      category?.college_name,
+      category?.department_name,
       category?.office_name,
       category?.office_description,
     ]
@@ -200,10 +226,6 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   const filteredCategories = useMemo(() => (
     categories.filter((category) => categorySearch.matcher(toSearchableText(category)))
   ), [categories, categorySearch, toSearchableText]);
-
-  const filteredCcOffices = useMemo(() => (
-    availableCcOffices.filter((office) => ccOfficeSearch.matcher(toSearchableText(office)))
-  ), [availableCcOffices, ccOfficeSearch, toSearchableText]);
 
   const resolverCampusOptions = useMemo(() => (
     Array.from(new Set(selectedCategoryResolvers.map((resolver) => resolver.campus_name).filter(Boolean)))
@@ -226,6 +248,45 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
       .filter(Boolean)))
       .sort((a, b) => a.localeCompare(b))
   ), [selectedCategoryResolvers, resolverFilters.campus, resolverFilters.college]);
+
+  const filteredCcResolvers = useMemo(() => (
+    selectedCategoryResolvers.filter((resolver) => {
+      if (ccFilters.campus && resolver.campus_name !== ccFilters.campus) return false;
+      if (ccFilters.college && resolver.college_name !== ccFilters.college) return false;
+      if (ccFilters.department && resolver.department_name !== ccFilters.department) return false;
+      return true;
+    })
+  ), [selectedCategoryResolvers, ccFilters]);
+
+  const ccCampusOptions = useMemo(() => (
+    Array.from(new Set(filteredCcResolvers.map((resolver) => resolver.campus_name).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b))
+  ), [filteredCcResolvers]);
+
+  const ccCollegeOptions = useMemo(() => (
+    Array.from(new Set(filteredCcResolvers
+      .filter((resolver) => !ccFilters.campus || resolver.campus_name === ccFilters.campus)
+      .map((resolver) => resolver.college_name)
+      .filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b))
+  ), [filteredCcResolvers, ccFilters.campus]);
+
+  const ccDepartmentOptions = useMemo(() => (
+    Array.from(new Set(filteredCcResolvers
+      .filter((resolver) => (!ccFilters.campus || resolver.campus_name === ccFilters.campus)
+        && (!ccFilters.college || resolver.college_name === ccFilters.college))
+      .map((resolver) => resolver.department_name)
+      .filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b))
+  ), [filteredCcResolvers, ccFilters.campus, ccFilters.college]);
+
+  const availableCcOffices = useMemo(() => (
+    filteredCcResolvers.filter((resolver) => !ccOfficerIds.includes(String(resolver.id)))
+  ), [filteredCcResolvers, ccOfficerIds]);
+
+  const filteredCcOffices = useMemo(() => (
+    availableCcOffices.filter((resolver) => ccOfficeSearch.matcher(toSearchableText(resolver)))
+  ), [availableCcOffices, ccOfficeSearch, toSearchableText]);
 
   const filteredResolverOfficers = useMemo(() => (
     selectedCategoryResolvers.filter((resolver) => {
@@ -250,6 +311,16 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     const officerIds = Array.from(new Set(selectedResolverRoutes.map((resolver) => String(resolver.officer))));
     setResolverOfficerIds(officerIds);
   }, [selectedResolverRoutes]);
+
+  const selectedCcOfficers = useMemo(() => (
+    ccOfficerIds
+      .map((resolverId) => selectedCategoryResolvers.find((resolver) => String(resolver.id) === String(resolverId)))
+      .filter(Boolean)
+  ), [ccOfficerIds, selectedCategoryResolvers]);
+
+  const availableCcOfficers = useMemo(() => (
+    filteredCcResolvers.filter((resolver) => !ccOfficerIds.includes(String(resolver.id)))
+  ), [filteredCcResolvers, ccOfficerIds]);
 
   const validateStep = (step) => {
     const errors = validateForm();
@@ -294,15 +365,6 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const toggleCcOfficeSelection = (officeId) => {
-    setCcOfficeIds((prev) => {
-      const id = String(officeId);
-      return prev.includes(id)
-        ? prev.filter((item) => item !== id)
-        : [...prev, id];
-    });
-  };
-
   const addResolverRouteSelection = () => {
     if (!resolverSelectionValue) return;
     setSelectedResolverIds((prev) => (
@@ -327,16 +389,28 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     setResolverSelectionValue('');
   };
 
-  const removeCcOffice = (officeId) => {
-    setCcOfficeIds((prev) => prev.filter((item) => String(item) !== String(officeId)));
+  const addCcOfficerSelection = () => {
+    if (!ccSelectionValue) return;
+    setCcOfficerIds((prev) => (
+      prev.includes(String(ccSelectionValue))
+        ? prev
+        : [...prev, String(ccSelectionValue)]
+    ));
+    setCcSelectionValue('');
   };
 
-  const selectAllCcOffices = () => {
-    setCcOfficeIds(ccOfficeOptions.map((office) => String(office.value)));
+  const removeCcOfficerSelection = (resolverId) => {
+    setCcOfficerIds((prev) => prev.filter((item) => String(item) !== String(resolverId)));
   };
 
-  const clearCcOffices = () => {
-    setCcOfficeIds([]);
+  const clearCcOfficerSelections = () => {
+    setCcOfficerIds([]);
+    setCcSelectionValue('');
+  };
+
+  const selectAllCcOfficers = () => {
+    setCcOfficerIds(filteredCcResolvers.map((resolver) => String(resolver.id)));
+    setCcSelectionValue('');
   };
 
   const submitComplaint = async (e) => {
@@ -359,15 +433,25 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
       formData.append('category', complaintForm.category);
       formData.append('is_anonymous', complaintForm.isAnonymous ? 'true' : 'false');
 
-      // CC backend offices as JSON
-      if (ccOfficeIds.length > 0) {
-        formData.append('cc_office_ids', JSON.stringify(ccOfficeIds));
+
+      // CC CategoryResolver officers as JSON
+      if (ccOfficerIds.length > 0) {
+        const ccOfficerNumbers = ccOfficerIds
+          .map((id) => selectedCategoryResolvers.find((resolver) => String(resolver.id) === String(id)))
+          .filter(Boolean)
+          .map((resolver) => resolver.officer)
+          .filter(Boolean)
+          .map(Number);
+
+        if (ccOfficerNumbers.length > 0) {
+          formData.append('cc_officer_ids', JSON.stringify(ccOfficerNumbers));
+        }
       }
 
+      // Main resolver route officers
       if (resolverOfficerIds.length > 0) {
-        formData.append('cc_officer_ids', JSON.stringify(resolverOfficerIds.map((officerId) => Number(officerId))));
+        formData.append('resolver_officer_ids', JSON.stringify(resolverOfficerIds.map((officerId) => Number(officerId))));
       }
-
       // Add files to form data
       files.forEach((file, index) => {
         formData.append(`attachment_${index}`, file);
@@ -436,11 +520,11 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
             {currentStep === 1 && (
               <div className="space-y-6">
                 <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {language === 'am' ? '1. ምድብ እና ተዛማጅ መረጃ' : '1. Category & Routing'}
+                  {language === 'am' ? '1. ምድብ እና ተዛማጅ መረጃ' : '1. Select Related  Category'}
                 </h4>
                 <div>
                   <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    {language === 'am' ? 'ምድብ' : 'Category'} *
+                    {language === 'am' ? 'ምድብ' : 'Category'}
                   </label>
                   <div className="space-y-3">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -514,65 +598,17 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                   {formErrors.category && <p className="text-red-500 text-sm mt-1 flex items-center"><span className="mr-1">⚠️</span>{formErrors.category}</p>}
                 </div>
 
-                <div className={`rounded-lg border p-4 ${isDark ? 'border-gray-600 bg-gray-800' : 'border-blue-200 bg-blue-50'}`}>
-                  <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-blue-700'}`}>
-                    {language === 'am' ? 'የሪዞልቨር ማስተላለፊያ መረጃ' : 'Resolver routing preview'}
-                  </p>
-                  {selectedCategory ? (
-                    <>
-                      <div className={`mt-2 text-sm ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                        <p className="font-medium">{selectedCategory.name || selectedCategory.office_name}</p>
-                        {selectedCategory.office_description && (
-                          <p className={`mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{selectedCategory.office_description}</p>
-                        )}
-                      </div>
-                      {selectedCategoryResolvers.length > 0 ? (
-                        <div className="mt-3 space-y-2">
-                          {selectedCategoryResolvers.map((resolver) => (
-                            <div
-                              key={resolver.id}
-                              className={`rounded-lg border px-3 py-2 text-sm ${isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-white'}`}
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className={`font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>
-                                  {resolver.officer_name}
-                                </p>
-                                <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${isDark ? 'bg-gray-600 text-gray-200' : 'bg-blue-100 text-blue-700'}`}>
-                                  {resolver.scope_label || 'General'}
-                                </span>
-                              </div>
-                              <div className={`mt-2 grid gap-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'} sm:grid-cols-3`}>
-                                <span>Campus: {resolver.campus_name || 'All'}</span>
-                                <span>College: {resolver.college_name || 'All'}</span>
-                                <span>Department: {resolver.department_name || 'All'}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {language === 'am' ? 'ለዚህ ምድብ ገና ሪዞልቨር አልተመደበም።' : 'No resolver assignments are available for this category yet.'}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {language === 'am' ? 'እባክዎ መጀመሪያ ምድብ ይምረጡ።' : 'Select a category first to load resolver routing details.'}
-                    </p>
-                  )}
-                </div>
-
                 {selectedCategory && selectedCategoryResolvers.length > 0 && (
                   <div className={`rounded-lg border p-4 ${isDark ? 'border-gray-600 bg-gray-800' : 'border-gray-200 bg-white'}`}>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {/* <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                           {language === 'am' ? 'ልዩ ሪዞልቨር መንገዶች' : 'Specific resolver routes'}
-                        </p>
+                        </p> */}
                         <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                           {language === 'am'
-                            ? 'ካምፓስ፣ ኮሌጅ እና ዲፓርትመንት በመምረጥ ልዩ የCategoryResolver መንገዶችን ይምረጡ።'
-                            : 'Filter by campus, college, and department, then choose specific CategoryResolver routes.'}
+                            ? 'ካምፓስ፣ ኮሌጅ እና ዲፓርትመንት  ይምረጡ።'
+                            : 'Filter by campus, college, and department, then choose specific  Offices .'}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -725,31 +761,27 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
 
                 <div>
                   <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    {language === 'am' ? 'CC የቢሮ አማራጮች ይምረጡ' : 'CC Backend Offices (Select one or more)'}
+                    {language === 'am' ? 'CC ሪዞልቨር ይምረጡ' : 'Select CC CategoryResolvers'}
                   </label>
-                  {ccOfficeOptions.length === 0 ? (
-                    <div className={`w-full border rounded-lg px-4 py-3 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-white border-gray-300 text-gray-600'}`}>
-                      {language === 'am' ? 'ቢሮዎች አልተገኙም' : 'No backend offices found'}
-                    </div>
-                  ) : (
+                  {selectedCategory && selectedCategoryResolvers.length > 0 ? (
                     <div className={`border rounded-lg p-3 ${isDark ? 'border-gray-600 bg-gray-800' : 'border-gray-300 bg-white'}`}>
                       <div className="flex items-center justify-between gap-2 mb-3">
                         <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                           {language === 'am'
-                            ? 'ብዙ ቢሮዎችን ለመምረጥ ምልክት ያድርጉ'
-                            : 'Choose multiple offices to receive CC notifications'}
+                            ? 'ካምፓስ፣ ኮሌጅ እና ዲፓርትመንት በመምረጥ CC ሪዞልቨሮችን ያጣሩ'
+                            : 'Filter CC recipients by campus, college, and department'}
                         </p>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={selectAllCcOffices}
+                            onClick={selectAllCcOfficers}
                             className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
                           >
                             {language === 'am' ? 'ሁሉንም ይምረጡ' : 'Select all'}
                           </button>
                           <button
                             type="button"
-                            onClick={clearCcOffices}
+                            onClick={clearCcOfficerSelections}
                             className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                           >
                             {language === 'am' ? 'አጽዳ' : 'Clear'}
@@ -757,10 +789,52 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                         </div>
                       </div>
 
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                        <div>
+                          <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>{language === 'am' ? 'ካምፓስ' : 'Campus'}</label>
+                          <select
+                            value={ccFilters.campus}
+                            onChange={(e) => setCcFilters((prev) => ({ ...prev, campus: e.target.value, college: '', department: '' }))}
+                            className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                          >
+                            <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                            {ccCampusOptions.map((campus) => (
+                              <option key={campus} value={campus}>{campus}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>{language === 'am' ? 'ኮሌጅ' : 'College'}</label>
+                          <select
+                            value={ccFilters.college}
+                            onChange={(e) => setCcFilters((prev) => ({ ...prev, college: e.target.value, department: '' }))}
+                            className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                          >
+                            <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                            {ccCollegeOptions.map((college) => (
+                              <option key={college} value={college}>{college}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>{language === 'am' ? 'ዲፓርትመንት' : 'Department'}</label>
+                          <select
+                            value={ccFilters.department}
+                            onChange={(e) => setCcFilters((prev) => ({ ...prev, department: e.target.value }))}
+                            className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
+                          >
+                            <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                            {ccDepartmentOptions.map((department) => (
+                              <option key={department} value={department}>{department}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end mb-3">
                         <div className="md:col-span-2">
                           <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
-                            {language === 'am' ? 'ቢሮ ፈልግ' : 'Search office'}
+                            {language === 'am' ? 'CC ፈልግ' : 'Search CC recipient'}
                           </label>
                           <input
                             type="text"
@@ -787,22 +861,32 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                       )}
 
                       <div className="max-h-52 overflow-y-auto space-y-2">
-                        {filteredCcOffices.length === 0 ? (
+                        {availableCcOfficers.length === 0 ? (
                           <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {language === 'am' ? 'የሚገኙ ቢሮዎች የሉም።' : 'No available offices match.'}
+                            {language === 'am' ? 'የሚገኙ CC ሪዞልቨሮች የሉም።' : 'No CC recipients match the selected filters.'}
                           </div>
                         ) : (
-                          filteredCcOffices.map((office) => (
+                          availableCcOfficers.filter((resolver) => ccOfficeSearch.matcher(toSearchableText(resolver))).map((resolver) => (
                             <button
-                              key={office.value}
+                              key={resolver.id}
                               type="button"
-                              onClick={() => toggleCcOfficeSelection(office.value)}
+                              onClick={() => addCcOfficerSelection(resolver.id)}
                               className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${isDark
                                 ? 'border-gray-600 bg-gray-700 hover:border-blue-400'
                                 : 'border-gray-200 bg-white hover:border-blue-300'} `}
                             >
                               <span className="flex items-center justify-between gap-3">
-                                <span className={`text-sm ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{office.name || office.office_name}</span>
+                                <span>
+                                  <span className={`block text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>
+                                    {resolver.officer_name}
+                                  </span>
+                                  <span className={`block text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {resolver.scope_label || 'General'}
+                                    {resolver.campus_name ? ` · ${resolver.campus_name}` : ''}
+                                    {resolver.college_name ? ` · ${resolver.college_name}` : ''}
+                                    {resolver.department_name ? ` · ${resolver.department_name}` : ''}
+                                  </span>
+                                </span>
                                 <span className={`h-5 w-5 rounded-full border flex items-center justify-center ${isDark ? 'border-gray-500 text-transparent' : 'border-gray-300 text-transparent'}`}>
                                   +
                                 </span>
@@ -811,27 +895,33 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                           ))
                         )}
                       </div>
+
+                      <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {language === 'am'
+                          ? `የተመረጡ CC ሪዞልቨሮች: ${selectedCcOfficers.length}`
+                          : `Selected CC recipients: ${selectedCcOfficers.length}`}
+                      </p>
+
+                      {selectedCcOfficers.length > 0 && (
+                        <div className={`mt-2 flex flex-wrap gap-2 text-xs ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                          {selectedCcOfficers.map((resolver) => (
+                            <button
+                              key={resolver.id}
+                              type="button"
+                              onClick={() => removeCcOfficerSelection(resolver.id)}
+                              className={`rounded-full px-3 py-1 flex items-center gap-2 ${isDark ? 'bg-gray-700' : 'bg-blue-100 text-blue-700'}`}
+                              title={language === 'am' ? 'አስወግድ' : 'Remove'}
+                            >
+                              <span>{resolver.officer_name}</span>
+                              <span className="text-[10px]">✕</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    {language === 'am'
-                      ? `የተመረጡ ቢሮዎች: ${ccOfficeIds.length}`
-                      : `Selected backend offices: ${ccOfficeIds.length}`}
-                  </p>
-                  {selectedCcOffices.length > 0 && (
-                    <div className={`mt-2 flex flex-wrap gap-2 text-xs ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                      {selectedCcOffices.map((office) => (
-                        <button
-                          key={office.value}
-                          type="button"
-                          onClick={() => removeCcOffice(office.value)}
-                          className={`rounded-full px-3 py-1 flex items-center gap-2 ${isDark ? 'bg-gray-700' : 'bg-blue-100 text-blue-700'}`}
-                          title={language === 'am' ? 'አስወግድ' : 'Remove'}
-                        >
-                          <span>{office.name || office.office_name}</span>
-                          <span className="text-[10px]">✕</span>
-                        </button>
-                      ))}
+                  ) : (
+                    <div className={`w-full border rounded-lg px-4 py-3 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-white border-gray-300 text-gray-600'}`}>
+                      {language === 'am' ? 'ቅድሚያ ምድብ ይምረጡ' : 'Select a category first'}
                     </div>
                   )}
                 </div>
@@ -957,13 +1047,13 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                       {categories.find((item) => String(item.value) === String(complaintForm.category))?.label || '-'}
                     </p>
                     <p><span className="font-semibold">{language === 'am' ? 'ማንነት ሁኔታ' : 'Identity'}:</span> {complaintForm.isAnonymous ? (language === 'am' ? 'ስውር' : 'Anonymous') : (language === 'am' ? 'ተገልጿል' : 'Visible')}</p>
-                    <p><span className="font-semibold">{language === 'am' ? 'CC ቢሮዎች' : 'CC Backend Offices'}:</span> {ccOfficeIds.length}</p>
-                    {selectedCcOffices.length > 0 && (
+                    <p><span className="font-semibold">{language === 'am' ? 'CC ሪዞልቨሮች' : 'CC CategoryResolvers'}:</span> {ccOfficerIds.length}</p>
+                    {selectedCcOfficers.length > 0 && (
                       <div>
-                        <p className="font-semibold mb-1">{language === 'am' ? 'የተመረጡ ቢሮዎች ዝርዝር' : 'Selected office list'}:</p>
+                        <p className="font-semibold mb-1">{language === 'am' ? 'የተመረጡ ሪዞልቨሮች ዝርዝር' : 'Selected CC recipient list'}:</p>
                         <ul className="list-disc list-inside space-y-1">
-                          {selectedCcOffices.map((office) => (
-                            <li key={office.value}>{office.name || office.office_name}</li>
+                          {selectedCcOfficers.map((resolver) => (
+                            <li key={resolver.id}>{resolver.officer_name}</li>
                           ))}
                         </ul>
                       </div>

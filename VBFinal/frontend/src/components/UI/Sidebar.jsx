@@ -17,7 +17,7 @@ const Sidebar = ({
   return (
     <>
       <aside
-        className={`fixed left-0 top-20 bottom-0 w-72 ${isCollapsed ? 'lg:w-20' : 'lg:w-72'} ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
+        className={`fixed left-0 top-16 bottom-0 w-72 ${isCollapsed ? 'lg:w-20' : 'lg:w-72'} ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
           } border-r shadow-lg transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'
           } lg:translate-x-0 z-30 overflow-y-auto flex flex-col`}
       >
@@ -106,7 +106,7 @@ const Sidebar = ({
       {/* Mobile Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-40 lg:hidden z-20 top-20 backdrop-blur-sm"
+          className="fixed inset-0 bg-black bg-opacity-40 lg:hidden z-20 top-16 backdrop-blur-sm"
           onClick={() => {
 
           }}

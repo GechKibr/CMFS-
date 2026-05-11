@@ -9,6 +9,26 @@ class TemplateFieldSerializer(serializers.ModelSerializer):
     class Meta:
         model = TemplateField
         fields = ['id', 'label', 'field_type', 'options', 'is_required', 'order', 'min_value', 'max_value']
+    
+    def validate(self, attrs):
+        field_type = attrs.get('field_type')
+        min_value = attrs.get('min_value')
+        max_value = attrs.get('max_value')
+        
+        if field_type == TemplateField.FIELD_NUMBER:
+            if min_value is not None and max_value is not None and min_value > max_value:
+                raise serializers.ValidationError({
+                    'min_value': 'Minimum value cannot be greater than maximum value'
+                })
+        else:
+            # For non-number fields, min_value and max_value should not be set
+            if min_value is not None or max_value is not None:
+                raise serializers.ValidationError({
+                    'min_value': 'Min/Max values are only valid for number fields',
+                    'max_value': 'Min/Max values are only valid for number fields'
+                })
+        
+        return attrs
 
 
 class FeedbackTemplateSerializer(serializers.ModelSerializer):
@@ -124,6 +144,26 @@ class FeedbackAnswerSerializer(serializers.ModelSerializer):
         model = FeedbackAnswer
         fields = ['field_id', 'text_value', 'number_value', 'rating_value', 
                  'choice_value', 'checkbox_values']
+    
+    def validate(self, attrs):
+        field_id = attrs.get('field_id')
+        if field_id:
+            try:
+                field = TemplateField.objects.get(id=field_id)
+                if field.field_type == TemplateField.FIELD_NUMBER:
+                    number_value = attrs.get('number_value')
+                    if number_value is not None:
+                        if field.min_value is not None and number_value < field.min_value:
+                            raise serializers.ValidationError({
+                                'number_value': f'Value must be at least {field.min_value}'
+                            })
+                        if field.max_value is not None and number_value > field.max_value:
+                            raise serializers.ValidationError({
+                                'number_value': f'Value must be at most {field.max_value}'
+                            })
+            except TemplateField.DoesNotExist:
+                raise serializers.ValidationError({'field_id': 'Invalid field ID'})
+        return attrs
 
 
 class FeedbackResponseSerializer(serializers.ModelSerializer):
@@ -150,14 +190,16 @@ class FeedbackResponseSerializer(serializers.ModelSerializer):
             user=request.user
         )
         
+        # Validate and create answers using the serializer
         for answer_data in answers_data:
             field_id = answer_data.pop('field_id')
             field = TemplateField.objects.get(id=field_id, template=response.template)
-            FeedbackAnswer.objects.create(
-                response=response,
-                field=field,
-                **answer_data
-            )
+            answer_data['response'] = response
+            answer_data['field'] = field
+            
+            answer_serializer = FeedbackAnswerSerializer(data=answer_data)
+            answer_serializer.is_valid(raise_exception=True)
+            answer_serializer.save()
         
         return response
     

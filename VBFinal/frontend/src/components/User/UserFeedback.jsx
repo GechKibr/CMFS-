@@ -228,6 +228,8 @@ const FieldInput = ({ field, value, onChange }) => {
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
           required={field.is_required}
+          min={field.min_value}
+          max={field.max_value}
           className="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
         />
       );

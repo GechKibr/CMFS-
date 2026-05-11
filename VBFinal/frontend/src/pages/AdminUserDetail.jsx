@@ -13,9 +13,8 @@ const ADMIN_MENU_ITEMS = [
   { id: 'institutions', name: 'Institutions', icon: '🏛️' },
   { id: 'users', name: 'Users', icon: '👤' },
   { id: 'feedback-templates', name: 'Feedback Templates', icon: '📋' },
-  { id: 'contact', name: 'Contact', icon: '✉️' },
+  // { id: 'contact', name: 'Contact', icon: '✉️' },
   { id: 'system', name: 'System', icon: '⚙️' },
-  { id: 'profile', name: 'Profile', icon: '👤' },
 ];
 
 const getRoleLabel = (code) => {
@@ -241,23 +240,19 @@ const AdminUserDetail = () => {
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <DashboardNavbar onSidebarToggle={handleSidebarToggle} />
 
-      <div className="flex pt-20">
+      <div className="flex pt-16">
         <Sidebar
           isOpen={sidebarOpen}
           isCollapsed={isDesktopSidebarCollapsed}
           items={ADMIN_MENU_ITEMS}
           activeItem="users"
           onItemClick={(id) => {
-            navigate(`/admin?tab=${id}`);
+            navigate(`/admin?tab=${id}`, { replace: true });
             setSidebarOpen(false);
           }}
           onLogout={() => {
             logout();
             navigate('/login');
-          }}
-          onProfileClick={() => {
-            navigate('/admin?tab=profile');
-            setSidebarOpen(false);
           }}
           onHideSidebar={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
           showBottomSection={false}
@@ -265,7 +260,7 @@ const AdminUserDetail = () => {
 
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-20"
+            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-16"
             onClick={() => setSidebarOpen(false)}
           />
         )}

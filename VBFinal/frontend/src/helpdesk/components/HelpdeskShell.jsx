@@ -13,10 +13,9 @@ const ADMIN_NAV_ITEMS = [
   { id: 'institutions', name: 'Institutions', icon: '🏛️' },
   { id: 'users', name: 'Users', icon: '👤' },
   { id: 'feedback-templates', name: 'Feedback Templates', icon: '📋' },
-  { id: 'contact', name: 'Contact', icon: '✉️' },
+  // { id: 'contact', name: 'Contact', icon: '✉️' },
   { id: 'system', name: 'System', icon: '⚙️' },
   { id: 'helpdesk', name: 'Helpdesk', icon: '🎧' },
-  { id: 'profile', name: 'Profile', icon: '👤' },
 ];
 
 const HelpdeskShell = ({
@@ -43,21 +42,21 @@ const HelpdeskShell = ({
 
   const navigateToRolePage = (id) => {
     if (role === 'admin') {
-      if (id === 'helpdesk') return navigate('/helpdesk');
-      if (id === 'overview') return navigate('/admin');
-      return navigate(`/admin?tab=${id}`);
+      if (id === 'helpdesk') return navigate('/helpdesk', { replace: true });
+      if (id === 'overview') return navigate('/admin', { replace: true });
+      return navigate(`/admin?tab=${id}`, { replace: true });
     }
 
     if (role === 'officer') {
-      if (id === 'helpdesk') return navigate('/helpdesk');
-      if (id === 'dashboard') return navigate('/officer');
-      if (id === 'profile') return navigate('/officer?tab=profile');
-      return navigate(`/officer?tab=${id}`);
+      if (id === 'helpdesk') return navigate('/helpdesk', { replace: true });
+      if (id === 'dashboard') return navigate('/officer', { replace: true });
+      if (id === 'profile') return navigate('/officer?tab=profile', { replace: true });
+      return navigate(`/officer?tab=${id}`, { replace: true });
     }
 
-    if (id === 'helpdesk') return navigate('/helpdesk');
-    if (id === 'profile') return navigate('/user?tab=profile');
-    return navigate(`/user?tab=${id}`);
+    if (id === 'helpdesk') return navigate('/helpdesk', { replace: true });
+    if (id === 'profile') return navigate('/user?tab=profile', { replace: true });
+    return navigate(`/user?tab=${id}`, { replace: true });
   };
 
   const handleSidebarToggle = () => {
@@ -79,9 +78,9 @@ const HelpdeskShell = ({
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {showChrome ? (
         <>
-          <DashboardNavbar onSidebarToggle={handleSidebarToggle} />
+          <DashboardNavbar onSidebarToggle={handleSidebarToggle} showLanguageToggle={role !== 'admin'} />
 
-          <div className="flex pt-20">
+          <div className="flex pt-16">
             <Sidebar
               isOpen={sidebarOpen}
               isCollapsed={isDesktopSidebarCollapsed}
@@ -99,7 +98,7 @@ const HelpdeskShell = ({
 
             {sidebarOpen && (
               <div
-                className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-20"
+                className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-16"
                 onClick={() => setSidebarOpen(false)}
               />
             )}

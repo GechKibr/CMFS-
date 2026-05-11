@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from datetime import timedelta
 
 from django.urls import reverse
@@ -5,6 +7,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Department, Officer, Student, User
 from complaints.models import Appointment, Category, CategoryResolver, Comment, Complaint, ComplaintCC, Response
+from complaints.escalation_service import EscalationService
 
 
 class ComplaintSecurityAPITests(APITestCase):
@@ -387,3 +390,96 @@ class ComplaintSecurityAPITests(APITestCase):
         self.assertIn('status_distribution', response.data['admin_dashboard'])
         self.assertIn('college_performance', response.data['admin_dashboard'])
         self.assertIn('staff_performance', response.data['admin_dashboard'])
+
+    def test_escalation_skips_admin_notification_when_no_matching_resolver_exists(self):
+        department = Department.objects.create(
+            department_name='Logistics',
+            department_college='business_economics',
+        )
+        Student.objects.create(
+            user=self.user_one,
+            student_type='undergraduate',
+            campus_id='maraki',
+            department=department,
+            year_of_study=1,
+        )
+        complaint = Complaint.objects.create(
+            submitted_by=self.user_one,
+            category=self.category,
+            title='Silent escalation complaint',
+            description='No matching escalation path',
+            assigned_officer=self.officer_one,
+        )
+        complaint.current_resolver = CategoryResolver.objects.create(
+            category=self.category,
+            campus='maraki',
+            college='business_economics',
+            department=department,
+            officer=self.officer_one,
+            escalation_time=timedelta(hours=1),
+        )
+        complaint.save()
+
+        with patch.object(EscalationService, '_get_due_complaints', return_value=[complaint]), \
+             patch.object(Complaint, 'escalate_to_next_level', return_value=False), \
+             patch.object(Complaint, 'escalate_to_parent_category', return_value=False), \
+             patch.object(EscalationService, 'notify_admin_max_escalation') as notify_admin:
+            result = EscalationService.check_and_escalate_complaints()
+
+        self.assertEqual(result['total_checked'], 1)
+        self.assertEqual(result['skipped'], 1)
+        self.assertEqual(notify_admin.call_count, 0)
+
+    def test_parent_category_escalation_uses_scope_matching_resolver(self):
+        parent_category = Category.objects.create(
+            office_name='Campus Services',
+            office_description='Parent category',
+        )
+        child_category = Category.objects.create(
+            office_name='Maintenance',
+            office_description='Child category',
+            parent=parent_category,
+        )
+        department = Department.objects.create(
+            department_name='Facilities',
+            department_college='business_economics',
+        )
+        Student.objects.create(
+            user=self.user_one,
+            student_type='undergraduate',
+            campus_id='maraki',
+            department=department,
+            year_of_study=1,
+        )
+        child_resolver = CategoryResolver.objects.create(
+            category=child_category,
+            campus='maraki',
+            college='business_economics',
+            department=department,
+            officer=self.officer_one,
+            escalation_time=timedelta(hours=1),
+        )
+        parent_resolver = CategoryResolver.objects.create(
+            category=parent_category,
+            campus='maraki',
+            college='business_economics',
+            department=department,
+            officer=self.officer_two,
+            escalation_time=timedelta(hours=2),
+        )
+
+        complaint = Complaint.objects.create(
+            submitted_by=self.user_one,
+            category=child_category,
+            title='Parent escalation complaint',
+            description='Should escalate to parent category',
+            assigned_officer=self.officer_one,
+            current_resolver=child_resolver,
+        )
+
+        escalated = complaint.escalate_to_parent_category()
+
+        self.assertTrue(escalated)
+        complaint.refresh_from_db()
+        self.assertEqual(complaint.category, parent_category)
+        self.assertEqual(complaint.current_resolver, parent_resolver)

@@ -100,7 +100,7 @@ const UserComplaintDetail = () => {
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <DashboardNavbar onSidebarToggle={handleSidebarToggle} />
 
-      <div className="flex pt-20">
+      <div className="flex pt-16">
         <Sidebar
           isOpen={sidebarOpen}
           isCollapsed={isDesktopSidebarCollapsed}
@@ -123,7 +123,7 @@ const UserComplaintDetail = () => {
 
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-20"
+            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-16"
             onClick={() => setSidebarOpen(false)}
           />
         )}

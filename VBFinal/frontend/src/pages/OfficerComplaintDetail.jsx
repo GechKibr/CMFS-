@@ -175,14 +175,14 @@ const OfficerComplaintDetail = () => {
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <DashboardNavbar onSidebarToggle={handleSidebarToggle} showOfficerNotifications />
 
-      <div className="flex pt-20">
+      <div className="flex pt-16">
         <Sidebar
           isOpen={sidebarOpen}
           isCollapsed={isDesktopSidebarCollapsed}
           items={OFFICER_NAV_ITEMS}
           activeItem="complaints"
           onItemClick={(id) => {
-            navigate(`/officer?tab=${id}`);
+            navigate(`/officer?tab=${id}`, { replace: true });
             setSidebarOpen(false);
           }}
           onLogout={() => {
@@ -190,7 +190,7 @@ const OfficerComplaintDetail = () => {
             navigate('/login');
           }}
           onProfileClick={() => {
-            navigate('/officer?tab=profile');
+            navigate('/officer?tab=profile', { replace: true });
             setSidebarOpen(false);
           }}
           onHideSidebar={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
@@ -198,7 +198,7 @@ const OfficerComplaintDetail = () => {
 
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-20"
+            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-16"
             onClick={() => setSidebarOpen(false)}
           />
         )}

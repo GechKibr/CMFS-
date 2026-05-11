@@ -55,6 +55,7 @@ class EscalationService:
             'escalated_same_category': 0,
             'escalated_parent_category': 0,
             'failed': 0,
+            'skipped': 0,
             'errors': []
         }
 
@@ -69,9 +70,8 @@ class EscalationService:
                     escalation_results['escalated_parent_category'] += 1
                     EscalationService.send_parent_escalation_notifications(complaint)
                 else:
-                    # No escalation paths available - notify admin
-                    escalation_results['failed'] += 1
-                    EscalationService.notify_admin_max_escalation(complaint)
+                    # No escalation path available for this scope; keep it silent.
+                    escalation_results['skipped'] += 1
             except Exception as e:
                 escalation_results['failed'] += 1
                 escalation_results['errors'].append({

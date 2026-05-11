@@ -99,7 +99,7 @@ const UserDashboard = () => {
             <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-white">Announcements</h1>
             <UserAnnouncements />
           </div>
-           );
+        );
       default:
         return <SubmitComplaint institutions={institutions} setSubmitSuccess={setSubmitSuccess} />;
     }
@@ -136,9 +136,9 @@ const UserDashboard = () => {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <DashboardNavbar onSidebarToggle={handleSidebarToggle} showOfficerNotifications />
+      <DashboardNavbar onSidebarToggle={handleSidebarToggle} showOfficerNotifications showLanguageToggle />
 
-      <div className="flex pt-20">
+      <div className="flex pt-16">
         <Sidebar
           isOpen={sidebarOpen}
           isCollapsed={isDesktopSidebarCollapsed}
@@ -146,7 +146,7 @@ const UserDashboard = () => {
           activeItem={activeTab}
           onItemClick={(id) => {
             if (id === 'helpdesk') {
-              navigate('/helpdesk');
+              navigate('/helpdesk', { replace: true });
               setSidebarOpen(false);
               return;
             }
@@ -166,7 +166,7 @@ const UserDashboard = () => {
 
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-20"
+            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-16"
             onClick={() => setSidebarOpen(false)}
           />
         )}

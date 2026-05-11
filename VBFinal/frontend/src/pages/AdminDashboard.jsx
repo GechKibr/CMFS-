@@ -10,7 +10,6 @@ import UserManagement from '../components/Admin/UserManagement';
 import SystemManagement from '../components/Admin/SystemManagement';
 import FeedbackTemplateManagement from '../components/Admin/FeedbackTemplateManagement';
 import AdminComplaints from '../components/Admin/AdminComplaints';
-import AdminProfile from '../components/Admin/AdminProfile';
 import ComplaintAnalyticsPanel from '../components/analytics/ComplaintAnalyticsPanel';
 
 const AdminDashboard = ({ initialTab = 'overview' }) => {
@@ -42,7 +41,6 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
       'users',
       'feedback-templates',
       'system',
-      'profile',
     ];
 
     if (validTabs.includes(tabFromQuery)) {
@@ -98,7 +96,6 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
     { id: 'feedback-templates', name: 'Feedback Templates', icon: '📋' },
     { id: 'system', name: 'System', icon: '⚙️' },
     { id: 'helpdesk', name: 'Helpdesk', icon: '🎧' },
-    { id: 'profile', name: 'Profile', icon: '👤' }
   ];
 
   const [, setSystemStats] = useState({
@@ -137,8 +134,6 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
         return <FeedbackTemplateManagement />;
       case 'system':
         return <SystemManagement />;
-      case 'profile':
-        return <AdminProfile />;
       default:
         return (
           <div className="bg-white p-6 rounded-lg shadow">
@@ -161,7 +156,7 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <DashboardNavbar onSidebarToggle={handleSidebarToggle} />
 
-      <div className="flex pt-20">
+      <div className="flex pt-16">
         {/* Sidebar */}
         <Sidebar
           isOpen={sidebarOpen}
@@ -170,7 +165,7 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
           activeItem={activeTab}
           onItemClick={(id) => {
             if (id === 'helpdesk') {
-              navigate('/helpdesk');
+              navigate('/helpdesk', { replace: true });
               setSidebarOpen(false);
               return;
             }
@@ -182,11 +177,6 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
             logout();
             navigate('/login');
           }}
-          onProfileClick={() => {
-            setActiveTab('profile');
-            navigate('/admin?tab=profile', { replace: true });
-            setSidebarOpen(false);
-          }}
           onHideSidebar={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
           showBottomSection={false}
         />
@@ -194,7 +184,7 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
         {/* Mobile Overlay */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-20"
+            className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-20 top-16"
             onClick={() => setSidebarOpen(false)}
           />
         )}

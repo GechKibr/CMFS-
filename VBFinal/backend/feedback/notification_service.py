@@ -6,9 +6,8 @@ from .models import FeedbackTemplate
 
 def _iter_visible_end_users(template):
     users = User.objects.filter(is_active=True, role=User.ROLE_USER).select_related(
-        'student_profile__department__department_college',
-        'officer_profile__college',
-        'officer_profile__department__department_college',
+        'student_profile__department',
+        'officer_profile__department',
     )
     for user in users:
         try:

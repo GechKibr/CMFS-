@@ -267,6 +267,20 @@ class Complaint(models.Model):
             active=True,
         ).first()
 
+    def _matching_resolvers_for_category(self, category):
+        category_id = getattr(category, 'category_id', None)
+        if not category_id:
+            return []
+
+        return [
+            resolver
+            for resolver in CategoryResolver.objects.filter(
+                category_id=category_id,
+                active=True,
+            ).select_related("officer", "category", "department")
+            if resolver.matches_complaint_scope(self)
+        ]
+
     def calculate_escalation_deadline(self, escalation_time=None, base_time=None):
         if not self.current_resolver:
             return None
@@ -309,10 +323,7 @@ class Complaint(models.Model):
             return False
 
         candidates = [
-            resolver for resolver in CategoryResolver.objects.filter(
-                category=self.category,
-                active=True,
-            ).select_related("officer", "category")
+            resolver for resolver in self._matching_resolvers_for_category(self.category)
             if resolver.matches_complaint_scope(self) and resolver.scope_rank() < self.current_resolver.scope_rank()
         ]
 
@@ -342,15 +353,9 @@ class Complaint(models.Model):
             return False
 
         parent_category = self.category.parent
-        
-        # Find resolvers for parent category that match complaint scope, ordered by broadest scope first
-        candidates = [
-            resolver for resolver in CategoryResolver.objects.filter(
-                category=parent_category,
-                active=True,
-            ).select_related("officer", "category")
-            if resolver.matches_complaint_scope(self)
-        ]
+
+        # Find resolvers for the parent category that match complaint scope, ordered by broadest scope first
+        candidates = self._matching_resolvers_for_category(parent_category)
 
         if not candidates:
             return False

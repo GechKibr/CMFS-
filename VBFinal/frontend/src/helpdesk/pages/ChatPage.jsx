@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+// eslint-disable-next-line no-unused-vars
+import { AnimatePresence, motion } from 'framer-motion';
 import { Link, useParams } from 'react-router-dom';
 import { Room, RoomEvent, Track } from 'livekit-client';
 import { useAuth } from '../../contexts/AuthContext';
@@ -145,18 +147,18 @@ const ChatPage = () => {
   const [error, setError] = useState('');
   const [sendError, setSendError] = useState('');
   const [conferenceError, setConferenceError] = useState('');
-  const [updatingSession, setUpdatingSession] = useState(false);
   const [conferenceStatus, setConferenceStatus] = useState('idle');
   const [conferenceConnected, setConferenceConnected] = useState(false);
   const [participantTracks, setParticipantTracks] = useState([]);
   const [isCameraEnabled, setIsCameraEnabled] = useState(false);
   const [isMicEnabled, setIsMicEnabled] = useState(false);
-  const [cameraPermissionBlocked, setCameraPermissionBlocked] = useState(false);
   const [candidates, setCandidates] = useState([]);
   const [removingParticipantId, setRemovingParticipantId] = useState(null);
   const [addingParticipants, setAddingParticipants] = useState(false);
   const [showAddParticipantsForm, setShowAddParticipantsForm] = useState(false);
   const [selectedCandidates, setSelectedCandidates] = useState([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const canConnectRealtime = !loading && !error && Boolean(session?.id);
   const supportsLivekit = ['audio_call', 'video_call', 'audio_conference', 'video_conference'].includes(session?.kind);
   const isVideoSession = ['video_call', 'video_conference'].includes(session?.kind);
@@ -319,31 +321,7 @@ const ChatPage = () => {
     }
   };
 
-  const handleStartSession = async () => {
-    if (!session) return;
-    setUpdatingSession(true);
-    try {
-      const updated = await helpdeskApi.startSession(session.id);
-      setSession(updated);
-    } catch (err) {
-      setSendError(err.message || 'Failed to start session.');
-    } finally {
-      setUpdatingSession(false);
-    }
-  };
 
-  const handleEndSession = async () => {
-    if (!session) return;
-    setUpdatingSession(true);
-    try {
-      const updated = await helpdeskApi.endSession(session.id);
-      setSession(updated);
-    } catch (err) {
-      setSendError(err.message || 'Failed to end session.');
-    } finally {
-      setUpdatingSession(false);
-    }
-  };
 
   const handleRemoveParticipant = async (participantId) => {
     if (!session?.id || !participantId) return;
@@ -457,7 +435,7 @@ const ChatPage = () => {
           rebuildParticipantTracks(room);
         } catch (camErr) {
           setIsCameraEnabled(false);
-          setCameraPermissionBlocked(camErr?.name === 'NotAllowedError' || `${camErr?.message || ''}`.toLowerCase().includes('permission'));
+
           setConferenceError(formatMediaDeviceError(camErr, 'Camera'));
         }
       } else {
@@ -480,26 +458,6 @@ const ChatPage = () => {
     setConferenceStatus('disconnected');
     setIsCameraEnabled(false);
     setIsMicEnabled(false);
-    setCameraPermissionBlocked(false);
-  };
-
-  const handleAllowCameraAccess = async () => {
-    const room = roomRef.current;
-    if (!room || !conferenceConnected || !isVideoSession) return;
-
-    try {
-      setConferenceError('');
-      await requestCameraAccess();
-      await room.localParticipant.setCameraEnabled(true);
-      setIsCameraEnabled(true);
-      setCameraPermissionBlocked(false);
-      rebuildParticipantTracks(room);
-    } catch (err) {
-      if (err?.name === 'NotAllowedError' || `${err?.message || ''}`.toLowerCase().includes('permission')) {
-        setCameraPermissionBlocked(true);
-      }
-      setConferenceError(formatMediaDeviceError(err, 'Camera'));
-    }
   };
 
   const handleToggleCamera = async () => {
@@ -541,7 +499,15 @@ const ChatPage = () => {
   };
 
   useEffect(() => {
+    const updateMobile = () => {
+      if (typeof window !== 'undefined') {
+        setIsMobile(window.innerWidth < 768);
+      }
+    };
+    updateMobile();
+    window.addEventListener('resize', updateMobile);
     return () => {
+      window.removeEventListener('resize', updateMobile);
       if (roomRef.current) {
         roomRef.current.disconnect(true);
         roomRef.current = null;
@@ -551,278 +517,301 @@ const ChatPage = () => {
 
   return (
     <HelpdeskShell showChrome={false} contentClassName="w-full max-w-none p-0">
-      <div className="h-screen overflow-hidden bg-slate-50 p-4 sm:p-6 lg:p-8">
-        <div className="grid h-full grid-cols-1 gap-4 xl:grid-cols-[minmax(0,7fr)_minmax(340px,3fr)]">
-          <section className="flex min-h-[36rem] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-slate-500">Video Conference</p>
-                  <h1 className="text-lg font-semibold text-slate-900">{session?.title || 'Session Conversation'}</h1>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className={`rounded-full px-3 py-1 font-semibold ${conferenceConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {conferenceConnected ? 'Conference Connected' : 'Conference Idle'}
-                  </span>
-                  <span className={`rounded-full px-3 py-1 font-semibold ${isConnected ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-slate-600'}`}>
-                    {isConnected ? 'Chat Connected' : 'Chat Syncing'}
-                  </span>
-                </div>
+      <div className={`relative min-h-screen overflow-hidden ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-950'}`}>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(56,189,248,0.15),_transparent_30%),radial-gradient(circle_at_bottom_left,_rgba(168,85,247,0.12),_transparent_30%)]" />
+        <div className="relative flex min-h-screen flex-col px-4 py-5 sm:px-6 lg:px-8">
+          <div className="mb-4 flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/70 p-5 shadow-2xl shadow-slate-900/10 backdrop-blur-xl dark:border-slate-700/60 dark:bg-slate-900/80">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Helpdesk conference</p>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{session?.title || 'Live Helpdesk Session'}</h1>
+                
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${conferenceConnected ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'}`}>
+                  {conferenceConnected ? 'Conference Connected' : 'Conference Idle'}
+                </span>
+                <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${isConnected ? 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-200' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
+                  {isConnected ? 'Chat Connected' : 'Chat Syncing'}
+                </span>
+                <Link
+                  to="/helpdesk"
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                >
+                  Back to sessions
+                </Link>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="grid gap-2 sm:grid-cols-3">
                 <button
                   onClick={handleJoinConference}
                   disabled={!supportsLivekit || conferenceConnected || conferenceStatus === 'connecting'}
-                  className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-2xl bg-cyan-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/10 transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Join Conference
                 </button>
                 <button
                   onClick={handleLeaveConference}
                   disabled={!conferenceConnected}
-                  className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                 >
                   Leave Conference
                 </button>
-                {conferenceConnected && (
-                  <>
-                    <button
-                      onClick={handleToggleCamera}
-                      disabled={!isVideoSession}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${isCameraEnabled
-                        ? 'border border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
-                        : 'border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100'
-                        } disabled:cursor-not-allowed disabled:opacity-50`}
-                    >
-                      {isCameraEnabled ? '📹 Stop Camera' : '📷 Start Camera'}
-                    </button>
-                    <button
-                      onClick={handleToggleMic}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${isMicEnabled
-                        ? 'border border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
-                        : 'border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100'
-                        }`}
-                    >
-                      {isMicEnabled ? '🎤 Mute Mic' : '🎙️ Unmute Mic'}
-                    </button>
-                  </>
-                )}
                 <button
-                  onClick={handleStartSession}
-                  disabled={updatingSession || session?.status === 'active'}
-                  className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => setIsChatOpen(true)}
+                  className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-700 transition hover:bg-cyan-100 dark:border-cyan-800/60 dark:bg-cyan-900/30 dark:text-cyan-200"
                 >
-                  Start Session
+                  Open Chat
                 </button>
-                <button
-                  onClick={handleEndSession}
-                  disabled={updatingSession || session?.status === 'ended'}
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  End Session
-                </button>
-                <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                  Status: {session?.status || 'unknown'}
-                </span>
               </div>
 
-              {(connectionError || conferenceError) && (
-                <div className="mt-3 space-y-1 text-xs">
-                  {connectionError && <p className="text-amber-700">{connectionError}</p>}
-                  {conferenceError && <p className="text-rose-700">{conferenceError}</p>}
-                </div>
-              )}
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  onClick={handleToggleCamera}
+                  disabled={!isVideoSession || !conferenceConnected}
+                  className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${isCameraEnabled ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600'} disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  {isCameraEnabled ? 'Camera On' : 'Camera Off'}
+                </button>
+                <button
+                  onClick={handleToggleMic}
+                  disabled={!conferenceConnected}
+                  className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${isMicEnabled ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600'} disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  {isMicEnabled ? 'Mic On' : 'Mic Off'}
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4 space-y-4">
-              {!supportsLivekit && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                  This session type does not support LiveKit conference mode.
-                </div>
-              )}
+            {(connectionError || conferenceError) && (
+              <div className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-700/40 dark:bg-rose-900/20 dark:text-rose-200">
+                {connectionError && <p>{connectionError}</p>}
+                {conferenceError && <p>{conferenceError}</p>}
+              </div>
+            )}
+          </div>
 
-              {supportsLivekit && (
-                <div>
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-xs text-slate-500">{participantTracks.length} active feed{participantTracks.length === 1 ? '' : 's'}</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
-                    {conferenceConnected && participantTracks.length === 0 && (
-                      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 md:col-span-2 2xl:col-span-3">
-                        Connected. Waiting for participant media tracks...
-                      </div>
-                    )}
-                    {conferenceConnected && participantTracks.map((item) => (
-                      <LivekitTrackTile
-                        key={item.key}
-                        publication={item.publication}
-                        participantName={item.participantName}
-                        isLocal={item.isLocal}
-                      />
-                    ))}
-                    {!conferenceConnected && (
-                      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 md:col-span-2 2xl:col-span-3">
-                        Join the conference to display participant video and audio feeds here.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {cameraPermissionBlocked && isVideoSession && conferenceConnected && !isCameraEnabled && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
-                  Camera access is blocked. Click Allow Camera Access and approve the browser prompt, or enable camera access in your browser site settings.
-                  <div className="mt-2">
-                    <button
-                      onClick={handleAllowCameraAccess}
-                      className="rounded-md bg-amber-600 px-2.5 py-1.5 font-semibold text-white hover:bg-amber-700"
-                    >
-                      Ask for Camera Access Again
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Session Details</h2>
-                  <div className="mt-3 space-y-2 text-sm text-slate-700">
-                    <p><span className="font-semibold">Type:</span> {session?.kind || 'N/A'}</p>
-                    <p><span className="font-semibold">Participants:</span> {sessionParticipants.length}</p>
-                    <p><span className="font-semibold">Created:</span> {session?.created_at ? new Date(session.created_at).toLocaleString() : 'N/A'}</p>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">People</h2>
-                    {isSessionCreator && availableCandidates.length > 0 && (
-                      <button
-                        onClick={() => setShowAddParticipantsForm(!showAddParticipantsForm)}
-                        className="rounded-lg border border-cyan-200 px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-50"
-                      >
-                        {showAddParticipantsForm ? '✕ Cancel' : '+ Add Participants'}
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
-                    {sessionParticipants.length === 0 && <p className="text-sm text-slate-500">No participants available.</p>}
-                    {sessionParticipants.map((participant) => (
-                      <div
-                        key={`${participant.user_id}-${participant.joined_at}`}
-                        className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-600 bg-gray-700' : 'border-slate-200 bg-slate-50'}`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                              {participant.full_name || 'Unknown user'}
-                            </p>
-                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-slate-500'}`}>
-                              {participant.role_name || 'member'} {participant.role === 'host' && '(Host)'}
-                            </p>
-                          </div>
-                          {isSessionCreator && participant.role !== 'host' && (
-                            <button
-                              onClick={() => handleRemoveParticipant(participant.user_id)}
-                              disabled={removingParticipantId === participant.user_id}
-                              className={`flex-shrink-0 rounded px-2 py-1 text-xs font-semibold transition ${isDark
-                                ? 'bg-rose-900 text-rose-200 hover:bg-rose-800'
-                                : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                                } disabled:cursor-not-allowed disabled:opacity-50`}
-                              title="Remove participant"
-                            >
-                              {removingParticipantId === participant.user_id ? '...' : '✕'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {isSessionCreator && showAddParticipantsForm && availableCandidates.length > 0 && (
-                    <div className={`mt-3 rounded-lg border p-3 ${isDark ? 'border-gray-600 bg-gray-700' : 'border-slate-200 bg-slate-50'}`}>
-                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                        {availableCandidates.map((candidate) => (
-                          <label
-                            key={candidate.id}
-                            className={`flex cursor-pointer items-center rounded p-2 transition ${selectedCandidates.includes(candidate.id)
-                              ? isDark
-                                ? 'bg-cyan-900'
-                                : 'bg-cyan-50'
-                              : isDark
-                                ? 'hover:bg-gray-600'
-                                : 'hover:bg-white'
-                              }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedCandidates.includes(candidate.id)}
-                              onChange={() => {
-                                if (selectedCandidates.includes(candidate.id)) {
-                                  setSelectedCandidates(selectedCandidates.filter((id) => id !== candidate.id));
-                                } else {
-                                  setSelectedCandidates([...selectedCandidates, candidate.id]);
-                                }
-                              }}
-                              className="h-4 w-4 rounded"
-                            />
-                            <span className={`ml-2 text-xs ${isDark ? 'text-gray-200' : 'text-slate-700'}`}>
-                              {candidate.full_name || candidate.email}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                      <button
-                        onClick={handleAddParticipants}
-                        disabled={selectedCandidates.length === 0 || addingParticipants}
-                        className="mt-2 w-full rounded-lg bg-cyan-600 px-2 py-1 text-xs font-semibold text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {addingParticipants ? 'Adding...' : 'Add Selected'}
-                      </button>
+          <section className="relative flex-1 overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/80 shadow-2xl shadow-slate-900/40 backdrop-blur-xl">
+            <div className="h-full overflow-hidden p-4 sm:p-5">
+              <div className="grid min-h-[32rem] gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {supportsLivekit && conferenceConnected && participantTracks.length > 0 ? (
+                  participantTracks.map((item) => (
+                    <LivekitTrackTile
+                      key={item.key}
+                      publication={item.publication}
+                      participantName={item.participantName}
+                      isLocal={item.isLocal}
+                    />
+                  ))
+                ) : (
+                  <div className="col-span-full flex items-center justify-center rounded-[1.75rem] border border-dashed border-slate-600/80 bg-slate-950/70 p-10 text-center text-sm text-slate-300 shadow-inner shadow-black/20">
+                    <div>
+                      <p className="text-lg font-semibold">{supportsLivekit ? 'Video conference starting soon' : 'Conference unavailable for this session type'}</p>
+                      <p className="mt-3 text-sm text-slate-400">{supportsLivekit ? 'Click Join Conference to connect and load participant media.' : 'This session type does not support LiveKit conference mode.'}</p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="absolute inset-x-0 bottom-0 z-20 rounded-t-[2rem] border-t border-white/10 bg-slate-950/95 px-4 py-4 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
+              <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-3">
+                <button
+                  onClick={handleToggleMic}
+                  disabled={!conferenceConnected}
+                  className={`flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold transition ${isMicEnabled ? 'border-emerald-400 bg-emerald-500 text-white hover:bg-emerald-600' : 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700'} disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  {isMicEnabled ? '🎙️ Mic On' : '🎤 Mic Off'}
+                </button>
+                <button
+                  onClick={handleToggleCamera}
+                  disabled={!conferenceConnected || !isVideoSession}
+                  className={`flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold transition ${isCameraEnabled ? 'border-emerald-400 bg-emerald-500 text-white hover:bg-emerald-600' : 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700'} disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  {isCameraEnabled ? '📷 Camera On' : '📸 Camera Off'}
+                </button>
+                <button
+                  onClick={() => setIsChatOpen(true)}
+                  className="flex items-center gap-2 rounded-full border border-cyan-400 bg-cyan-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700"
+                >
+                  💬 Chat
+                </button>
+                <button
+                  onClick={handleLeaveConference}
+                  disabled={!conferenceConnected}
+                  className="flex items-center gap-2 rounded-full bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  ⏹️ End Call
+                </button>
+                <button
+                  onClick={() => setIsChatOpen(true)}
+                  className="flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 sm:hidden"
+                >
+                  Participants
+                </button>
               </div>
             </div>
           </section>
 
-          <section className="flex min-h-[36rem] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <div className={`rounded-[1.75rem] border ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-white/90'} p-5 shadow-xl shadow-slate-900/5 backdrop-blur-xl`}>
+              <h2 className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Session Details</h2>
+              <div className="mt-4 grid gap-3 text-sm text-slate-700 dark:text-slate-300">
+                <div className="rounded-3xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Type</p>
+                  <p className="mt-1 font-semibold">{session?.kind || 'N/A'}</p>
+                </div>
+                <div className="rounded-3xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Participants</p>
+                  <p className="mt-1 font-semibold">{sessionParticipants.length}</p>
+                </div>
+                <div className="rounded-3xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-slate-700 dark:bg-slate-800/80">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Created</p>
+                  <p className="mt-1 font-semibold">{session?.created_at ? new Date(session.created_at).toLocaleString() : 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className={`rounded-[1.75rem] border ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-white/90'} p-5 shadow-xl shadow-slate-900/5 backdrop-blur-xl`}>
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-slate-500">Helpdesk Chat</p>
-                  <h2 className="text-lg font-semibold text-slate-900">{session?.title || 'Session Conversation'}</h2>
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Participants</h2>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Manage session people and controls.</p>
                 </div>
-                <Link to="/helpdesk" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-                  Back to Sessions
-                </Link>
+                {isSessionCreator && availableCandidates.length > 0 && (
+                  <button
+                    onClick={() => setShowAddParticipantsForm(!showAddParticipantsForm)}
+                    className="rounded-full border border-cyan-200 px-3 py-2 text-xs font-semibold text-cyan-700 hover:bg-cyan-50 dark:border-cyan-800/60 dark:bg-cyan-900/20 dark:text-cyan-200"
+                  >
+                    {showAddParticipantsForm ? 'Cancel' : 'Add'}
+                  </button>
+                )}
               </div>
-              {loading && <p className="mt-2 text-xs text-slate-500">Loading chat...</p>}
-              {!loading && error && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
-            </div>
 
-            <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-100 to-slate-50 p-4">
-              {!loading && !error && sortedMessages.length === 0 && (
-                <p className="text-center text-slate-500">No messages yet. Start the conversation.</p>
-              )}
-              {!loading &&
-                !error &&
-                visibleMessages.map((message) => (
-                  <ChatMessageBubble
-                    key={message.id}
-                    message={message}
-                    isOwn={String(message.sender_id) === String(user?.id)}
-                  />
+              <div className="mt-4 grid gap-3 max-h-80 overflow-y-auto pr-1">
+                {sessionParticipants.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No participants available.</p>}
+                {sessionParticipants.map((participant) => (
+                  <div
+                    key={`${participant.user_id}-${participant.joined_at}`}
+                    className={`rounded-3xl border px-4 py-3 transition ${isDark ? 'border-slate-700 bg-slate-800 hover:border-slate-600' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-slate-900 dark:text-white">{participant.full_name || 'Unknown user'}</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{participant.role_name || 'member'} {participant.role === 'host' && '(Host)'}</p>
+                      </div>
+                      {isSessionCreator && participant.role !== 'host' && (
+                        <button
+                          onClick={() => handleRemoveParticipant(participant.user_id)}
+                          disabled={removingParticipantId === participant.user_id}
+                          className="rounded-full bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-900/20 dark:text-rose-200 dark:hover:bg-rose-900/40"
+                        >
+                          {removingParticipantId === participant.user_id ? '...' : 'Remove'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 ))}
-              <div ref={bottomRef} />
-            </div>
+              </div>
 
-            {sendError && <p className="px-4 py-2 text-sm text-rose-700">{sendError}</p>}
-            <ChatComposer onSend={handleSend} disabled={!!error || session?.status === 'ended'} />
-          </section>
+              {isSessionCreator && showAddParticipantsForm && availableCandidates.length > 0 && (
+                <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/80">
+                  <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                    {availableCandidates.map((candidate) => (
+                      <label
+                        key={candidate.id}
+                        className={`flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-2 transition ${selectedCandidates.includes(candidate.id)
+                          ? 'bg-cyan-100 dark:bg-cyan-900/80'
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+                          }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCandidates.includes(candidate.id)}
+                          onChange={() => {
+                            if (selectedCandidates.includes(candidate.id)) {
+                              setSelectedCandidates(selectedCandidates.filter((id) => id !== candidate.id));
+                            } else {
+                              setSelectedCandidates([...selectedCandidates, candidate.id]);
+                            }
+                          }}
+                          className="h-4 w-4 rounded accent-cyan-500"
+                        />
+                        <span className="text-sm text-slate-700 dark:text-slate-200">{candidate.full_name || candidate.email}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <button
+                    onClick={handleAddParticipants}
+                    disabled={selectedCandidates.length === 0 || addingParticipants}
+                    className="mt-3 w-full rounded-2xl bg-cyan-600 px-4 py-3 text-sm font-semibold text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {addingParticipants ? 'Adding...' : 'Add Selected'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {isChatOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm sm:items-center"
+              >
+                <motion.div
+                  initial={{ y: 50, opacity: 0, scale: 0.98 }}
+                  animate={{ y: 0, opacity: 1, scale: 1 }}
+                  exit={{ y: 50, opacity: 0, scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+                  className={`w-full ${isMobile ? 'max-w-full rounded-t-3xl' : 'max-w-3xl rounded-[2rem]'} bg-white shadow-2xl ring-1 ring-slate-900/10 dark:bg-slate-950`}
+                >
+                  <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Helpdesk Chat</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Chat overlay · messages are always synced.</p>
+                    </div>
+                    <button
+                      onClick={() => setIsChatOpen(false)}
+                      className="rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Close
+                    </button>
+                  </div>
+
+                  <div className="max-h-[70vh] overflow-hidden rounded-b-[2rem] bg-slate-50 dark:bg-slate-900">
+                    <div className="h-full overflow-y-auto p-5">
+                      {!loading && !error && visibleMessages.length === 0 && (
+                        <p className="text-center text-sm text-slate-500 dark:text-slate-400">No messages yet. Start the conversation.</p>
+                      )}
+                      {!loading && !error && visibleMessages.map((message) => (
+                        <ChatMessageBubble
+                          key={message.id}
+                          message={message}
+                          isOwn={String(message.sender_id) === String(user?.id)}
+                        />
+                      ))}
+                      <div ref={bottomRef} />
+                    </div>
+                    {sendError && <p className="px-5 py-3 text-sm text-rose-700">{sendError}</p>}
+                    <ChatComposer onSend={handleSend} disabled={!!error || session?.status === 'ended'} />
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="fixed bottom-6 right-6 z-40 inline-flex items-center justify-center rounded-full bg-cyan-600 px-4 py-4 text-white shadow-2xl shadow-cyan-500/30 transition hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2"
+          >
+            💬
+          </button>
         </div>
       </div>
     </HelpdeskShell>

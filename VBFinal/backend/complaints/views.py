@@ -569,7 +569,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         complaint.status = new_status
         complaint.save()
 
-        from .models import Notification
+        from notifications.models import Notification
 
         if complaint.submitted_by_id:
             Notification.objects.create(
@@ -612,7 +612,17 @@ class ComplaintViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK,
             )
 
-        return DRFResponse({'error': 'No broader resolver available'}, status=status.HTTP_400_BAD_REQUEST)
+        if complaint.escalate_to_parent_category():
+            complaint.refresh_from_db()
+            return DRFResponse(
+                {
+                    'detail': f'Escalated to parent category {complaint.category.office_name}',
+                    'assigned_to': complaint.assigned_officer.email if complaint.assigned_officer_id else None,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return DRFResponse({'error': 'No matching escalation resolver available'}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['get'], url_path='responses')
     def get_responses(self, request, pk=None):

@@ -107,7 +107,33 @@ const FeedbackForm = ({ templateId, onSubmit }) => {
       alert('Feedback submitted successfully!');
     } catch (error) {
       console.error('Error submitting feedback:', error);
-      alert('Failed to submit feedback');
+
+      // Handle server validation errors
+      if (error.response && error.response.data) {
+        const data = error.response.data;
+        if (data.answers && Array.isArray(data.answers)) {
+          // Find the first validation error
+          for (const answerError of data.answers) {
+            if (answerError && typeof answerError === 'object') {
+              const fieldErrors = Object.values(answerError).filter(err => err && typeof err === 'string');
+              if (fieldErrors.length > 0) {
+                alert(`Validation Error: ${fieldErrors[0]}`);
+                setSubmitting(false);
+                return;
+              }
+            }
+          }
+        }
+        if (data.detail) {
+          alert(`Error: ${data.detail}`);
+        } else if (data.message) {
+          alert(`Error: ${data.message}`);
+        } else {
+          alert('Failed to submit feedback. Please check your inputs.');
+        }
+      } else {
+        alert('Failed to submit feedback');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -171,6 +197,8 @@ const FieldInput = ({ field, value, onChange }) => {
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
           required={field.is_required}
+          min={field.min_value}
+          max={field.max_value}
           className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
         />
       );

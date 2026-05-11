@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { FeedbackAnalytics, FeedbackFormBuilder } from '../feedback';
+import FeedbackResponsesTable from '../feedback/FeedbackResponsesTable';
 import { useTheme } from '../../contexts/ThemeContext';
 import apiService from '../../services/api';
 
@@ -19,6 +21,8 @@ const FeedbackTemplateManagement = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [filterType, setFilterType] = useState('all');
   const [selectedOfficer, setSelectedOfficer] = useState('all');
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [viewingTemplateResponses, setViewingTemplateResponses] = useState(null);
   const [newTemplate, setNewTemplate] = useState({
     title: '',
     description: '',
@@ -72,6 +76,45 @@ const FeedbackTemplateManagement = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const exportResults = async (templateId, format = 'csv') => {
+    try {
+      const data = await apiService.getFeedbackTemplateAnalytics(templateId);
+
+      if (format === 'csv') {
+        const csv = convertToCSV(data);
+        downloadFile(csv, `feedback-${templateId}.csv`, 'text/csv');
+      } else {
+        const json = JSON.stringify(data, null, 2);
+        downloadFile(json, `feedback-${templateId}.json`, 'application/json');
+      }
+    } catch (exportError) {
+      console.error('Failed to export template results:', exportError);
+      alert('Failed to export template results');
+    }
+  };
+
+  const convertToCSV = (data) => {
+    const headers = ['Field', 'Type', 'Average/Count', 'Details'];
+    const rows = Object.entries(data?.field_analytics || {}).map(([field, analytics]) => [
+      field,
+      analytics.type,
+      analytics.average || analytics.count || 0,
+      JSON.stringify(analytics.choices || analytics),
+    ]);
+
+    return [headers, ...rows].map((row) => row.join(',')).join('\n');
+  };
+
+  const downloadFile = (content, filename, contentType) => {
+    const blob = new Blob([content], { type: contentType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const resetNewTemplate = () => {
@@ -237,6 +280,8 @@ const FeedbackTemplateManagement = () => {
     return 'All users';
   };
 
+  const selectedTemplateData = templates.find((template) => String(template.id) === String(selectedTemplate));
+
   return (
     <div className="space-y-6">
       <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
@@ -258,6 +303,68 @@ const FeedbackTemplateManagement = () => {
       {error && (
         <div className={`${isDark ? 'bg-red-900/20 border-red-700 text-red-300' : 'bg-red-50 border-red-200 text-red-700'} border rounded-lg p-4`}>
           {error}
+        </div>
+      )}
+
+      {viewingTemplateResponses && (
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow p-6 space-y-4`}>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Responses for: {viewingTemplateResponses.title}
+              </h3>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                Same response view used on the officer dashboard.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewingTemplateResponses(null)}
+              className="px-4 py-2 rounded-lg bg-gray-600 text-white hover:bg-gray-700"
+            >
+              Back to Templates
+            </button>
+          </div>
+          <FeedbackResponsesTable templateId={viewingTemplateResponses.id} templateTitle={viewingTemplateResponses.title} />
+        </div>
+      )}
+
+      {selectedTemplate && !viewingTemplateResponses && (
+        <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow p-6 space-y-4`}>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Feedback Analytics: {selectedTemplateData?.title || `Template #${selectedTemplate}`}
+              </h3>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                Same analytics view used on the officer dashboard.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => exportResults(selectedTemplate, 'csv')}
+                className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700"
+              >
+                Export CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => exportResults(selectedTemplate, 'json')}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Export JSON
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTemplate(null)}
+                className="px-4 py-2 rounded-lg bg-gray-600 text-white hover:bg-gray-700"
+              >
+                Back to Templates
+              </button>
+            </div>
+          </div>
+          <FeedbackAnalytics templateId={selectedTemplate} />
         </div>
       )}
 
@@ -407,48 +514,64 @@ const FeedbackTemplateManagement = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-col space-y-2 ml-4">
-                    {template.status === 'pending' && (
-                      <>
-                        <button
-                          onClick={() => handleAction('approve', template.id, 'Template approved successfully!')}
-                          className="bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600 transition-colors"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleAction('reject', template.id, 'Template rejected.')}
-                          className="bg-red-500 text-white px-4 py-2 rounded text-sm hover:bg-red-600 transition-colors"
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                    {(template.status === 'inactive' || template.status === 'rejected' || template.status === 'draft') && (
+                  <div className="flex flex-wrap gap-2 ml-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTemplate(null);
+                        setViewingTemplateResponses(template);
+                      }}
+                      className="bg-indigo-600 text-white px-4 py-2 rounded text-sm hover:bg-indigo-700 transition-colors"
+                    >
+                      View Responses
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewingTemplateResponses(null);
+                        setSelectedTemplate(template.id);
+                      }}
+                      className="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700 transition-colors"
+                    >
+                      View Analytics
+                    </button>
+
+                    {(template.status === 'draft' || template.status === 'pending' || template.status === 'inactive') && (
                       <button
+                        type="button"
                         onClick={() => handleAction('activate', template.id, 'Template activated successfully!')}
-                        className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600 transition-colors"
+                        className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 transition-colors"
                       >
                         Activate
                       </button>
                     )}
+
                     {template.status === 'active' && (
-                      <>
-                        <button
-                          onClick={() => handleAction('deactivate', template.id, 'Template deactivated successfully!')}
-                          className="bg-orange-500 text-white px-4 py-2 rounded text-sm hover:bg-orange-600 transition-colors"
-                        >
-                          Deactivate
-                        </button>
-                        <button
-                          onClick={() => handleAction('close', template.id, 'Template closed successfully!')}
-                          className="bg-yellow-600 text-white px-4 py-2 rounded text-sm hover:bg-yellow-700 transition-colors"
-                        >
-                          Close
-                        </button>
-                      </>
+                      <button
+                        type="button"
+                        onClick={() => handleAction('close', template.id, 'Template closed successfully!')}
+                        className="bg-yellow-600 text-white px-4 py-2 rounded text-sm hover:bg-yellow-700 transition-colors"
+                      >
+                        Close
+                      </button>
                     )}
+
                     <button
+                      type="button"
+                      onClick={() => exportResults(template.id, 'csv')}
+                      className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition-colors"
+                    >
+                      Export CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => exportResults(template.id, 'json')}
+                      className="bg-cyan-600 text-white px-4 py-2 rounded text-sm hover:bg-cyan-700 transition-colors"
+                    >
+                      Export JSON
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleAction('delete', template.id, 'Template deleted successfully!')}
                       className="bg-gray-600 text-white px-4 py-2 rounded text-sm hover:bg-gray-700 transition-colors"
                     >
@@ -464,250 +587,31 @@ const FeedbackTemplateManagement = () => {
 
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto`}>
-            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-              Create New Template
-            </h3>
-
-            <div className="space-y-4">
+          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow-lg w-full max-w-7xl max-h-[90vh] overflow-y-auto`}>
+            <div className="flex items-center justify-between gap-4 mb-4">
               <div>
-                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                  Title *
-                </label>
-                <input
-                  type="text"
-                  value={newTemplate.title}
-                  onChange={(e) => setNewTemplate(prev => ({ ...prev, title: e.target.value }))}
-                  className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  placeholder="Template title"
-                />
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  Create New Template
+                </h3>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Uses the same builder and options as the officer template page.
+                </p>
               </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                  Description
-                </label>
-                <textarea
-                  value={newTemplate.description}
-                  onChange={(e) => setNewTemplate(prev => ({ ...prev, description: e.target.value }))}
-                  className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  rows="3"
-                  placeholder="Template description"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                  Priority
-                </label>
-                <select
-                  value={newTemplate.priority}
-                  onChange={(e) => setNewTemplate(prev => ({ ...prev, priority: e.target.value }))}
-                  className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                  Audience Scope
-                </label>
-                <select
-                  value={newTemplate.audience_scope}
-                  onChange={(e) => setNewTemplate(prev => ({
-                    ...prev,
-                    audience_scope: e.target.value,
-                    target_campus: e.target.value === 'campus' ? prev.target_campus : '',
-                    target_college: e.target.value === 'college' ? prev.target_college : '',
-                    target_department: e.target.value === 'department' ? prev.target_department : '',
-                    target_user_ids: e.target.value === 'users' ? prev.target_user_ids : [],
-                  }))}
-                  className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                >
-                  <option value="all">All Users</option>
-                  <option value="campus">Campus</option>
-                  <option value="college">College</option>
-                  <option value="department">Department</option>
-                  <option value="users">Specific Users</option>
-                </select>
-              </div>
-
-              {newTemplate.audience_scope === 'campus' && (
-                <div>
-                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                    Target Campus
-                  </label>
-                  <select
-                    value={newTemplate.target_campus}
-                    onChange={(e) => setNewTemplate(prev => ({ ...prev, target_campus: e.target.value }))}
-                    className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="">Select Campus</option>
-                    {campuses.map((campus) => (
-                      <option key={campus.id} value={campus.id}>{campus.campus_name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {newTemplate.audience_scope === 'college' && (
-                <div>
-                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                    Target College
-                  </label>
-                  <select
-                    value={newTemplate.target_college}
-                    onChange={(e) => setNewTemplate(prev => ({ ...prev, target_college: e.target.value }))}
-                    className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="">Select College</option>
-                    {colleges.map((college) => (
-                      <option key={college.id} value={college.id}>{college.college_name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {newTemplate.audience_scope === 'department' && (
-                <div>
-                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                    Target Department
-                  </label>
-                  <select
-                    value={newTemplate.target_department}
-                    onChange={(e) => setNewTemplate(prev => ({ ...prev, target_department: e.target.value }))}
-                    className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map((department) => (
-                      <option key={department.id} value={department.id}>{department.department_name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {newTemplate.audience_scope === 'users' && (
-                <div>
-                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                    Target Users
-                  </label>
-                  <div className={`max-h-40 overflow-y-auto p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}>
-                    {users.map((user) => (
-                      <label key={user.id} className={`flex items-center gap-2 text-sm mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        <input
-                          type="checkbox"
-                          checked={newTemplate.target_user_ids.includes(user.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setNewTemplate(prev => ({ ...prev, target_user_ids: [...prev.target_user_ids, user.id] }));
-                            } else {
-                              setNewTemplate(prev => ({ ...prev, target_user_ids: prev.target_user_ids.filter((id) => id !== user.id) }));
-                            }
-                          }}
-                        />
-                        <span>{user.first_name} {user.last_name} ({user.email})</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Fields</h4>
-                  <button
-                    onClick={addField}
-                    className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
-                  >
-                    Add Field
-                  </button>
-                </div>
-
-                {newTemplate.fields.map((field, index) => (
-                  <div key={field.id} className={`p-4 rounded border ${isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-gray-50'}`}>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <input
-                        type="text"
-                        value={field.label}
-                        onChange={(e) => updateField(field.id, { label: e.target.value })}
-                        placeholder={`Field ${index + 1} label`}
-                        className={`p-2 border rounded ${isDark ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                      />
-                      <select
-                        value={field.field_type}
-                        onChange={(e) => updateField(field.id, {
-                          field_type: e.target.value,
-                          options: e.target.value === 'choice' || e.target.value === 'checkbox' ? field.options : []
-                        })}
-                        className={`p-2 border rounded ${isDark ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                      >
-                        <option value="text">Text</option>
-                        <option value="number">Number</option>
-                        <option value="rating">Rating</option>
-                        <option value="choice">Choice</option>
-                        <option value="checkbox">Checkbox</option>
-                      </select>
-                      <div className="flex items-center justify-between gap-2">
-                        <label className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          <input
-                            type="checkbox"
-                            checked={field.is_required}
-                            onChange={(e) => updateField(field.id, { is_required: e.target.checked })}
-                          />
-                          Required
-                        </label>
-                        {newTemplate.fields.length > 1 && (
-                          <button
-                            onClick={() => removeField(field.id)}
-                            className="px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {(field.field_type === 'choice' || field.field_type === 'checkbox') && (
-                      <div className="mt-3">
-                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Options
-                        </label>
-                        <input
-                          type="text"
-                          value={field.options.join(', ')}
-                          onChange={(e) => updateField(field.id, {
-                            options: e.target.value.split(',').map(option => option.trim()).filter(Boolean)
-                          })}
-                          placeholder="Option 1, Option 2, Option 3"
-                          className={`w-full p-2 border rounded ${isDark ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-3 mt-6">
               <button
-                onClick={() => {
-                  resetNewTemplate();
-                  setShowCreateModal(false);
-                }}
-                className={`px-4 py-2 rounded ${isDark ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-gray-300 text-gray-700 hover:bg-gray-400'} transition-colors`}
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateTemplate}
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
-              >
-                Create Template
+                Close
               </button>
             </div>
+
+            <FeedbackFormBuilder
+              onSave={async () => {
+                setShowCreateModal(false);
+                await loadTemplates();
+              }}
+            />
           </div>
         </div>
       )}

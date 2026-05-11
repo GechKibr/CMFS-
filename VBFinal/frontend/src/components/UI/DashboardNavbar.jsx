@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import apiService from '../../services/api';
 
-const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) => {
+const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false, showLanguageToggle = false }) => {
   const { isDark, toggleTheme } = useTheme();
   const { user, logout, getUserRole } = useAuth();
+  const { language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
   // const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -136,6 +138,9 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
   const iconButtonClasses = isDark
     ? 'text-slate-300 hover:bg-blue-500/15 hover:text-blue-200'
     : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700';
+  const languageButtonClasses = isDark
+    ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
+    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50';
   // const activeLinkClasses = isDark
   //   ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
   //   : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm';
@@ -148,13 +153,13 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
   const dividerClasses = isDark ? 'bg-slate-600' : 'bg-blue-100';
 
   return (
-    <header className={`${headerClasses} backdrop-blur-md shadow-md border-b sticky top-0 left-0 right-0 z-50 w-full`}>
-      <nav className="px-6 sm:px-8 lg:px-12 h-20 flex items-center justify-between">
+    <header className={`sticky top-0 z-50 w-full border-b ${headerClasses} shadow-sm backdrop-blur-md`}>
+      <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Left: Logo and Sidebar Toggle */}
-        <div className="flex items-center space-x-6 min-w-0">
+        <div className="flex items-center space-x-6 min-w-0 shrink-0">
           <button
             onClick={onSidebarToggle}
-            className={`p-2.5 rounded-lg transition-all duration-200 ${iconButtonClasses}`}
+            className={`p-2 rounded-lg transition-all duration-200 ${iconButtonClasses}`}
             title="Toggle Sidebar"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -163,17 +168,17 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
           </button>
 
           <div className="flex items-center cursor-pointer hover:opacity-80 transition-opacity duration-200" onClick={() => navigate(getDashboardPath())}>
-            <div className="flex items-center space-x-3.5">
-              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-lg shadow-md">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex items-center space-x-3">
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2 rounded-lg shadow-md">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <div>
-                <h1 className={`text-xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                <h1 className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   CMFTS
                 </h1>
-                <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                <p className={`text-[11px] font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   System
                 </p>
               </div>
@@ -182,7 +187,19 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
         </div>
 
         {/* Right: Theme Toggle and User Menu */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+          {showLanguageToggle && (
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              className={`hidden sm:inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-all duration-200 ${languageButtonClasses}`}
+              title={language === 'am' ? 'Switch to English' : 'ቋንቋ ወደ አማርኛ ለውጥ'}
+            >
+              <span className="text-xs uppercase tracking-wide">{language === 'am' ? 'EN' : 'AM'}</span>
+              <span className="hidden md:inline">{language === 'am' ? 'English' : 'አማርኛ'}</span>
+            </button>
+          )}
+
           {shouldShowNotifications && (
             <div className="relative">
               <button
@@ -190,7 +207,7 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
                   setNotificationsOpen((prev) => !prev);
                   setDropdownOpen(false);
                 }}
-                className={`relative p-2.5 rounded-lg transition-all duration-200 ${iconButtonClasses}`}
+                className={`relative p-2 rounded-lg transition-all duration-200 ${iconButtonClasses}`}
                 title="Notifications"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -288,7 +305,7 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
 
           <button
             onClick={toggleTheme}
-            className={`p-2.5 rounded-lg transition-all duration-200 ${iconButtonClasses}`}
+            className={`p-2 rounded-lg transition-all duration-200 ${iconButtonClasses}`}
             title="Toggle Theme"
           >
             {isDark ? '☀️' : '🌙'}
@@ -302,9 +319,9 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
                 setDropdownOpen(!dropdownOpen);
                 setNotificationsOpen(false);
               }}
-              className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${userMenuTriggerClasses}`}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 ${userMenuTriggerClasses}`}
             >
-              <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm">
                 {getUserInitials()}
               </div>
               <div className="hidden sm:flex flex-col items-start">
@@ -327,7 +344,7 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
 
             {dropdownOpen && (
               <div
-                className={`absolute right-0 mt-3 w-56 rounded-xl shadow-xl py-2 z-50 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} backdrop-blur-sm`}
+                className={`absolute right-0 top-full mt-2 w-56 rounded-xl shadow-xl py-2 z-50 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} backdrop-blur-sm`}
               >
                 <div className={`px-5 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
                   <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -339,18 +356,6 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) 
                   <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-600'} mt-1`}>
                     {user?.email}
                   </p>
-                </div>
-                <div className="py-2">
-                  <Link
-                    to={getDashboardPath()}
-                    onClick={() => setDropdownOpen(false)}
-                    className={`flex items-center px-5 py-2.5 text-sm font-medium transition-colors duration-150 ${isDark ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'}`}
-                  >
-                    <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Profile Settings
-                  </Link>
                 </div>
                 <div className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-100'} py-2`}>
                   <button

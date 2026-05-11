@@ -36,7 +36,6 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     department: '',
   });
   const [ccOfficerIds, setCcOfficerIds] = useState([]);
-  const [ccSelectionValue, setCcSelectionValue] = useState('');
   const totalSteps = 4;
 
   const getCategoryId = (category) => String(category.category_id || category.id || '');
@@ -121,7 +120,6 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     setCcRegexEnabled(false);
     setCcFilters({ campus: '', college: '', department: '' });
     setCcOfficerIds([]);
-    setCcSelectionValue('');
     setFormErrors({});
     setCurrentStep(1);
   };
@@ -379,14 +377,13 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     setResolverSelectionValue('');
   };
 
-  const addCcOfficerSelection = () => {
-    if (!ccSelectionValue) return;
+  const addCcOfficerSelection = (resolverId) => {
+    if (!resolverId) return;
     setCcOfficerIds((prev) => (
-      prev.includes(String(ccSelectionValue))
+      prev.includes(String(resolverId))
         ? prev
-        : [...prev, String(ccSelectionValue)]
+        : [...prev, String(resolverId)]
     ));
-    setCcSelectionValue('');
   };
 
   const removeCcOfficerSelection = (resolverId) => {
@@ -395,12 +392,10 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
 
   const clearCcOfficerSelections = () => {
     setCcOfficerIds([]);
-    setCcSelectionValue('');
   };
 
   const selectAllCcOfficers = () => {
     setCcOfficerIds(filteredCcResolvers.map((resolver) => String(resolver.id)));
-    setCcSelectionValue('');
   };
 
   const submitComplaint = async (e) => {

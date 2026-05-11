@@ -59,6 +59,24 @@ const addDays = (value, days) => {
   date.setDate(date.getDate() + days);
   return date;
 };
+const parseDateValue = (value) => {
+  if (!value) return null;
+  const date = value instanceof Date ? new Date(value) : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+const parseTimeValue = (timeValue) => {
+  if (!timeValue) return null;
+  const [hoursRaw, minutesRaw = '00', secondsRaw = '00'] = String(timeValue).split(':');
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+  const seconds = Number(secondsRaw);
+  if ([hours, minutes, seconds].some((part) => Number.isNaN(part))) {
+    return null;
+  }
+
+  const date = new Date(1970, 0, 1, hours, minutes, seconds);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 const toMinutes = (timeValue) => {
   if (!timeValue) return 0;
   const [hours, minutes] = timeValue.split(':').map(Number);
@@ -68,19 +86,31 @@ const fromMinutes = (minutes) => {
   const normalized = ((Math.round(minutes / SLOT_STEP_MINUTES) * SLOT_STEP_MINUTES) + 24 * 60) % (24 * 60);
   return `${pad(Math.floor(normalized / 60))}:${pad(normalized % 60)}`;
 };
-const formatTime = (timeValue) => new Date(`1970-01-01T${timeValue || '00:00'}:00`).toLocaleTimeString([], {
-  hour: '2-digit',
-  minute: '2-digit',
-});
-const formatShortDate = (value) => new Date(value).toLocaleDateString(undefined, {
-  month: 'short',
-  day: 'numeric',
-});
-const formatLongDate = (value) => new Date(value).toLocaleDateString(undefined, {
-  weekday: 'long',
-  month: 'short',
-  day: 'numeric',
-});
+const formatTime = (timeValue) => {
+  const date = parseTimeValue(timeValue);
+  if (!date) return '—';
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+const formatShortDate = (value) => {
+  const date = parseDateValue(value);
+  if (!date) return '—';
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+};
+const formatLongDate = (value) => {
+  const date = parseDateValue(value);
+  if (!date) return '—';
+  return date.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
+};
 const normalizeArray = (response) => response?.results ?? response ?? [];
 const viewStartMinutes = VIEW_START_HOUR * 60;
 const viewEndMinutes = VIEW_END_HOUR * 60;
@@ -421,7 +451,6 @@ const SlotDetails = ({ isDark, slot, appointment, onEdit, onDelete }) => {
         <div>
           <p className={`text-xs font-semibold uppercase tracking-[0.3em] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Slot Details</p>
           <h4 className={`mt-1 text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatLongDate(slot.available_date)}</h4>
-          {/*  */}
         </div>
         <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${style.chip}`}>{style.label}</span>
       </div>
@@ -432,7 +461,19 @@ const SlotDetails = ({ isDark, slot, appointment, onEdit, onDelete }) => {
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+      <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+        <div className={`rounded-xl border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/50 text-gray-300' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+          <p className="text-xs uppercase tracking-wide opacity-75">Date</p>
+          <p className="mt-1 font-semibold">{formatLongDate(slot.available_date)}</p>
+        </div>
+        <div className={`rounded-xl border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/50 text-gray-300' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+          <p className="text-xs uppercase tracking-wide opacity-75">Start Time</p>
+          <p className="mt-1 font-semibold">{formatTime(slot.start_time)}</p>
+        </div>
+        <div className={`rounded-xl border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/50 text-gray-300' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+          <p className="text-xs uppercase tracking-wide opacity-75">End Time</p>
+          <p className="mt-1 font-semibold">{formatTime(slot.end_time)}</p>
+        </div>
         <div className={`rounded-xl border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/50 text-gray-300' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
           <p className="text-xs uppercase tracking-wide opacity-75">Duration</p>
           <p className="mt-1 font-semibold">{duration} min</p>

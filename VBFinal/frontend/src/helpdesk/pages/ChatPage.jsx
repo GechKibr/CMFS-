@@ -159,6 +159,8 @@ const ChatPage = () => {
   const [selectedCandidates, setSelectedCandidates] = useState([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [lastSeenMessageId, setLastSeenMessageId] = useState(null);
   const canConnectRealtime = !loading && !error && Boolean(session?.id);
   const supportsLivekit = ['audio_call', 'video_call', 'audio_conference', 'video_conference'].includes(session?.kind);
   const isVideoSession = ['video_call', 'video_conference'].includes(session?.kind);
@@ -293,6 +295,28 @@ const ChatPage = () => {
   const visibleMessages = useMemo(() => {
     return sortedMessages.filter((message) => message.message_type !== 'signal');
   }, [sortedMessages]);
+
+  // Track unread messages after the derived message list exists.
+  useEffect(() => {
+    if (!isChatOpen && visibleMessages.length > 0) {
+      const latestMessage = visibleMessages[visibleMessages.length - 1];
+      if (lastSeenMessageId === null) {
+        setLastSeenMessageId(latestMessage.id);
+      } else if (latestMessage.id !== lastSeenMessageId) {
+        setUnreadCount((prev) => prev + 1);
+      }
+    }
+  }, [visibleMessages, isChatOpen, lastSeenMessageId]);
+
+  // Reset unread count when chat is opened.
+  useEffect(() => {
+    if (isChatOpen) {
+      setUnreadCount(0);
+      if (visibleMessages.length > 0) {
+        setLastSeenMessageId(visibleMessages[visibleMessages.length - 1].id);
+      }
+    }
+  }, [isChatOpen, visibleMessages]);
 
   const handleSend = async (text) => {
     setSendError('');
@@ -762,14 +786,14 @@ const ChatPage = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm sm:items-center"
+                className="fixed inset-0 z-50 flex items-end justify-end bg-slate-950/60 backdrop-blur-sm sm:items-center sm:justify-end"
               >
                 <motion.div
-                  initial={{ y: 50, opacity: 0, scale: 0.98 }}
-                  animate={{ y: 0, opacity: 1, scale: 1 }}
-                  exit={{ y: 50, opacity: 0, scale: 0.98 }}
+                  initial={{ x: 50, opacity: 0, scale: 0.98 }}
+                  animate={{ x: 0, opacity: 1, scale: 1 }}
+                  exit={{ x: 50, opacity: 0, scale: 0.98 }}
                   transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-                  className={`w-full ${isMobile ? 'max-w-full rounded-t-3xl' : 'max-w-3xl rounded-[2rem]'} bg-white shadow-2xl ring-1 ring-slate-900/10 dark:bg-slate-950`}
+                  className={`h-full w-full ${isMobile ? 'max-w-full rounded-t-3xl' : 'max-w-2xl rounded-l-[2rem]'} bg-white shadow-2xl ring-1 ring-slate-900/10 dark:bg-slate-950 flex flex-col`}
                 >
                   <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
                     <div>
@@ -784,8 +808,8 @@ const ChatPage = () => {
                     </button>
                   </div>
 
-                  <div className="max-h-[70vh] overflow-hidden rounded-b-[2rem] bg-slate-50 dark:bg-slate-900">
-                    <div className="h-full overflow-y-auto p-5">
+                  <div className="flex-1 overflow-hidden rounded-b-[2rem] bg-slate-50 dark:bg-slate-900 flex flex-col">
+                    <div className="flex-1 overflow-y-auto p-5">
                       {!loading && !error && visibleMessages.length === 0 && (
                         <p className="text-center text-sm text-slate-500 dark:text-slate-400">No messages yet. Start the conversation.</p>
                       )}
@@ -808,9 +832,14 @@ const ChatPage = () => {
 
           <button
             onClick={() => setIsChatOpen(true)}
-            className="fixed bottom-6 right-6 z-40 inline-flex items-center justify-center rounded-full bg-cyan-600 px-4 py-4 text-white shadow-2xl shadow-cyan-500/30 transition hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2"
+            className="fixed bottom-6 right-6 z-40 inline-flex items-center justify-center rounded-full bg-cyan-600 px-4 py-4 text-white shadow-2xl shadow-cyan-500/30 transition hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 relative"
           >
             💬
+            {unreadCount > 0 && (
+              <span className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-600 text-xs font-bold text-white">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
         </div>
       </div>

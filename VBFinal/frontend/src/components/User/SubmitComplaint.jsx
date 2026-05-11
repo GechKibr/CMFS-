@@ -25,7 +25,6 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   const [files, setFiles] = useState([]);
   const [formErrors, setFormErrors] = useState({});
   const [currentStep, setCurrentStep] = useState(1);
-  const [ccOfficeIds, setCcOfficeIds] = useState([]);
   const [selectedResolverIds, setSelectedResolverIds] = useState([]);
   const [resolverSelectionValue, setResolverSelectionValue] = useState('');
   const [resolverOfficerIds, setResolverOfficerIds] = useState([]);
@@ -112,7 +111,6 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   const clearForm = () => {
     setComplaintForm({ title: '', description: '', category: '', isAnonymous: false });
     setFiles([]);
-    setCcOfficeIds([]);
     setSelectedResolverIds([]);
     setResolverSelectionValue('');
     setResolverOfficerIds([]);
@@ -279,14 +277,6 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
       .filter(Boolean)))
       .sort((a, b) => a.localeCompare(b))
   ), [filteredCcResolvers, ccFilters.campus, ccFilters.college]);
-
-  const availableCcOffices = useMemo(() => (
-    filteredCcResolvers.filter((resolver) => !ccOfficerIds.includes(String(resolver.id)))
-  ), [filteredCcResolvers, ccOfficerIds]);
-
-  const filteredCcOffices = useMemo(() => (
-    availableCcOffices.filter((resolver) => ccOfficeSearch.matcher(toSearchableText(resolver)))
-  ), [availableCcOffices, ccOfficeSearch, toSearchableText]);
 
   const filteredResolverOfficers = useMemo(() => (
     selectedCategoryResolvers.filter((resolver) => {

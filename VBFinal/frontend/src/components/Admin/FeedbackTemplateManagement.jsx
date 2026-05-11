@@ -4,15 +4,6 @@ import FeedbackResponsesTable from '../feedback/FeedbackResponsesTable';
 import { useTheme } from '../../contexts/ThemeContext';
 import apiService from '../../services/api';
 
-const defaultField = () => ({
-  id: Date.now().toString(),
-  label: '',
-  field_type: 'text',
-  is_required: true,
-  options: [],
-  order: 0,
-});
-
 const FeedbackTemplateManagement = () => {
   const { isDark } = useTheme();
   const [templates, setTemplates] = useState([]);
@@ -23,44 +14,9 @@ const FeedbackTemplateManagement = () => {
   const [selectedOfficer, setSelectedOfficer] = useState('all');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [viewingTemplateResponses, setViewingTemplateResponses] = useState(null);
-  const [newTemplate, setNewTemplate] = useState({
-    title: '',
-    description: '',
-    priority: 'medium',
-    audience_scope: 'all',
-    target_campus: '',
-    target_college: '',
-    target_department: '',
-    target_user_ids: [],
-    fields: [defaultField()]
-  });
-  const [campuses, setCampuses] = useState([]);
-  const [colleges, setColleges] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [users, setUsers] = useState([]);
-
   useEffect(() => {
     loadTemplates();
-    loadAudienceOptions();
   }, []);
-
-  const loadAudienceOptions = async () => {
-    try {
-      const [campusesData, collegesData, departmentsData, usersData] = await Promise.all([
-        apiService.getCampuses(),
-        apiService.getColleges(),
-        apiService.getDepartments(),
-        apiService.getAllUsers(),
-      ]);
-
-      setCampuses(campusesData.results || campusesData || []);
-      setColleges(collegesData.results || collegesData || []);
-      setDepartments(departmentsData.results || departmentsData || []);
-      setUsers((usersData.results || usersData || []).filter((user) => user.is_active));
-    } catch (loadError) {
-      console.error('Failed to load audience options:', loadError);
-    }
-  };
 
   const loadTemplates = async () => {
     setLoading(true);
@@ -115,103 +71,6 @@ const FeedbackTemplateManagement = () => {
     link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
-  };
-
-  const resetNewTemplate = () => {
-    setNewTemplate({
-      title: '',
-      description: '',
-      priority: 'medium',
-      audience_scope: 'all',
-      target_campus: '',
-      target_college: '',
-      target_department: '',
-      target_user_ids: [],
-      fields: [defaultField()]
-    });
-  };
-
-  const updateField = (fieldId, updates) => {
-    setNewTemplate(prev => ({
-      ...prev,
-      fields: prev.fields.map((field, index) =>
-        field.id === fieldId ? { ...field, ...updates, order: index } : field
-      )
-    }));
-  };
-
-  const addField = () => {
-    setNewTemplate(prev => ({
-      ...prev,
-      fields: [
-        ...prev.fields,
-        { ...defaultField(), id: `${Date.now()}-${prev.fields.length}`, order: prev.fields.length }
-      ]
-    }));
-  };
-
-  const removeField = (fieldId) => {
-    setNewTemplate(prev => ({
-      ...prev,
-      fields: prev.fields
-        .filter(field => field.id !== fieldId)
-        .map((field, index) => ({ ...field, order: index }))
-    }));
-  };
-
-  const handleCreateTemplate = async () => {
-    if (!newTemplate.title.trim()) {
-      alert('Please enter a title');
-      return;
-    }
-
-    if (newTemplate.fields.length === 0 || newTemplate.fields.some(field => !field.label.trim())) {
-      alert('Please add at least one field with a label');
-      return;
-    }
-
-    if (newTemplate.audience_scope === 'campus' && !newTemplate.target_campus) {
-      alert('Please select target campus');
-      return;
-    }
-    if (newTemplate.audience_scope === 'college' && !newTemplate.target_college) {
-      alert('Please select target college');
-      return;
-    }
-    if (newTemplate.audience_scope === 'department' && !newTemplate.target_department) {
-      alert('Please select target department');
-      return;
-    }
-    if (newTemplate.audience_scope === 'users' && newTemplate.target_user_ids.length === 0) {
-      alert('Please select at least one target user');
-      return;
-    }
-
-    try {
-      await apiService.createFeedbackTemplate({
-        title: newTemplate.title.trim(),
-        description: newTemplate.description.trim(),
-        priority: newTemplate.priority,
-        audience_scope: newTemplate.audience_scope,
-        target_campus: newTemplate.target_campus || null,
-        target_college: newTemplate.target_college || null,
-        target_department: newTemplate.target_department || null,
-        target_user_ids: newTemplate.audience_scope === 'users' ? newTemplate.target_user_ids : [],
-        fields: newTemplate.fields.map(({ id: _id, ...field }, index) => ({
-          ...field,
-          options: field.field_type === 'choice' || field.field_type === 'checkbox' ? field.options.filter(Boolean) : [],
-          order: index,
-        }))
-      });
-
-      resetNewTemplate();
-      setShowCreateModal(false);
-      await loadTemplates();
-      alert('Template created successfully!');
-    } catch (createError) {
-      console.error('Failed to create template:', createError);
-      alert(createError.message || 'Failed to create template');
-    }
   };
 
   const handleAction = async (action, templateId, successMessage) => {

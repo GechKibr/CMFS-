@@ -8,6 +8,7 @@ from .models import (
     Department,
     EmailLog,
     EmailVerificationToken,
+    DeletedAccount,
     MaintenanceConfiguration,
     Officer,
     PasswordResetToken,
@@ -61,6 +62,32 @@ class SystemLogSerializer(serializers.ModelSerializer):
             'path',
             'status_code',
             'created_at',
+        ]
+
+
+class DeletedAccountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeletedAccount
+        fields = [
+            'id',
+            'original_user_id',
+            'email',
+            'full_name',
+            'username',
+            'role',
+            'phone',
+            'gmail_account',
+            'campus_id',
+            'college',
+            'department',
+            'student_type',
+            'year_of_study',
+            'employee_id',
+            'auth_provider',
+            'deleted_by',
+            'deletion_source',
+            'snapshot',
+            'deleted_at',
         ]
 
 

@@ -7,10 +7,13 @@ const normalizeApiBase = (rawBase) => {
 };
 
 const API_BASE_URL = normalizeApiBase(import.meta.env.VITE_API_URL);
+const CATEGORY_RESOLVERS_CACHE_KEY = 'category_resolvers_cache_v1';
+const CATEGORY_RESOLVERS_CACHE_TTL = 5 * 60 * 1000;
 
 class ApiService {
   constructor() {
     this.token = localStorage.getItem('token');
+    this.categoryResolversCache = null;
   }
 
   setToken(token) {
@@ -327,6 +330,12 @@ class ApiService {
       body: JSON.stringify(data),
     });
   }
+
+  async deleteCurrentUser() {
+    return this.request('/accounts/me/', {
+      method: 'DELETE',
+    });
+  }
   async getComplaints() {
     return this.request('/complaints/');
   }
@@ -523,6 +532,31 @@ class ApiService {
     return { results: allUsers, count: allUsers.length };
   }
 
+  async getDeletedAccounts(page = null, pageSize = null) {
+    let url = '/accounts/deleted-accounts/';
+    const params = new URLSearchParams();
+
+    if (page) params.append('page', page);
+    if (pageSize) params.append('page_size', pageSize);
+
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+
+    return this.request(url);
+  }
+
+  async getAllDeletedAccounts() {
+    const response = await this.getDeletedAccounts();
+    const deletedAccounts = response.results || response;
+
+    if (Array.isArray(deletedAccounts)) {
+      return { results: deletedAccounts, count: deletedAccounts.length };
+    }
+
+    return { results: [], count: 0 };
+  }
+
   // Contact
   async sendContact(data) {
     return this.request('/contact/', { method: 'POST', body: JSON.stringify(data) });
@@ -679,6 +713,56 @@ class ApiService {
     return res;
   }
 
+  _readCategoryResolversCache() {
+    const now = Date.now();
+
+    if (this.categoryResolversCache && this.categoryResolversCache.expiresAt > now) {
+      return this.categoryResolversCache.data;
+    }
+
+    try {
+      const rawCache = localStorage.getItem(CATEGORY_RESOLVERS_CACHE_KEY);
+      if (!rawCache) return null;
+
+      const parsed = JSON.parse(rawCache);
+      if (!parsed?.expiresAt || parsed.expiresAt <= now || !Array.isArray(parsed.data)) {
+        localStorage.removeItem(CATEGORY_RESOLVERS_CACHE_KEY);
+        return null;
+      }
+
+      this.categoryResolversCache = parsed;
+      return parsed.data;
+    } catch {
+      localStorage.removeItem(CATEGORY_RESOLVERS_CACHE_KEY);
+      return null;
+    }
+  }
+
+  _writeCategoryResolversCache(data) {
+    const payload = {
+      data,
+      expiresAt: Date.now() + CATEGORY_RESOLVERS_CACHE_TTL,
+    };
+
+    this.categoryResolversCache = payload;
+
+    try {
+      localStorage.setItem(CATEGORY_RESOLVERS_CACHE_KEY, JSON.stringify(payload));
+    } catch {
+      // Ignore storage quota or privacy mode failures.
+    }
+  }
+
+  _invalidateCategoryResolversCache() {
+    this.categoryResolversCache = null;
+
+    try {
+      localStorage.removeItem(CATEGORY_RESOLVERS_CACHE_KEY);
+    } catch {
+      // Ignore storage failures.
+    }
+  }
+
   // Category Resolvers
   async getCategoryResolvers(page = null, pageSize = null) {
     let url = '/resolver-assignments/';
@@ -695,6 +779,11 @@ class ApiService {
   }
 
   async getAllCategoryResolvers() {
+    const cachedResolvers = this._readCategoryResolversCache();
+    if (cachedResolvers) {
+      return { results: cachedResolvers, count: cachedResolvers.length, cached: true };
+    }
+
     let allResolvers = [];
     let page = 1;
     let hasMore = true;
@@ -717,6 +806,8 @@ class ApiService {
       page++;
     }
 
+    this._writeCategoryResolversCache(allResolvers);
+
     return { results: allResolvers, count: allResolvers.length };
   }
 
@@ -727,30 +818,38 @@ class ApiService {
   }
 
   async createCategoryResolver(data) {
-    return this.request('/resolver-assignments/', {
+    const response = await this.request('/resolver-assignments/', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    this._invalidateCategoryResolversCache();
+    return response;
   }
 
   async createCategoryResolverBulk(data) {
-    return this.request('/resolver-assignments/bulk-create/', {
+    const response = await this.request('/resolver-assignments/bulk-create/', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    this._invalidateCategoryResolversCache();
+    return response;
   }
 
   async updateCategoryResolver(id, data) {
-    return this.request(`/resolver-assignments/${id}/`, {
+    const response = await this.request(`/resolver-assignments/${id}/`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+    this._invalidateCategoryResolversCache();
+    return response;
   }
 
   async deleteCategoryResolver(id) {
-    return this.request(`/resolver-assignments/${id}/`, {
+    const response = await this.request(`/resolver-assignments/${id}/`, {
       method: 'DELETE',
     });
+    this._invalidateCategoryResolversCache();
+    return response;
   }
 
   // Password reset

@@ -3,6 +3,7 @@ from .models import (
     Department,
     EmailLog,
     EmailVerificationToken,
+    DeletedAccount,
     Officer,
     PasswordResetToken,
     Student,
@@ -14,6 +15,7 @@ admin.site.register(SystemLog)
 admin.site.register(Department)
 admin.site.register(Student)
 admin.site.register(Officer)
+admin.site.register(DeletedAccount)
 
 
 @admin.register(User)

@@ -471,6 +471,38 @@ class User(AbstractBaseUser, PermissionsMixin):
         else:
             return Complaint.objects.filter(submitted_by=self)
 
+
+class DeletedAccount(models.Model):
+    original_user_id = models.IntegerField(db_index=True)
+    email = models.EmailField(db_index=True)
+    full_name = models.CharField(max_length=120)
+    username = models.CharField(max_length=150, blank=True, null=True)
+    role = models.CharField(max_length=20, db_index=True)
+    phone = models.CharField(max_length=30, blank=True, null=True)
+    gmail_account = models.EmailField(blank=True, null=True)
+    campus_id = models.CharField(max_length=20, blank=True, null=True)
+    college = models.CharField(max_length=100, blank=True, null=True)
+    department = models.CharField(max_length=100, blank=True, null=True)
+    student_type = models.CharField(max_length=50, blank=True, null=True)
+    year_of_study = models.PositiveIntegerField(blank=True, null=True)
+    employee_id = models.CharField(max_length=20, blank=True, null=True)
+    auth_provider = models.CharField(max_length=20, blank=True, null=True)
+    deleted_by = models.CharField(max_length=255, blank=True, null=True)
+    deletion_source = models.CharField(max_length=30, default='self_delete')
+    snapshot = models.JSONField(default=dict, blank=True)
+    deleted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-deleted_at']
+        indexes = [
+            models.Index(fields=['deleted_at']),
+            models.Index(fields=['email']),
+            models.Index(fields=['role']),
+        ]
+
+    def __str__(self):
+        return f"Deleted account: {self.full_name} <{self.email}>"
+
 # Student types are represented as choices in `STUDENT_TYPE_CHOICES`.
 
 class Student(models.Model):

@@ -78,7 +78,7 @@ const HelpdeskShell = ({
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {showChrome ? (
         <>
-          <DashboardNavbar onSidebarToggle={handleSidebarToggle} showLanguageToggle={role !== 'admin'} />
+          <DashboardNavbar onSidebarToggle={handleSidebarToggle} showLanguageToggle={role === 'user'} />
 
           <div className="flex pt-16">
             <Sidebar

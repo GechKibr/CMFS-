@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.hashers import check_password
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models import Count, Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -15,6 +16,7 @@ from .models import (
     STUDENT_TYPE_CHOICES,
     Department,
     EmailVerificationToken,
+    DeletedAccount,
     MaintenanceConfiguration,
     Officer,
     PasswordResetOTP,
@@ -26,6 +28,7 @@ from .models import (
 from .serializers import (
     AdminUserSerializer,
     DepartmentSerializer,
+    DeletedAccountSerializer,
     LoginSerializer,
     MaintenanceConfigurationSerializer,
     OfficerSerializer,
@@ -103,6 +106,8 @@ class UserViewSet(viewsets.ModelViewSet):
             return LoginSerializer
         if self.action == 'me':
             return SelfUserSerializer
+        if self.action == 'deleted_accounts':
+            return DeletedAccountSerializer
         return AdminUserSerializer
 
     def get_authenticators(self):
@@ -116,10 +121,72 @@ class UserViewSet(viewsets.ModelViewSet):
             return [permissions.AllowAny()]
         if action in ['me', 'logout']:
             return [permissions.IsAuthenticated()]
+        if action == 'deleted_accounts':
+            return [IsAdminRole()]
         # Allow authenticated users to update their own profile via detail PATCH/PUT
         if action in ['update', 'partial_update']:
             return [permissions.IsAuthenticated()]
         return [IsAdminRole()]
+
+    def _archive_deleted_account(self, user, deleted_by=None, deletion_source='self_delete'):
+        student_profile = getattr(user, 'student_profile', None)
+        officer_profile = getattr(user, 'officer_profile', None)
+
+        department = None
+        college = None
+        campus_id = None
+        student_type = None
+        year_of_study = None
+        employee_id = None
+
+        if student_profile:
+            department = student_profile.department.department_name if student_profile.department else None
+            college = student_profile.department.department_college if student_profile.department else None
+            campus_id = student_profile.campus_id
+            student_type = student_profile.student_type
+            year_of_study = student_profile.year_of_study
+
+        if officer_profile:
+            department = officer_profile.department.department_name if officer_profile.department else department
+            college = officer_profile.college or (officer_profile.department.department_college if officer_profile.department else college)
+            employee_id = officer_profile.employee_id
+
+        snapshot = {
+            'user_id': user.id,
+            'email': user.email,
+            'full_name': user.full_name,
+            'username': user.username,
+            'role': user.role,
+            'phone': user.phone,
+            'gmail_account': user.gmail_account,
+            'auth_provider': user.auth_provider,
+            'campus_id': campus_id,
+            'college': college,
+            'department': department,
+            'student_type': student_type,
+            'year_of_study': year_of_study,
+            'employee_id': employee_id,
+        }
+
+        return DeletedAccount.objects.create(
+            original_user_id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            username=user.username,
+            role=user.role,
+            phone=user.phone,
+            gmail_account=user.gmail_account,
+            campus_id=campus_id,
+            college=college,
+            department=department,
+            student_type=student_type,
+            year_of_study=year_of_study,
+            employee_id=employee_id,
+            auth_provider=user.auth_provider,
+            deleted_by=deleted_by,
+            deletion_source=deletion_source,
+            snapshot=snapshot,
+        )
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -139,6 +206,14 @@ class UserViewSet(viewsets.ModelViewSet):
             serializer.save()
             return Response(serializer.data)
         return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        deleted_by = request.user.email if request.user and request.user.is_authenticated else None
+        with transaction.atomic():
+            self._archive_deleted_account(instance, deleted_by=deleted_by, deletion_source='admin_delete')
+            self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['post'], url_path='login')
     def login(self, request):
@@ -210,11 +285,17 @@ class UserViewSet(viewsets.ModelViewSet):
         except Exception as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=['get', 'put', 'patch'], url_path='me')
+    @action(detail=False, methods=['get', 'put', 'patch', 'delete'], url_path='me')
     def me(self, request):
         if request.method == 'GET':
             serializer = SelfUserSerializer(request.user, context={'request': request})
             return Response(serializer.data)
+
+        if request.method == 'DELETE':
+            with transaction.atomic():
+                self._archive_deleted_account(request.user, deleted_by=request.user.email, deletion_source='self_delete')
+                request.user.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
         serializer = SelfUserSerializer(
             request.user,
@@ -224,6 +305,12 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='deleted-accounts')
+    def deleted_accounts(self, request):
+        deleted_accounts = DeletedAccount.objects.all()
+        serializer = DeletedAccountSerializer(deleted_accounts, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'], url_path='verify-email')

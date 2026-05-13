@@ -56,7 +56,7 @@ const PublicNavbar = () => {
   const dividerClasses = isDark ? 'bg-slate-600' : 'bg-blue-100';
 
   return (
-    <header className={`${headerClasses} backdrop-blur-md shadow-md border-b fixed top-0 left-0 right-0 z-50 relative`}>
+    <header className={`${headerClasses} backdrop-blur-md shadow-md border-b fixed top-0 left-0 right-0 z-50`}>
       <nav className="px-6 sm:px-8 lg:px-12 h-20 flex items-center justify-between">
         {/* Logo */}
         <div className="flex items-center space-x-6 min-w-0">

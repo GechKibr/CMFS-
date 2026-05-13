@@ -153,8 +153,8 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false, sh
   const dividerClasses = isDark ? 'bg-slate-600' : 'bg-blue-100';
 
   return (
-    <header className={`sticky top-0 z-50 w-full border-b ${headerClasses} shadow-sm backdrop-blur-md`}>
-      <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+    <header className={`fixed inset-x-0 top-0 z-50 w-full border-b ${headerClasses} shadow-sm backdrop-blur-md`}>
+      <nav className="flex h-16 w-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Left: Logo and Sidebar Toggle */}
         <div className="flex items-center space-x-6 min-w-0 shrink-0">
           <button

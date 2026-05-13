@@ -279,6 +279,15 @@ const LandingPage = () => {
   const navigate = useNavigate();
   const [dashboardStats, setDashboardStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    message: '',
+  });
+  const [contactSending, setContactSending] = useState(false);
+  const [contactSuccess, setContactSuccess] = useState('');
+  const [contactError, setContactError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -324,6 +333,44 @@ const LandingPage = () => {
   const scrollToSection = (id) => {
     if (typeof document === 'undefined') return;
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleContactChange = (event) => {
+    const { name, value } = event.target;
+    setContactForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleContactSubmit = async (event) => {
+    event.preventDefault();
+    setContactError('');
+    setContactSuccess('');
+
+    const payload = {
+      name: contactForm.name.trim(),
+      email: contactForm.email.trim(),
+      subject: contactForm.subject.trim(),
+      message: contactForm.message.trim(),
+    };
+
+    if (!payload.name || !payload.email || !payload.subject || !payload.message) {
+      setContactError('Please complete all contact fields before sending.');
+      return;
+    }
+
+    try {
+      setContactSending(true);
+      await apiService.sendContact(payload);
+      setContactSuccess('Your message has been sent successfully.');
+      setContactForm({ name: '', email: '', subject: '', message: '' });
+    } catch (error) {
+      console.error('Failed to send contact message:', error);
+      setContactError('Unable to send your message right now. Please try again later.');
+    } finally {
+      setContactSending(false);
+    }
   };
 
   return (
@@ -701,27 +748,114 @@ const LandingPage = () => {
         <section id="contact" className="scroll-mt-28 py-12 sm:py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
             <Reveal>
-              <div className={`grid gap-6 rounded-[2rem] border p-6 lg:grid-cols-[1fr_auto] lg:items-center ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
-                <div>
+              <div className={`grid gap-8 rounded-[2rem] border p-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
+                <div className="space-y-6">
                   <SectionHeading
                     eyebrow="Contact & Support"
                     title="Get help, request a demo, or connect with the service team"
                     description="Use the details below to reach the team behind the platform or to schedule a guided walkthrough."
                   />
+
+                  <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                    {[
+                      ['Email', 'support@platform.com'],
+                      ['Phone', '+251 000 000 000'],
+                      ['Hours', 'Mon-Fri, 8:00 - 17:00'],
+                    ].map(([label, value]) => (
+                      <div key={label} className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-slate-800 bg-slate-950/80' : 'border-slate-200 bg-slate-50'}`}>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">{label}</p>
+                        <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-200">{value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                  {[
-                    ['Email', 'support@platform.com'],
-                    ['Phone', '+251 000 000 000'],
-                    ['Hours', 'Mon-Fri, 8:00 - 17:00'],
-                  ].map(([label, value]) => (
-                    <div key={label} className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-slate-800 bg-slate-950/80' : 'border-slate-200 bg-slate-50'}`}>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">{label}</p>
-                      <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-200">{value}</p>
+                <form onSubmit={handleContactSubmit} className={`rounded-[1.5rem] border p-5 shadow-sm ${isDark ? 'border-slate-800 bg-slate-950/70' : 'border-slate-200 bg-slate-50/80'}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">Send a message</h3>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Use the contact form to send a message directly to the team.</p>
                     </div>
-                  ))}
-                </div>
+                    <div className="hidden rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300 sm:inline-flex">
+                      Contact form
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Full name</span>
+                      <input
+                        type="text"
+                        name="name"
+                        value={contactForm.name}
+                        onChange={handleContactChange}
+                        className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500/30 ${isDark ? 'border-slate-700 bg-slate-900 text-white placeholder-slate-500' : 'border-slate-200 bg-white text-slate-900 placeholder-slate-400'}`}
+                        placeholder="Your full name"
+                      />
+                    </label>
+
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Email address</span>
+                      <input
+                        type="email"
+                        name="email"
+                        value={contactForm.email}
+                        onChange={handleContactChange}
+                        className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500/30 ${isDark ? 'border-slate-700 bg-slate-900 text-white placeholder-slate-500' : 'border-slate-200 bg-white text-slate-900 placeholder-slate-400'}`}
+                        placeholder="name@example.com"
+                      />
+                    </label>
+
+                    <label className="space-y-2 sm:col-span-2">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Subject</span>
+                      <input
+                        type="text"
+                        name="subject"
+                        value={contactForm.subject}
+                        onChange={handleContactChange}
+                        className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500/30 ${isDark ? 'border-slate-700 bg-slate-900 text-white placeholder-slate-500' : 'border-slate-200 bg-white text-slate-900 placeholder-slate-400'}`}
+                        placeholder="What do you need help with?"
+                      />
+                    </label>
+
+                    <label className="space-y-2 sm:col-span-2">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Message</span>
+                      <textarea
+                        name="message"
+                        value={contactForm.message}
+                        onChange={handleContactChange}
+                        rows={5}
+                        className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500/30 ${isDark ? 'border-slate-700 bg-slate-900 text-white placeholder-slate-500' : 'border-slate-200 bg-white text-slate-900 placeholder-slate-400'}`}
+                        placeholder="Write your message here..."
+                      />
+                    </label>
+                  </div>
+
+                  {contactError && (
+                    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
+                      {contactError}
+                    </div>
+                  )}
+
+                  {contactSuccess && (
+                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200">
+                      {contactSuccess}
+                    </div>
+                  )}
+
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs leading-6 text-slate-500 dark:text-slate-400">
+                      Messages are stored in the contact inbox and reviewed by the support team.
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={contactSending}
+                      className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {contactSending ? 'Sending...' : 'Send Message'}
+                    </button>
+                  </div>
+                </form>
               </div>
             </Reveal>
           </div>

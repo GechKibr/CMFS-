@@ -6,12 +6,17 @@ logger = logging.getLogger(__name__)
 
 
 class ComplaintService:
-    def _matching_resolvers(self, complaint):
+    def _matching_resolvers(self, complaint, preferred_officer_ids=None):
+        queryset = CategoryResolver.objects.filter(
+            category=complaint.category,
+            active=True,
+        )
+
+        if preferred_officer_ids:
+            queryset = queryset.filter(officer_id__in=preferred_officer_ids)
+
         return list(
-            CategoryResolver.objects.filter(
-                category=complaint.category,
-                active=True,
-            ).select_related('officer', 'category', 'department').order_by(
+            queryset.select_related('officer', 'category', 'department').order_by(
                 'department_id',
                 'college',
                 'campus',
@@ -19,16 +24,23 @@ class ComplaintService:
             )
         )
 
-    def assign_to_first_level_officer(self, complaint):
+    def assign_to_first_level_officer(self, complaint, preferred_officer_ids=None):
         try:
             if not complaint.category:
                 return None
 
             candidates = [
                 resolver
-                for resolver in self._matching_resolvers(complaint)
+                for resolver in self._matching_resolvers(complaint, preferred_officer_ids=preferred_officer_ids)
                 if resolver.matches_complaint_scope(complaint)
             ]
+
+            if not candidates and preferred_officer_ids:
+                candidates = [
+                    resolver
+                    for resolver in self._matching_resolvers(complaint)
+                    if resolver.matches_complaint_scope(complaint)
+                ]
 
             if not candidates:
                 return None
@@ -38,6 +50,7 @@ class ComplaintService:
             representative = matched_resolvers[0]
 
             complaint.current_resolver = representative
+            complaint.assigned_officer = representative.officer
             complaint.set_escalation_deadline(representative.escalation_time, base_time=complaint.created_at)
             complaint.save()
 
@@ -54,10 +67,10 @@ class ComplaintService:
             logger.error(f"Assignment failed: {e}")
             return None
 
-    def process_complaint(self, complaint):
+    def process_complaint(self, complaint, preferred_officer_ids=None):
         try:
             complaint.save()
-            assigned_officer = self.assign_to_first_level_officer(complaint)
+            assigned_officer = self.assign_to_first_level_officer(complaint, preferred_officer_ids=preferred_officer_ids)
             return {
                 'category': complaint.category,
                 'assigned_officer': assigned_officer,

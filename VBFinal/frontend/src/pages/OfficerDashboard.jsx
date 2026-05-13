@@ -76,10 +76,10 @@ const OfficerDashboard = () => {
   const fetchComplaints = useCallback(async () => {
     setComplaintsLoading(true);
     try {
-      // Fetch complaints visible to the current officer through CategoryResolver scope.
-      const data = await apiService.getComplaints();
-      const availableComplaints = Array.isArray(data) ? data : data.results || [];
-      setComplaints(availableComplaints);
+      // Load complaints explicitly assigned to the current officer.
+      const data = await apiService.getAssignedComplaints();
+      const assignedComplaints = Array.isArray(data) ? data : data.results || [];
+      setComplaints(assignedComplaints);
     } catch (error) {
       console.error('Error fetching complaints:', error);
       setComplaints([]);

@@ -47,7 +47,6 @@ from .serializers import (
 )
 from .realtime import build_complaint_analytics, build_public_dashboard_stats
 from notifications.realtime import broadcast_notification_update
-from .service import service
 from .availability_service import AvailabilityService
 class IsAdminRole(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -352,16 +351,11 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         _normalize_list_field(data, 'cc_emails')
         _normalize_list_field(data, 'cc_officer_ids')
         _normalize_list_field(data, 'cc_office_ids')
+        _normalize_list_field(data, 'resolver_officer_ids')
 
         serializer = self.get_serializer(data=data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         complaint = serializer.save(submitted_by=request.user)
-
-        try:
-            service.process_complaint(complaint)
-            complaint.refresh_from_db()
-        except Exception:
-            pass
 
         output_serializer = ComplaintSerializer(complaint, context={'request': request})
         return DRFResponse(output_serializer.data, status=status.HTTP_201_CREATED)
@@ -902,6 +896,11 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     queryset = Assignment.objects.all()
     serializer_class = AssignmentSerializer
     permission_classes = [IsAdminRole]
+
+    def get_permissions(self):
+        if self.action == 'my_complaints':
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
 
     @action(detail=False, methods=['get'], url_path='my-complaints')
     def my_complaints(self, request):

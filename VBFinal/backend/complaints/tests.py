@@ -170,6 +170,52 @@ class ComplaintSecurityAPITests(APITestCase):
         cc_emails = set(created.cc_list.values_list('email', flat=True))
         self.assertSetEqual(cc_emails, {self.officer_one.email})
 
+    def test_complaint_creation_routes_selected_resolver_officers(self):
+        department = Department.objects.create(
+            department_name='Business Operations',
+            department_college='business_economics',
+        )
+        Student.objects.create(
+            user=self.user_one,
+            student_type='undergraduate',
+            campus_id='maraki',
+            department=department,
+            year_of_study=2,
+        )
+
+        resolver = CategoryResolver.objects.create(
+            category=self.category,
+            campus=None,
+            college=None,
+            department=department,
+            officer=self.officer_one,
+            escalation_time=timedelta(hours=1),
+        )
+
+        self.client.force_authenticate(user=self.user_one)
+        response = self.client.post(
+            reverse('complaint-list'),
+            {
+                'title': 'Resolver routed complaint',
+                'description': 'Complaint routed through selected resolver officers',
+                'category': self.category.pk,
+                'resolver_officer_ids': [self.officer_one.id],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        created = Complaint.objects.get(title='Resolver routed complaint')
+        created.refresh_from_db()
+        self.assertEqual(created.assigned_officer, self.officer_one)
+        self.assertEqual(created.current_resolver_id, resolver.id)
+        self.assertTrue(created.assignments.filter(officer=self.officer_one, resolver=resolver, reason='initial').exists())
+
+        self.client.force_authenticate(user=self.officer_one)
+        officer_response = self.client.get(reverse('complaint-list'))
+        officer_ids = {item['complaint_id'] for item in officer_response.data['results']}
+        self.assertIn(str(created.pk), officer_ids)
+
     def test_complaint_routed_to_all_matching_resolvers_for_same_scope(self):
         department = Department.objects.create(
             department_name='Business Operations',

@@ -146,6 +146,7 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
     cc_emails = serializers.ListField(child=serializers.EmailField(), required=False, write_only=True, default=list)
     cc_office_ids = serializers.ListField(child=serializers.CharField(), required=False, write_only=True, default=list)
     cc_officer_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False, write_only=True, default=list)
+    resolver_officer_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False, write_only=True, default=list)
 
     class Meta:
         model = Complaint
@@ -158,6 +159,7 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
             "cc_emails",
             "cc_office_ids",
             "cc_officer_ids",
+            "resolver_officer_ids",
         ]
 
     def validate(self, attrs):
@@ -206,10 +208,12 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         from accounts.email_service import EmailService
+        from .service import service
 
         cc_emails = validated_data.pop("cc_emails", [])
         cc_office_ids = validated_data.pop("cc_office_ids", [])
         cc_officer_ids = validated_data.pop("cc_officer_ids", [])
+        resolver_officer_ids = validated_data.pop("resolver_officer_ids", [])
         request = self.context.get("request")
 
         office_category_ids = [str(category_id) for category_id in cc_office_ids if str(category_id).strip()]
@@ -270,6 +274,15 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
                 EmailService.send_cc_complaint_notification(officer, complaint)
             except Exception:
                 continue
+
+        preferred_resolver_officer_ids = [int(officer_id) for officer_id in resolver_officer_ids if str(officer_id).strip()]
+        try:
+            service.process_complaint(
+                complaint,
+                preferred_officer_ids=preferred_resolver_officer_ids if preferred_resolver_officer_ids else None,
+            )
+        except Exception:
+            pass
 
         return complaint
 

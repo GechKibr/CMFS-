@@ -1,4 +1,7 @@
 {
+  "installCommand": "cd VBFinal/frontend && npm install",
+  "buildCommand": "cd VBFinal/frontend && npm run build",
+  "outputDirectory": "VBFinal/frontend/dist",
   "rewrites": [
     {
       "source": "/(.*)",

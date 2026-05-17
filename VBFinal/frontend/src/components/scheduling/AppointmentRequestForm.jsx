@@ -28,6 +28,11 @@ const AppointmentRequestForm = ({ onSuccess, onCancel }) => {
   const [error, setError] = useState('');
   const [categories, setCategories] = useState([]);
   const [officers, setOfficers] = useState([]);
+  const [categoryResolvers, setCategoryResolvers] = useState([]);
+  const [resolverFilters, setResolverFilters] = useState({ campus: '', college: '', department: '' });
+  const [resolverCampusOptions, setResolverCampusOptions] = useState([]);
+  const [resolverCollegeOptions, setResolverCollegeOptions] = useState([]);
+  const [resolverDepartmentOptions, setResolverDepartmentOptions] = useState([]);
   const [loadingOfficers, setLoadingOfficers] = useState(false);
   const [slotGroups, setSlotGroups] = useState([]);
 
@@ -56,8 +61,32 @@ const AppointmentRequestForm = ({ onSuccess, onCancel }) => {
       }
       setLoadingOfficers(true);
       try {
-        const data = await apiService.getCategoryOfficers(form.category_id);
-        setOfficers(Array.isArray(data) ? data : []);
+        // Fetch category resolvers once and compute officers client-side when filters are applied
+        const resolversData = await apiService.getAllCategoryResolvers();
+        const resolvers = (resolversData?.results || resolversData || [])
+          .filter(r => r && r.active);
+        setCategoryResolvers(resolvers);
+
+        // Derive officers for the selected category directly from resolvers (avoid /accounts calls)
+        const matchingResolvers = resolvers.filter(r => String(r.category) === String(form.category_id));
+        const byOfficer = new Map();
+        matchingResolvers.forEach(r => {
+          const key = String(r.officer ?? r.id ?? r.officer_name);
+          if (!byOfficer.has(key)) {
+            const name = r.officer_name || '';
+            const parts = name.trim().split(/\s+/).filter(Boolean);
+            const first_name = parts[0] || '';
+            const last_name = parts.slice(1).join(' ') || '';
+            byOfficer.set(key, {
+              id: r.officer ?? key,
+              first_name,
+              last_name,
+              email: r.officer_email || '',
+              name: name || r.officer_email || `Officer ${key}`,
+            });
+          }
+        });
+        setOfficers(Array.from(byOfficer.values()));
       } catch {
         setOfficers([]);
       } finally {
@@ -66,6 +95,44 @@ const AppointmentRequestForm = ({ onSuccess, onCancel }) => {
     };
     loadOfficers();
   }, [form.category_id]);
+
+  // Update resolver filter options when category resolvers or category changes
+  useEffect(() => {
+    const resolversForCategory = categoryResolvers.filter(r => String(r.category) === String(form.category_id));
+    setResolverCampusOptions(Array.from(new Set(resolversForCategory.map(r => r.campus_name).filter(Boolean))).sort());
+    setResolverCollegeOptions(Array.from(new Set(resolversForCategory.map(r => r.college_name).filter(Boolean))).sort());
+    setResolverDepartmentOptions(Array.from(new Set(resolversForCategory.map(r => r.department_name).filter(Boolean))).sort());
+  }, [categoryResolvers, form.category_id]);
+
+  // When resolver filters change, update officers list
+  useEffect(() => {
+    if (!form.category_id) return;
+    const resolversForCategory = categoryResolvers.filter(r => String(r.category) === String(form.category_id));
+    const filtered = resolversForCategory.filter(r => {
+      if (resolverFilters.campus && r.campus_name !== resolverFilters.campus) return false;
+      if (resolverFilters.college && r.college_name !== resolverFilters.college) return false;
+      if (resolverFilters.department && r.department_name !== resolverFilters.department) return false;
+      return true;
+    });
+    const byOfficer = new Map();
+    filtered.forEach(r => {
+      const key = String(r.officer ?? r.id ?? r.officer_name);
+      if (!byOfficer.has(key)) {
+        const name = r.officer_name || '';
+        const parts = name.trim().split(/\s+/).filter(Boolean);
+        const first_name = parts[0] || '';
+        const last_name = parts.slice(1).join(' ') || '';
+        byOfficer.set(key, {
+          id: r.officer ?? key,
+          first_name,
+          last_name,
+          email: r.officer_email || '',
+          name: name || r.officer_email || `Officer ${key}`,
+        });
+      }
+    });
+    setOfficers(Array.from(byOfficer.values()));
+  }, [resolverFilters, categoryResolvers, form.category_id]);
 
   const selectedCategory = categories.find(item => String(item.category_id) === String(form.category_id));
   const selectedOfficer = officers.find(item => String(item.id) === String(form.officer_id));
@@ -172,6 +239,36 @@ const AppointmentRequestForm = ({ onSuccess, onCancel }) => {
             </div>
             <div>
               <label className={labelCls}>Officer <span className={`text-xs font-normal ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>(optional)</span></label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                <select
+                  value={resolverFilters.campus}
+                  onChange={e => { setResolverFilters(f => ({ ...f, campus: e.target.value })); setForm(p => ({ ...p, officer_id: '' })); setSelectedSlot(null); }}
+                  className={inputCls}
+                  disabled={!form.category_id}
+                >
+                  <option value="">All Campuses</option>
+                  {resolverCampusOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select
+                  value={resolverFilters.college}
+                  onChange={e => { setResolverFilters(f => ({ ...f, college: e.target.value })); setForm(p => ({ ...p, officer_id: '' })); setSelectedSlot(null); }}
+                  className={inputCls}
+                  disabled={!form.category_id}
+                >
+                  <option value="">All Colleges</option>
+                  {resolverCollegeOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select
+                  value={resolverFilters.department}
+                  onChange={e => { setResolverFilters(f => ({ ...f, department: e.target.value })); setForm(p => ({ ...p, officer_id: '' })); setSelectedSlot(null); }}
+                  className={inputCls}
+                  disabled={!form.category_id}
+                >
+                  <option value="">All Departments</option>
+                  {resolverDepartmentOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
               <select
                 value={form.officer_id}
                 onChange={e => {

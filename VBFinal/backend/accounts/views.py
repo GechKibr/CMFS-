@@ -292,6 +292,10 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
 
         if request.method == 'DELETE':
+            # Prevent officers from self-deleting via the API; deletion must be performed by admin.
+            if request.user and getattr(request.user, 'is_officer', lambda: False)() or getattr(request.user, 'role', None) == 'officer':
+                return Response({'error': 'Officers cannot delete their own account. Contact an administrator.'}, status=status.HTTP_403_FORBIDDEN)
+
             with transaction.atomic():
                 self._archive_deleted_account(request.user, deleted_by=request.user.email, deletion_source='self_delete')
                 request.user.delete()

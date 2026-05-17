@@ -2,6 +2,7 @@ from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.urls import reverse
 from rest_framework import serializers
 
@@ -147,6 +148,7 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
     cc_office_ids = serializers.ListField(child=serializers.CharField(), required=False, write_only=True, default=list)
     cc_officer_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False, write_only=True, default=list)
     resolver_officer_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False, write_only=True, default=list)
+    resolver_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False, write_only=True, default=list)
 
     class Meta:
         model = Complaint
@@ -160,6 +162,7 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
             "cc_office_ids",
             "cc_officer_ids",
             "resolver_officer_ids",
+            "resolver_ids",
         ]
 
     def validate(self, attrs):
@@ -214,6 +217,7 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
         cc_office_ids = validated_data.pop("cc_office_ids", [])
         cc_officer_ids = validated_data.pop("cc_officer_ids", [])
         resolver_officer_ids = validated_data.pop("resolver_officer_ids", [])
+        resolver_ids = validated_data.pop("resolver_ids", [])
         request = self.context.get("request")
 
         office_category_ids = [str(category_id) for category_id in cc_office_ids if str(category_id).strip()]
@@ -224,65 +228,99 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"cc_office_ids": [f"Invalid office selection: {', '.join(sorted(set(missing_office_ids)))}"]})
 
         try:
-            complaint = Complaint.objects.create(**validated_data)
+            with transaction.atomic():
+                complaint = Complaint.objects.create(**validated_data)
+
+                if request and hasattr(request, "FILES"):
+                    for key, file in request.FILES.items():
+                        if key.startswith("attachment_"):
+                            ComplaintAttachment.objects.create(complaint=complaint, **_attachment_payload(file))
+
+                for email in cc_emails:
+                    ComplaintCC.objects.get_or_create(complaint=complaint, email=email)
+
+                cc_office_officer_ids = set()
+                if office_categories.exists():
+                    for resolver in CategoryResolver.objects.filter(
+                        category__in=office_categories,
+                        active=True,
+                    ).select_related("category", "department", "officer"):
+                        if resolver.matches_complaint_scope(complaint):
+                            cc_office_officer_ids.add(resolver.officer_id)
+
+                cc_officer_ids = {int(officer_id) for officer_id in cc_officer_ids}
+                cc_officer_ids.update(cc_office_officer_ids)
+
+                cc_officers = User.objects.filter(id__in=cc_officer_ids, role="officer").distinct()
+                seen_emails = set()
+                for officer in cc_officers:
+                    if not officer.email or officer.email in seen_emails:
+                        continue
+
+                    seen_emails.add(officer.email)
+                    ComplaintCC.objects.get_or_create(complaint=complaint, email=officer.email)
+
+                    Notification.objects.create(
+                        user=officer,
+                        complaint=complaint,
+                        notification_type="complaint_update",
+                        title=f"CC Complaint: {complaint.title}",
+                        message=(
+                            f"You were added as CC on complaint '{complaint.title}' "
+                            f"by {complaint.submitted_by.first_name} {complaint.submitted_by.last_name}."
+                        ),
+                    )
+
+                    try:
+                        EmailService.send_cc_complaint_notification(officer, complaint)
+                    except Exception:
+                        continue
+
+                # If the client provided explicit resolver IDs (specific CategoryResolver records),
+                # create assignments for all matching resolvers so a complaint can be visible to multiple officers.
+                if resolver_ids:
+                    selected_resolver_ids = [int(resolver_id) for resolver_id in resolver_ids if str(resolver_id).strip()]
+                    selected_resolvers = list(
+                        CategoryResolver.objects.filter(id__in=selected_resolver_ids, active=True).select_related(
+                            "officer", "category", "department"
+                        )
+                    )
+
+                    if len(selected_resolvers) != len(set(selected_resolver_ids)):
+                        raise serializers.ValidationError({"resolver_ids": ["One or more selected resolvers are invalid or inactive."]})
+
+                    selected_resolvers = [
+                        resolver for resolver in selected_resolvers
+                        if resolver.category_id == complaint.category_id and resolver.matches_complaint_scope(complaint)
+                    ]
+
+                    if not selected_resolvers:
+                        raise serializers.ValidationError({"resolver_ids": ["No selected resolvers matched the complaint category and scope."]})
+
+                    representative = max(selected_resolvers, key=lambda r: (r.scope_rank(), -r.id))
+
+                    complaint.current_resolver = representative
+                    complaint.assigned_officer = representative.officer
+                    complaint.set_escalation_deadline(representative.escalation_time, base_time=complaint.created_at)
+                    complaint.save()
+
+                    for resolver in selected_resolvers:
+                        Assignment.objects.create(
+                            complaint=complaint,
+                            officer=resolver.officer,
+                            resolver=resolver,
+                            reason='initial',
+                        )
+                else:
+                    preferred_resolver_officer_ids = [int(officer_id) for officer_id in resolver_officer_ids if str(officer_id).strip()]
+                    service.process_complaint(
+                        complaint,
+                        preferred_officer_ids=preferred_resolver_officer_ids if preferred_resolver_officer_ids else None,
+                    )
         except DjangoValidationError as exc:
             if hasattr(exc, "message_dict"):
                 raise serializers.ValidationError(exc.message_dict)
             raise serializers.ValidationError({"detail": exc.messages})
-
-        if request and hasattr(request, "FILES"):
-            for key, file in request.FILES.items():
-                if key.startswith("attachment_"):
-                    ComplaintAttachment.objects.create(complaint=complaint, **_attachment_payload(file))
-
-        for email in cc_emails:
-            ComplaintCC.objects.get_or_create(complaint=complaint, email=email)
-
-        cc_office_officer_ids = set()
-        if office_categories.exists():
-            for resolver in CategoryResolver.objects.filter(
-                category__in=office_categories,
-                active=True,
-            ).select_related("category", "department", "officer"):
-                if resolver.matches_complaint_scope(complaint):
-                    cc_office_officer_ids.add(resolver.officer_id)
-
-        cc_officer_ids = {int(officer_id) for officer_id in cc_officer_ids}
-        cc_officer_ids.update(cc_office_officer_ids)
-
-        cc_officers = User.objects.filter(id__in=cc_officer_ids, role="officer").distinct()
-        seen_emails = set()
-        for officer in cc_officers:
-            if not officer.email or officer.email in seen_emails:
-                continue
-
-            seen_emails.add(officer.email)
-            ComplaintCC.objects.get_or_create(complaint=complaint, email=officer.email)
-
-            Notification.objects.create(
-                user=officer,
-                complaint=complaint,
-                notification_type="complaint_update",
-                title=f"CC Complaint: {complaint.title}",
-                message=(
-                    f"You were added as CC on complaint '{complaint.title}' "
-                    f"by {complaint.submitted_by.first_name} {complaint.submitted_by.last_name}."
-                ),
-            )
-
-            try:
-                EmailService.send_cc_complaint_notification(officer, complaint)
-            except Exception:
-                continue
-
-        preferred_resolver_officer_ids = [int(officer_id) for officer_id in resolver_officer_ids if str(officer_id).strip()]
-        try:
-            service.process_complaint(
-                complaint,
-                preferred_officer_ids=preferred_resolver_officer_ids if preferred_resolver_officer_ids else None,
-            )
-        except Exception:
-            pass
 
         return complaint
 

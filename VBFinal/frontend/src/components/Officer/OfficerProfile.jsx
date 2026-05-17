@@ -5,11 +5,11 @@ import apiService from '../../services/api';
 
 const OfficerProfile = ({ user: propUser }) => {
   const { isDark } = useTheme();
-  const { user: authUser, setAuth, logout } = useAuth();
+  const { user: authUser, setAuth } = useAuth();
   const user = propUser || authUser;
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [deletingAccount, setDeletingAccount] = useState(false);
+  
 
   // Password change state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -73,25 +73,7 @@ const OfficerProfile = ({ user: propUser }) => {
     setIsEditing(false);
   };
 
-  const handleDeleteAccount = async () => {
-    const confirmed = window.confirm(
-      'This will permanently delete your account, profile data, and related access. This action cannot be undone.'
-    );
-
-    if (!confirmed) return;
-
-    try {
-      setDeletingAccount(true);
-      await apiService.deleteCurrentUser();
-      logout();
-      window.location.href = '/login';
-    } catch (error) {
-      console.error('Failed to delete account:', error);
-      alert('Failed to delete account. Please try again.');
-    } finally {
-      setDeletingAccount(false);
-    }
-  };
+  
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
@@ -382,37 +364,6 @@ const OfficerProfile = ({ user: propUser }) => {
               <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 Must be a valid @gmail.com address.
               </p>
-            </div>
-          </div>
-
-          <div className={`mt-6 p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-blue-50'} border ${isDark ? 'border-gray-600' : 'border-blue-200'}`}>
-            <h4 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-blue-900'} mb-2`}>
-              📝 Profile Information
-            </h4>
-            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-blue-800'}`}>
-              {isEditing
-                ? 'You can edit your personal information. Email address cannot be changed for security reasons.'
-                : 'Click "Edit Profile" to update your personal information.'
-              }
-            </p>
-          </div>
-
-          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-900/50 dark:bg-red-950/20">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h4 className="text-lg font-semibold text-red-900 dark:text-red-200">Danger Zone</h4>
-                <p className="mt-1 text-sm text-red-800 dark:text-red-300">
-                  Permanently delete your account and remove your access from the system.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleDeleteAccount}
-                disabled={deletingAccount}
-                className="inline-flex items-center justify-center rounded-lg border border-red-600 bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {deletingAccount ? 'Deleting...' : 'Delete Account'}
-              </button>
             </div>
           </div>
         </div>

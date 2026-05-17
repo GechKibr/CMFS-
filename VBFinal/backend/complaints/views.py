@@ -352,6 +352,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         _normalize_list_field(data, 'cc_officer_ids')
         _normalize_list_field(data, 'cc_office_ids')
         _normalize_list_field(data, 'resolver_officer_ids')
+        _normalize_list_field(data, 'resolver_ids')
 
         serializer = self.get_serializer(data=data, context={'request': request})
         serializer.is_valid(raise_exception=True)
@@ -359,6 +360,19 @@ class ComplaintViewSet(viewsets.ModelViewSet):
 
         output_serializer = ComplaintSerializer(complaint, context={'request': request})
         return DRFResponse(output_serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_path='assigned-complaints')
+    def assigned_complaints(self, request):
+        user = request.user
+        if not user or not user.is_authenticated or (not user.is_officer() and not user.is_admin()):
+            return DRFResponse({'error': 'Only officers and admins can view assigned complaints.'}, status=status.HTTP_403_FORBIDDEN)
+
+        complaints_qs = Complaint.objects.filter(
+            assigned_officer=user,
+        ).select_related('category', 'current_resolver', 'assigned_officer').order_by('-created_at')
+
+        serializer = ComplaintSerializer(complaints_qs, many=True, context={'request': request})
+        return DRFResponse({'count': complaints_qs.count(), 'results': serializer.data}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'], url_path='analytics')
     def analytics(self, request):
@@ -908,11 +922,16 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         if not user or not user.is_authenticated or (not user.is_officer() and not user.is_admin()):
             return DRFResponse({'error': 'Only officers and admins can view assigned complaints.'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Active assignments (ended_at is null) for this officer
-        assignments = Assignment.objects.filter(officer=user, ended_at__isnull=True).select_related('complaint__category', 'resolver', 'officer')
-        complaints = [a.complaint for a in assignments if a.complaint is not None]
-        serializer = ComplaintSerializer(complaints, many=True, context={'request': request})
-        return DRFResponse({'count': len(complaints), 'results': serializer.data}, status=status.HTTP_200_OK)
+        # Return complaints that currently have an active assignment for this officer.
+        # Querying `Complaint` directly avoids duplicates when multiple Assignment rows exist
+        # for the same complaint and mirrors the `cc` endpoint's behavior (distinct, ordered).
+        complaints_qs = Complaint.objects.filter(
+            assignments__officer=user,
+            assignments__ended_at__isnull=True,
+        ).distinct().select_related('category', 'current_resolver', 'assigned_officer').order_by('-created_at')
+
+        serializer = ComplaintSerializer(complaints_qs, many=True, context={'request': request})
+        return DRFResponse({'count': complaints_qs.count(), 'results': serializer.data}, status=status.HTTP_200_OK)
 
 
 class AvailabilityRuleViewSet(viewsets.ModelViewSet):

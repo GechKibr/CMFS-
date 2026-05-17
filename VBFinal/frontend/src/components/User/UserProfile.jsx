@@ -757,24 +757,26 @@ const UserProfile = ({ user: propUser }) => {
             </div>
           )}
 
-          <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-900/50 dark:bg-red-950/20">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h4 className="text-lg font-semibold text-red-900 dark:text-red-200">Danger Zone</h4>
-                <p className="mt-1 text-sm text-red-800 dark:text-red-300">
-                  Permanently delete your account and remove your access from the system.
-                </p>
+          {user?.role !== 'officer' && (
+            <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-900/50 dark:bg-red-950/20">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h4 className="text-lg font-semibold text-red-900 dark:text-red-200">Danger Zone</h4>
+                  <p className="mt-1 text-sm text-red-800 dark:text-red-300">
+                    Permanently delete your account and remove your access from the system.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  disabled={deletingAccount}
+                  className="inline-flex items-center justify-center rounded-lg border border-red-600 bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deletingAccount ? 'Deleting...' : 'Delete Account'}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleDeleteAccount}
-                disabled={deletingAccount}
-                className="inline-flex items-center justify-center rounded-lg border border-red-600 bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {deletingAccount ? 'Deleting...' : 'Delete Account'}
-              </button>
             </div>
-          </div>
+          )}
 
         </div>
       </div>

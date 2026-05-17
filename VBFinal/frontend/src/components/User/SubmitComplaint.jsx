@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 import apiService from '../../services/api';
 
 const SubmitComplaint = ({ setSubmitSuccess }) => {
   const { isDark } = useTheme();
   const { language, t } = useLanguage();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [categoryResolvers, setCategoryResolvers] = useState([]);
@@ -37,6 +39,31 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   });
   const [ccOfficerIds, setCcOfficerIds] = useState([]);
   const totalSteps = 4;
+
+  const userScope = useMemo(() => {
+    const studentProfile = user?.student_profile || {};
+    const departmentDetail = studentProfile.department_detail || {};
+
+    return {
+      campus: String(user?.user_campus || studentProfile.campus_id || user?.campus_id || ''),
+      college: String(user?.college || departmentDetail.department_college || studentProfile.college || ''),
+      department: String(user?.department || studentProfile.department || ''),
+    };
+  }, [user]);
+
+  const resolverMatchesComplaintScope = useCallback((resolver) => {
+    if (!resolver) return false;
+    if (resolver.department && userScope.department) {
+      return String(resolver.department) === String(userScope.department);
+    }
+    if (resolver.college && userScope.college) {
+      return String(resolver.college) === String(userScope.college);
+    }
+    if (resolver.campus && userScope.campus) {
+      return String(resolver.campus) === String(userScope.campus);
+    }
+    return true;
+  }, [userScope]);
 
   const getCategoryId = (category) => String(category.category_id || category.id || '');
 
@@ -138,6 +165,10 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
       .filter((resolver) => String(resolver.category) === String(complaintForm.category) && resolver.active)
       .sort((a, b) => priority(b) - priority(a) || String(a.scope_label || '').localeCompare(String(b.scope_label || '')) || String(a.officer_name || '').localeCompare(String(b.officer_name || '')));
   }, [categoryResolvers, complaintForm.category]);
+
+  const complaintScopedResolvers = useMemo(() => (
+    selectedCategoryResolvers.filter(resolverMatchesComplaintScope)
+  ), [selectedCategoryResolvers, resolverMatchesComplaintScope]);
 
   // Auto-select all officers when all three filters (campus, college, department) are filled
   useEffect(() => {
@@ -277,23 +308,52 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   ), [filteredCcResolvers, ccFilters.campus, ccFilters.college]);
 
   const filteredResolverOfficers = useMemo(() => (
-    selectedCategoryResolvers.filter((resolver) => {
+    complaintScopedResolvers.filter((resolver) => {
       if (resolverFilters.campus && resolver.campus_name !== resolverFilters.campus) return false;
       if (resolverFilters.college && resolver.college_name !== resolverFilters.college) return false;
       if (resolverFilters.department && resolver.department_name !== resolverFilters.department) return false;
       return true;
     })
-  ), [selectedCategoryResolvers, resolverFilters]);
+  ), [complaintScopedResolvers, resolverFilters]);
 
   const selectedResolverRoutes = useMemo(() => (
     selectedResolverIds
       .map((resolverId) => selectedCategoryResolvers.find((resolver) => String(resolver.id) === String(resolverId)))
-      .filter(Boolean)
-  ), [selectedResolverIds, selectedCategoryResolvers]);
+      .filter((resolver) => Boolean(resolver) && resolverMatchesComplaintScope(resolver))
+  ), [selectedResolverIds, selectedCategoryResolvers, resolverMatchesComplaintScope]);
 
   const availableResolverRoutes = useMemo(() => (
     filteredResolverOfficers.filter((resolver) => !selectedResolverIds.includes(String(resolver.id)))
   ), [filteredResolverOfficers, selectedResolverIds]);
+
+  useEffect(() => {
+    if (!complaintScopedResolvers.length) return;
+
+    const defaultCampus = complaintScopedResolvers.find((resolver) => resolver.campus_name)?.campus_name || '';
+    const defaultCollege = complaintScopedResolvers.find((resolver) => resolver.college_name)?.college_name || '';
+    const defaultDepartment = complaintScopedResolvers.find((resolver) => resolver.department_name)?.department_name || '';
+
+    setResolverFilters((prev) => ({
+      campus: prev.campus || defaultCampus,
+      college: prev.college || defaultCollege,
+      department: prev.department || defaultDepartment,
+    }));
+  }, [complaintScopedResolvers]);
+
+  useEffect(() => {
+    if (!selectedResolverIds.length) return;
+    const validResolverIds = new Set(complaintScopedResolvers.map((resolver) => String(resolver.id)));
+    const nextSelected = selectedResolverIds.filter((resolverId) => validResolverIds.has(String(resolverId)));
+    if (nextSelected.length !== selectedResolverIds.length) {
+      setSelectedResolverIds(nextSelected);
+      setFormErrors((prev) => ({
+        ...prev,
+        resolver_ids: language === 'am'
+          ? 'የተመረጡ ሪዞልቨሮች ከእርስዎ ምድብ ጋር አይዛመዱም።'
+          : 'Some selected resolvers do not match your complaint scope and were removed.',
+      }));
+    }
+  }, [complaintScopedResolvers, language, selectedResolverIds]);
 
   useEffect(() => {
     const officerIds = Array.from(new Set(selectedResolverRoutes.map((resolver) => String(resolver.officer))));
@@ -401,12 +461,18 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   const submitComplaint = async (e) => {
     e.preventDefault();
     const errors = validateForm();
+    if (selectedResolverIds.length > 0 && selectedResolverRoutes.length === 0) {
+      errors.resolver_ids = language === 'am'
+        ? 'እባክዎ ከምድብዎ ጋር የሚዛመዱ CategoryResolver ይምረጡ።'
+        : 'Please select CategoryResolver routes that match your complaint scope.';
+    }
     if (Object.keys(errors).length > 0) {
       if (errors.category) {
         setCurrentStep(1);
       } else if (errors.title || errors.description) {
         setCurrentStep(2);
       }
+      setFormErrors(errors);
       return;
     }
 
@@ -436,6 +502,10 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
       // Main resolver route officers
       if (resolverOfficerIds.length > 0) {
         formData.append('resolver_officer_ids', JSON.stringify(resolverOfficerIds.map((officerId) => Number(officerId))));
+      }
+      // Also send explicit resolver ids (CategoryResolver ids) when user selected specific routes
+      if (selectedResolverIds.length > 0) {
+        formData.append('resolver_ids', JSON.stringify(selectedResolverIds.map((id) => Number(id))));
       }
       // Add files to form data
       files.forEach((file, index) => {

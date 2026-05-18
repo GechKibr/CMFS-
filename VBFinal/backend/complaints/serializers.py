@@ -15,6 +15,7 @@ from .models import (
     Assignment,
     Category,
     CategoryResolver,
+    ResolverOfficer,
     Comment,
     Complaint,
     ComplaintAttachment,
@@ -66,12 +67,16 @@ class ComplaintUserSerializer(serializers.ModelSerializer):
 
 class CategorySerializer(serializers.ModelSerializer):
     parent_name = serializers.CharField(source="parent.name", read_only=True)
+    office_name = serializers.CharField(write_only=True, required=False)
+    office_description = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = Category
         fields = [
             "category_id",
             "name",
+            "office_name",
+            "office_description",
             "description",
             "parent",
             "parent_name",
@@ -97,6 +102,15 @@ class CategorySerializer(serializers.ModelSerializer):
 
         return attrs
 
+    def to_internal_value(self, data):
+        data = data.copy()
+        # Accept legacy frontend keys and map them to canonical fields before validation
+        if "office_name" in data and not data.get("name"):
+            data["name"] = data.pop("office_name")
+        if "office_description" in data and not data.get("description"):
+            data["description"] = data.pop("office_description")
+        return super().to_internal_value(data)
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data["office_name"] = data.get("name", "")
@@ -111,6 +125,7 @@ class CategoryResolverSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source="department.department_name", read_only=True, allow_null=True)
     scope_label = serializers.SerializerMethodField()
     officers_count = serializers.SerializerMethodField()
+    officers = serializers.SerializerMethodField()
 
     class Meta:
         model = CategoryResolver
@@ -130,6 +145,7 @@ class CategoryResolverSerializer(serializers.ModelSerializer):
             "resolution_time",
             "active",
             "officers_count",
+            "officers",
             "created_at",
             "updated_at",
         ]
@@ -141,6 +157,7 @@ class CategoryResolverSerializer(serializers.ModelSerializer):
             "department_name",
             "scope_label",
             "officers_count",
+            "officers",
             "created_at",
             "updated_at",
         ]
@@ -150,6 +167,74 @@ class CategoryResolverSerializer(serializers.ModelSerializer):
 
     def get_officers_count(self, obj):
         return obj.officers.filter(active=True, officer__is_active=True).count()
+
+    def get_officers(self, obj):
+        officers = []
+        try:
+            for ro in obj.officers.select_related("officer").filter(active=True, officer__is_active=True):
+                officer = ro.officer
+                officers.append({
+                    "id": officer.id,
+                    "first_name": officer.first_name,
+                    "last_name": officer.last_name,
+                    "email": officer.email,
+                    "active": ro.active,
+                })
+        except Exception:
+            return []
+        return officers
+
+
+class ResolverOfficerSerializer(serializers.ModelSerializer):
+    resolver_name = serializers.SerializerMethodField()
+    category_name = serializers.CharField(source="resolver.category.name", read_only=True)
+    scope_label = serializers.SerializerMethodField()
+    officer_name = serializers.SerializerMethodField()
+    officer_email = serializers.CharField(source="officer.email", read_only=True)
+
+    class Meta:
+        model = ResolverOfficer
+        fields = [
+            "id",
+            "resolver",
+            "resolver_name",
+            "category_name",
+            "scope_label",
+            "officer",
+            "officer_name",
+            "officer_email",
+            "can_claim",
+            "can_close",
+            "can_escalate",
+            "receives_notifications",
+            "notification_preferences",
+            "active",
+            "joined_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "resolver_name",
+            "category_name",
+            "scope_label",
+            "officer_name",
+            "officer_email",
+            "joined_at",
+            "updated_at",
+        ]
+
+    def get_officer_name(self, obj):
+        officer = obj.officer
+        if not officer:
+            return ""
+        full_name = f"{officer.first_name or ''} {officer.last_name or ''}".strip()
+        return full_name or officer.full_name or officer.username or officer.email
+
+    def get_resolver_name(self, obj):
+        return str(obj.resolver) if obj.resolver else ""
+
+    def get_scope_label(self, obj):
+        return obj.resolver.scope_label() if obj.resolver else ""
 
 
 class ComplaintAttachmentSerializer(serializers.ModelSerializer):
@@ -386,6 +471,7 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
 
                     representative = min(selected_resolvers, key=lambda resolver: (resolver.escalation_level, -resolver.scope_rank(), str(resolver.resolver_id)))
                     complaint.current_resolver = representative
+                    complaint.routing_attempted = True
                     complaint.refresh_workflow_deadlines(base_time=complaint.created_at)
                     complaint.save()
                     complaint._record_assignment(representative, None, "initial")
@@ -396,6 +482,9 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
                         complaint,
                         preferred_officer_ids=preferred_resolver_officer_ids if preferred_resolver_officer_ids else None,
                     )
+                    # Mark routing as attempted
+                    complaint.routing_attempted = True
+                    complaint.save(update_fields=['routing_attempted'])
         except DjangoValidationError as exc:
             if hasattr(exc, "message_dict"):
                 raise serializers.ValidationError(exc.message_dict)
@@ -521,6 +610,22 @@ class ResponseSerializer(serializers.ModelSerializer):
     def get_attachment(self, obj):
         attachment = obj.attachments.order_by("uploaded_at").first()
         return ComplaintAttachmentSerializer(attachment, context=self.context).data if attachment else None
+
+    def validate(self, attrs):
+        # Normalize frontend aliases to model entry_type choices
+        entry = attrs.get('entry_type')
+        if entry:
+            val = str(entry).lower()
+            if val in ('update', 'initial', 'status_update'):
+                attrs['entry_type'] = 'response'
+            elif val in ('resolution', 'final', 'final_resolution'):
+                attrs['entry_type'] = 'resolution_note'
+            elif val in ('escalation', 'system', 'response', 'resolution_note', 'comment'):
+                attrs['entry_type'] = val
+            else:
+                # default to a normal response when unknown alias provided
+                attrs['entry_type'] = 'response'
+        return attrs
 
 
 class AssignmentSerializer(serializers.ModelSerializer):

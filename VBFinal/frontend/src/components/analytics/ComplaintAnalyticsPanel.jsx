@@ -103,7 +103,7 @@ const ComplaintAnalyticsPanel = ({
   accent = 'blue',
   analyticsScope = null,
   officerId = null,
-  recentComplaintLinkBuilder = null,
+  _recentComplaintLinkBuilder = null,
 }) => {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -357,57 +357,6 @@ const ComplaintAnalyticsPanel = ({
           </div>
         </div>
       </div>
-
-      <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-600">Recent Complaints</h4>
-          <span className="text-xs text-gray-500">Auto refreshed</span>
-        </div>
-        <div className="space-y-3">
-          {(safeSummary?.recent_complaints || []).length === 0 ? (
-            <p className="text-sm text-gray-500">No complaints to show yet.</p>
-          ) : (
-            safeSummary.recent_complaints.map((item) => {
-              const complaintLink = recentComplaintLinkBuilder
-                ? recentComplaintLinkBuilder(item)
-                : null;
-
-              const content = (
-                <>
-                  <div>
-                    <p className="font-medium text-gray-900">{item.title}</p>
-                    <p className="text-xs text-gray-500">
-                      {item.category} | {new Date(item.updated_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
-                    {statusLabels[item.status] || item.status}
-                  </span>
-                </>
-              );
-
-              if (complaintLink) {
-                return (
-                  <Link
-                    key={item.complaint_id}
-                    to={complaintLink}
-                    className="flex items-start justify-between gap-4 rounded-lg bg-gray-50 px-4 py-3 transition-colors hover:bg-blue-50"
-                  >
-                    {content}
-                  </Link>
-                );
-              }
-
-              return (
-                <div key={item.complaint_id} className="flex items-start justify-between gap-4 rounded-lg bg-gray-50 px-4 py-3">
-                  {content}
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
       {adminDashboard && (
         <div className="mt-8 space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">

@@ -15,6 +15,19 @@ from notifications.realtime import broadcast_notification_update
 
 @receiver(post_save, sender=Complaint)
 def complaint_saved(sender, instance, created, **kwargs):
+    # Auto-route complaints that weren't routed during creation
+    if created and instance.category_id and not instance.current_resolver_id and not instance.routing_attempted:
+        try:
+            from .service import service
+            
+            # Mark as routing attempted to prevent infinite loops
+            Complaint.objects.filter(complaint_id=instance.complaint_id).update(routing_attempted=True)
+            
+            # Attempt routing
+            service.route_complaint(instance)
+        except Exception:
+            pass
+    
     if created and instance.submitted_by_id:
         try:
             Notification.objects.create(
@@ -117,7 +130,7 @@ def response_saved(sender, instance, created, **kwargs):
         return
 
     target_user = instance.complaint.submitted_by
-    if target_user and target_user.id != instance.responder_id:
+    if target_user and target_user.id != instance.author_id:
         try:
             Notification.objects.create(
                 user=target_user,

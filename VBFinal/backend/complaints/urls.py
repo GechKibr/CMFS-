@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CategoryViewSet,
     CategoryResolverViewSet,
+    ResolverOfficerViewSet,
     ComplaintViewSet,
     CommentViewSet,
     AssignmentViewSet,
@@ -21,6 +22,7 @@ router = DefaultRouter()
 
 router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'resolver-assignments', CategoryResolverViewSet, basename='resolver-assignment')
+router.register(r'resolver-officers', ResolverOfficerViewSet, basename='resolver-officer')
 router.register(r'complaints', ComplaintViewSet, basename='complaint')
 router.register(r'comments', CommentViewSet, basename='comment')
 router.register(r'assignments', AssignmentViewSet, basename='assignment')

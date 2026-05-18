@@ -122,15 +122,6 @@ const FeedbackTemplateManagement = () => {
     return [...new Set(officers)];
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'high': return 'text-red-600';
-      case 'medium': return 'text-yellow-600';
-      case 'low': return 'text-green-600';
-      default: return 'text-gray-600';
-    }
-  };
-
   const getAudienceSummary = (template) => {
     if (template.audience_scope === 'campus') return `Campus: ${template.target_campus_name || 'N/A'}`;
     if (template.audience_scope === 'college') return `College: ${template.target_college_name || 'N/A'}`;
@@ -335,9 +326,6 @@ const FeedbackTemplateManagement = () => {
                       </h5>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(template.status)}`}>
                         {template.status.toUpperCase()}
-                      </span>
-                      <span className={`text-sm font-medium ${getPriorityColor(template.priority)}`}>
-                        {template.priority.toUpperCase()}
                       </span>
                     </div>
 

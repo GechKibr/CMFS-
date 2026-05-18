@@ -23,16 +23,6 @@ class FeedbackTemplate(models.Model):
         (STATUS_INACTIVE, 'Inactive'),
     ]
     
-    PRIORITY_LOW = 'low'
-    PRIORITY_MEDIUM = 'medium'
-    PRIORITY_HIGH = 'high'
-    
-    PRIORITY_CHOICES = [
-        (PRIORITY_LOW, 'Low'),
-        (PRIORITY_MEDIUM, 'Medium'),
-        (PRIORITY_HIGH, 'High'),
-    ]
-
     AUDIENCE_ALL = 'all'
     AUDIENCE_CAMPUS = 'campus'
     AUDIENCE_COLLEGE = 'college'
@@ -57,7 +47,6 @@ class FeedbackTemplate(models.Model):
     )
     office = models.CharField(max_length=100)  # Based on user's college
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
-    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default=PRIORITY_MEDIUM)
     audience_scope = models.CharField(max_length=20, choices=AUDIENCE_SCOPE_CHOICES, default=AUDIENCE_ALL)
     target_campus = models.CharField(max_length=50, choices=CAMPUS_CHOICES, null=True, blank=True)
     target_college = models.CharField(max_length=50, choices=ACADEMIC_UNITS, null=True, blank=True)

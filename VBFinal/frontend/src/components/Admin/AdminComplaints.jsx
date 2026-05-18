@@ -17,6 +17,12 @@ const AdminComplaints = () => {
   const [loading, setLoading] = useState(true);
   const focusedComplaintId = new URLSearchParams(location.search).get('complaintId');
 
+  const normalizeComplaintStatus = (status) => {
+    if (status === 'claimed') return 'in_progress';
+    if (status === 'rejected') return 'closed';
+    return status || 'pending';
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -25,7 +31,7 @@ const AdminComplaints = () => {
     let filtered = complaints;
 
     if (filters.status !== 'all') {
-      filtered = filtered.filter(c => c.status === filters.status);
+      filtered = filtered.filter(c => normalizeComplaintStatus(c.status) === filters.status);
     }
     if (filters.category !== 'all') {
       filtered = filtered.filter(c => c.category?.category_id === filters.category);
@@ -70,16 +76,15 @@ const AdminComplaints = () => {
   };
 
   const getStatusBadge = (status) => {
+    const normalizedStatus = normalizeComplaintStatus(status);
     const badges = {
       pending: 'bg-yellow-100 text-yellow-800',
-      claimed: 'bg-blue-100 text-blue-800',
       in_progress: 'bg-blue-100 text-blue-800',
-      rejected: 'bg-red-100 text-red-800',
       resolved: 'bg-green-100 text-green-800',
       closed: 'bg-gray-100 text-gray-800',
       escalated: 'bg-red-100 text-red-800'
     };
-    return badges[status] || 'bg-gray-100 text-gray-800';
+    return badges[normalizedStatus] || 'bg-gray-100 text-gray-800';
   };
 
   const getResolverLabel = (complaint) => complaint?.current_resolver?.scope_label || complaint?.current_resolver?.category_name || 'Unassigned';
@@ -119,12 +124,10 @@ const AdminComplaints = () => {
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
-              <option value="claimed">Claimed</option>
               <option value="in_progress">In Progress</option>
               <option value="resolved">Resolved</option>
               <option value="closed">Closed</option>
               <option value="escalated">Escalated</option>
-              <option value="rejected">Rejected</option>
             </select>
           </div>
           <div>

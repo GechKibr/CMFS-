@@ -205,21 +205,17 @@ class ResolverOfficer(models.Model):
 
 class Complaint(models.Model):
     STATUS_PENDING = "pending"
-    STATUS_CLAIMED = "claimed"
     STATUS_IN_PROGRESS = "in_progress"
     STATUS_ESCALATED = "escalated"
     STATUS_RESOLVED = "resolved"
     STATUS_CLOSED = "closed"
-    STATUS_REJECTED = "rejected"
 
     STATUS_CHOICES = [
         (STATUS_PENDING, "Pending"),
-        (STATUS_CLAIMED, "Claimed"),
         (STATUS_IN_PROGRESS, "In Progress"),
         (STATUS_ESCALATED, "Escalated"),
         (STATUS_RESOLVED, "Resolved"),
         (STATUS_CLOSED, "Closed"),
-        (STATUS_REJECTED, "Rejected"),
     ]
 
     complaint_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -256,6 +252,7 @@ class Complaint(models.Model):
         blank=True,
         related_name="claimed_complaints",
     )
+    routing_attempted = models.BooleanField(default=False, help_text="Whether automatic routing was attempted for this complaint")
     title = models.CharField(max_length=255)
     description = models.TextField()
     is_anonymous = models.BooleanField(default=False)
@@ -330,6 +327,18 @@ class Complaint(models.Model):
             return ResolverOfficer.objects.none()
         return self.current_resolver.officers.select_related("officer").filter(active=True, officer__is_active=True)
 
+    def get_matching_resolvers(self):
+        """Get all resolvers that match this complaint's scope and category."""
+        if not self.category_id:
+            return CategoryResolver.objects.none()
+        
+        candidates = []
+        for resolver in self.category.resolvers.filter(active=True).select_related("department"):
+            if resolver.matches_complaint_scope(self):
+                candidates.append(resolver)
+        
+        return candidates
+
     def is_visible_to_officer(self, officer):
         if not officer or not getattr(officer, "is_authenticated", False):
             return False
@@ -341,6 +350,11 @@ class Complaint(models.Model):
             return True
         if self.current_resolver_id:
             return self.current_resolver.officers.filter(officer_id=officer.id, active=True, officer__is_active=True).exists()
+        if self.category_id:
+            matching_resolvers = self.get_matching_resolvers()
+            for resolver in matching_resolvers:
+                if resolver.officers.filter(officer_id=officer.id, active=True, officer__is_active=True).exists():
+                    return True
         return False
 
     def _record_assignment(self, resolver, officer, reason):
@@ -459,7 +473,7 @@ class Complaint(models.Model):
 
         with transaction.atomic():
             self.claimed_by = officer
-            self.status = self.STATUS_CLAIMED
+            self.status = self.STATUS_IN_PROGRESS
             self.save(update_fields=["claimed_by", "status", "updated_at"])
             self._record_assignment(self.current_resolver, officer, "claim")
             self._record_system_entry("comment", note or f"Complaint claimed by {officer.full_name}.", actor=officer, title="Complaint claimed")
@@ -486,9 +500,10 @@ class Complaint(models.Model):
         return self
 
     def reject(self, actor=None, note=""):
-        self.status = self.STATUS_REJECTED
-        self.save(update_fields=["status", "updated_at"])
-        self._record_system_entry("system", note or "Complaint rejected.", actor=actor, title="Complaint rejected")
+        self.status = self.STATUS_CLOSED
+        self.closed_at = _now()
+        self.save(update_fields=["status", "closed_at", "updated_at"])
+        self._record_system_entry("system", note or "Complaint rejected.", actor=actor, title="Complaint closed")
         return self
 
 

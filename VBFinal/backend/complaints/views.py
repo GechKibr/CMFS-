@@ -44,6 +44,7 @@ from .serializers import (
     ComplaintUserSerializer,
     ComplaintSerializer,
     PublicAnnouncementSerializer,
+    ResolverOfficerSerializer,
     ResponseSerializer,
 )
 from .realtime import build_complaint_analytics, build_public_dashboard_stats
@@ -67,11 +68,20 @@ def accessible_complaints_for(user):
     if user.is_admin():
         return Complaint.objects.all()
     if user.is_officer():
+        resolver_scope_q = (
+            (models.Q(category__resolvers__campus__isnull=True) | models.Q(category__resolvers__campus=models.F('campus')))
+            & (models.Q(category__resolvers__college__isnull=True) | models.Q(category__resolvers__college=models.F('college')))
+            & (models.Q(category__resolvers__department__isnull=True) | models.Q(category__resolvers__department=models.F('department')))
+        )
         return Complaint.objects.filter(
             models.Q(submitted_by=user)
             | models.Q(claimed_by=user)
             | models.Q(cc_list__email=user.email)
             | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
+            | (
+                models.Q(category__resolvers__officers__officer=user, category__resolvers__active=True, category__resolvers__officers__active=True)
+                & resolver_scope_q
+            )
         ).distinct().select_related('category', 'current_resolver', 'claimed_by')
     return Complaint.objects.filter(submitted_by=user)
 
@@ -307,6 +317,31 @@ class CategoryResolverViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelVi
         )
 
 
+class ResolverOfficerViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelViewSet):
+    queryset = ResolverOfficer.objects.select_related(
+        'resolver',
+        'resolver__category',
+        'resolver__department',
+        'officer',
+    ).order_by('resolver_id', 'officer_id')
+    serializer_class = ResolverOfficerSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        resolver_id = self.request.query_params.get('resolver')
+        officer_id = self.request.query_params.get('officer')
+        active = self.request.query_params.get('active')
+
+        if resolver_id:
+            queryset = queryset.filter(resolver_id=resolver_id)
+        if officer_id:
+            queryset = queryset.filter(officer_id=officer_id)
+        if active in {'true', 'false'}:
+            queryset = queryset.filter(active=active == 'true')
+
+        return queryset
+
+
 class ComplaintViewSet(viewsets.ModelViewSet):
     serializer_class = ComplaintSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -332,15 +367,39 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             except (ValueError, TypeError):
                 parsed_value = []
 
+            if parsed_value in (None, ''):
+                parsed_value = []
+            elif not isinstance(parsed_value, (list, tuple)):
+                parsed_value = [parsed_value]
+
             if hasattr(payload, 'setlist'):
                 payload.setlist(key, parsed_value)
             else:
                 payload[key] = parsed_value
 
+        def _normalize_int_list_field(payload, key):
+            _normalize_list_field(payload, key)
+            values = payload.getlist(key) if hasattr(payload, 'getlist') else payload.get(key, [])
+
+            normalized_values = []
+            for value in values if isinstance(values, (list, tuple)) else [values]:
+                if value in (None, ''):
+                    continue
+                try:
+                    number = int(float(value))
+                except (TypeError, ValueError):
+                    continue
+                normalized_values.append(number)
+
+            if hasattr(payload, 'setlist'):
+                payload.setlist(key, normalized_values)
+            else:
+                payload[key] = normalized_values
+
         _normalize_list_field(data, 'cc_emails')
-        _normalize_list_field(data, 'cc_officer_ids')
+        _normalize_int_list_field(data, 'cc_officer_ids')
         _normalize_list_field(data, 'cc_office_ids')
-        _normalize_list_field(data, 'resolver_officer_ids')
+        _normalize_int_list_field(data, 'resolver_officer_ids')
         _normalize_list_field(data, 'resolver_ids')
 
         serializer = self.get_serializer(data=data, context={'request': request})
@@ -356,10 +415,44 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         if not user or not user.is_authenticated or (not user.is_officer() and not user.is_admin()):
             return DRFResponse({'error': 'Only officers and admins can view assigned complaints.'}, status=status.HTTP_403_FORBIDDEN)
 
+        # Start with claims and current resolver assignments
         complaints_qs = Complaint.objects.filter(
             models.Q(claimed_by=user)
             | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
-        ).distinct().select_related('category', 'current_resolver', 'claimed_by').order_by('-created_at')
+        )
+
+        # For officers, also include unrouted complaints in categories where they are resolvers
+        if user.is_officer() and not user.is_admin():
+            # Get all categories where this officer has resolver assignments
+            officer_categories = Category.objects.filter(
+                resolvers__officers__officer=user,
+                resolvers__officers__active=True,
+                resolvers__active=True,
+            ).distinct()
+            
+            # Include unrouted complaints in those categories (and apply scope matching where resolver exists)
+            for category in officer_categories:
+                unrouted_complaints = Complaint.objects.filter(
+                    category=category,
+                    current_resolver__isnull=True,
+                ).exclude(
+                    complaint_id__in=complaints_qs.values_list('complaint_id', flat=True)
+                )
+                
+                # Check scope matching for each unrouted complaint
+                for resolver in category.resolvers.filter(
+                    officers__officer=user,
+                    officers__active=True,
+                    active=True,
+                ).distinct():
+                    scoped_complaints = [
+                        c.complaint_id for c in unrouted_complaints
+                        if resolver.matches_complaint_scope(c)
+                    ]
+                    if scoped_complaints:
+                        complaints_qs = complaints_qs | Complaint.objects.filter(complaint_id__in=scoped_complaints)
+
+        complaints_qs = complaints_qs.distinct().select_related('category', 'current_resolver', 'claimed_by').order_by('-created_at')
 
         serializer = ComplaintSerializer(complaints_qs, many=True, context={'request': request})
         return DRFResponse({'count': complaints_qs.count(), 'results': serializer.data}, status=status.HTTP_200_OK)
@@ -413,19 +506,21 @@ class ComplaintViewSet(viewsets.ModelViewSet):
 
         resolver = None
         if resolver_id:
-            resolver = get_object_or_404(CategoryResolver, id=resolver_id, active=True)
+            resolver = get_object_or_404(CategoryResolver, resolver_id=resolver_id, active=True)
             if resolver.category_id != getattr(complaint.category, 'id', None) and resolver.category_id != getattr(complaint.category, 'category_id', None):
                 return DRFResponse({'error': 'Selected resolver does not belong to this complaint category.'}, status=status.HTTP_400_BAD_REQUEST)
-            if resolver.officer_id != officer.id:
-                return DRFResponse({'error': 'Selected resolver officer does not match the provided officer.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not resolver.officers.filter(officer=officer, active=True, officer__is_active=True).exists():
+                return DRFResponse({'error': 'Selected officer is not a member of the chosen resolver.'}, status=status.HTTP_400_BAD_REQUEST)
             if not resolver.matches_complaint_scope(complaint):
                 return DRFResponse({'error': 'Selected resolver does not match the complainant\'s campus/college/department.'}, status=status.HTTP_400_BAD_REQUEST)
         else:
             for candidate in CategoryResolver.objects.filter(
                 category=complaint.category,
-                officer=officer,
                 active=True,
-            ).select_related('category', 'department', 'officer').order_by('department_id', 'college', 'campus', 'id'):
+                officers__officer=officer,
+                officers__active=True,
+                officers__officer__is_active=True,
+            ).select_related('category', 'department').distinct().order_by('department_id', 'college', 'campus', 'resolver_id'):
                 if candidate.matches_complaint_scope(complaint):
                     resolver = candidate
                     break
@@ -491,19 +586,21 @@ class ComplaintViewSet(viewsets.ModelViewSet):
 
         resolver = None
         if resolver_id:
-            resolver = get_object_or_404(CategoryResolver, id=resolver_id, active=True)
+            resolver = get_object_or_404(CategoryResolver, resolver_id=resolver_id, active=True)
             if resolver.category_id != getattr(complaint.category, 'id', None) and resolver.category_id != getattr(complaint.category, 'category_id', None):
                 return DRFResponse({'error': 'Selected resolver does not belong to this complaint category.'}, status=status.HTTP_400_BAD_REQUEST)
-            if resolver.officer_id != officer.id:
-                return DRFResponse({'error': 'Selected resolver officer does not match the provided officer.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not resolver.officers.filter(officer=officer, active=True, officer__is_active=True).exists():
+                return DRFResponse({'error': 'Selected officer is not a member of the chosen resolver.'}, status=status.HTTP_400_BAD_REQUEST)
             if not resolver.matches_complaint_scope(complaint):
                 return DRFResponse({'error': 'Selected resolver does not match the complainant\'s campus/college/department.'}, status=status.HTTP_400_BAD_REQUEST)
         else:
             for candidate in CategoryResolver.objects.filter(
                 category=complaint.category,
-                officer=officer,
                 active=True,
-            ).select_related('category', 'department', 'officer').order_by('department_id', 'college', 'campus', 'id'):
+                officers__officer=officer,
+                officers__active=True,
+                officers__officer__is_active=True,
+            ).select_related('category', 'department').distinct().order_by('department_id', 'college', 'campus', 'resolver_id'):
                 if candidate.matches_complaint_scope(complaint):
                     resolver = candidate
                     break
@@ -906,13 +1003,23 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         if not user or not user.is_authenticated or (not user.is_officer() and not user.is_admin()):
             return DRFResponse({'error': 'Only officers and admins can view assigned complaints.'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Return complaints that currently have an active assignment for this officer.
-        # Querying `Complaint` directly avoids duplicates when multiple Assignment rows exist
-        # for the same complaint and mirrors the `cc` endpoint's behavior (distinct, ordered).
+        resolver_scope_q = (
+            (models.Q(category__resolvers__campus__isnull=True) | models.Q(category__resolvers__campus=models.F('campus')))
+            & (models.Q(category__resolvers__college__isnull=True) | models.Q(category__resolvers__college=models.F('college')))
+            & (models.Q(category__resolvers__department__isnull=True) | models.Q(category__resolvers__department=models.F('department')))
+        )
+
+        # Return complaints routed to this officer either through an active assignment row
+        # or through the current resolver membership queue.
         complaints_qs = Complaint.objects.filter(
-            assignments__officer=user,
-            assignments__ended_at__isnull=True,
-        ).distinct().select_related('category', 'current_resolver', 'assigned_officer').order_by('-created_at')
+            models.Q(assignments__officer=user, assignments__ended_at__isnull=True)
+            | models.Q(claimed_by=user)
+            | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
+            | (
+                models.Q(category__resolvers__officers__officer=user, category__resolvers__active=True, category__resolvers__officers__active=True)
+                & resolver_scope_q
+            )
+        ).distinct().select_related('category', 'current_resolver', 'claimed_by').order_by('-created_at')
 
         serializer = ComplaintSerializer(complaints_qs, many=True, context={'request': request})
         return DRFResponse({'count': complaints_qs.count(), 'results': serializer.data}, status=status.HTTP_200_OK)
@@ -1060,7 +1167,7 @@ class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
             officer_ids = list(CategoryResolver.objects.filter(
                 category_id=category_id,
                 active=True,
-            ).values_list('officer_id', flat=True))
+            ).values_list('officers__officer', flat=True))
         self._maybe_generate_slots(officer_ids, preferred_date)
 
         if preferred_date:
@@ -1071,7 +1178,7 @@ class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
             officer_ids = CategoryResolver.objects.filter(
                 category_id=category_id,
                 active=True,
-            ).values_list('officer_id', flat=True)
+            ).values_list('officers__officer', flat=True)
             queryset = queryset.filter(officer_id__in=officer_ids)
 
         queryset = queryset.exclude(appointments__status__in=['pending', 'confirmed', 'completed']).distinct()
@@ -1097,10 +1204,14 @@ class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
         if officer_id:
             officer_ids = [officer_id]
         elif category_id:
-            officer_ids = list(CategoryResolver.objects.filter(
-                category_id=category_id,
-                active=True,
-            ).values_list('officer_id', flat=True))
+            officer_ids = list(
+                ResolverOfficer.objects.filter(
+                    resolver__category_id=category_id,
+                    resolver__active=True,
+                    active=True,
+                    officer__is_active=True,
+                ).values_list('officer_id', flat=True).distinct()
+            )
         self._maybe_generate_slots(officer_ids, preferred_date)
 
         if preferred_date:
@@ -1108,10 +1219,12 @@ class AppointmentAvailabilityViewSet(viewsets.ModelViewSet):
         if officer_id:
             queryset = queryset.filter(officer_id=officer_id)
         if category_id:
-            officer_ids = CategoryResolver.objects.filter(
-                category_id=category_id,
+            officer_ids = ResolverOfficer.objects.filter(
+                resolver__category_id=category_id,
+                resolver__active=True,
                 active=True,
-            ).values_list('officer_id', flat=True)
+                officer__is_active=True,
+            ).values_list('officer_id', flat=True).distinct()
             queryset = queryset.filter(officer_id__in=officer_ids)
 
         queryset = queryset.exclude(

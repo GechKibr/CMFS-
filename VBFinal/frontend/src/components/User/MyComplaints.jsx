@@ -6,13 +6,17 @@ import apiService from '../../services/api';
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
-  { value: 'claimed', label: 'Claimed' },
   { value: 'in_progress', label: 'In Progress' },
   { value: 'escalated', label: 'Escalated' },
   { value: 'resolved', label: 'Resolved' },
   { value: 'closed', label: 'Closed' },
-  { value: 'rejected', label: 'Rejected' },
 ];
+
+const normalizeComplaintStatus = (status) => {
+  if (status === 'claimed') return 'in_progress';
+  if (status === 'rejected') return 'closed';
+  return status || 'pending';
+};
 
 const MyComplaints = ({ getStatusBadge }) => {
   const { isDark } = useTheme();
@@ -65,7 +69,7 @@ const MyComplaints = ({ getStatusBadge }) => {
     let filtered = complaints;
 
     if (filters.status !== 'all') {
-      filtered = filtered.filter(c => c.status === filters.status);
+      filtered = filtered.filter(c => normalizeComplaintStatus(c.status) === filters.status);
     }
     if (filters.category !== 'all') {
       filtered = filtered.filter(c => c.category?.category_id === filters.category);
@@ -81,7 +85,7 @@ const MyComplaints = ({ getStatusBadge }) => {
   const getStats = () => {
     const total = complaints.length;
     const statusCounts = STATUS_OPTIONS.reduce((counts, option) => {
-      counts[option.value] = complaints.filter((complaint) => complaint.status === option.value).length;
+      counts[option.value] = complaints.filter((complaint) => normalizeComplaintStatus(complaint.status) === option.value).length;
       return counts;
     }, {});
 
@@ -211,14 +215,19 @@ const MyComplaints = ({ getStatusBadge }) => {
               <div key={complaint.complaint_id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
+                    {(() => {
+                      const displayStatus = normalizeComplaintStatus(complaint.status);
+                      return (
                     <div className="flex items-center space-x-2 mb-2">
                       <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {complaint.title}
                       </h4>
-                      <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadge(complaint.status)}`}>
-                        {complaint.status.replace('_', ' ').toUpperCase()}
+                      <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadge(displayStatus)}`}>
+                        {displayStatus.replace('_', ' ').toUpperCase()}
                       </span>
                     </div>
+                      );
+                    })()}
                     <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} mb-2`}>
                       {complaint.description.length > 100
                         ? `${complaint.description.substring(0, 100)}...`

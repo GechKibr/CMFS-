@@ -7,7 +7,7 @@ from asgiref.sync import async_to_sync
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
-from .models import Appointment, CategoryResolver, Category
+from .models import Appointment, CategoryResolver, Category, ComplaintTimelineEntry
 
 from .models import Comment, Complaint, Response
 
@@ -93,7 +93,7 @@ def serialize_response(response):
 
 
 def build_thread_snapshot(complaint):
-    responses = Response.objects.filter(complaint=complaint).select_related('responder').order_by('created_at')
+    responses = Response.objects.filter(complaint=complaint).select_related('author').order_by('created_at')
     comments = Comment.objects.filter(complaint=complaint).select_related('author').order_by('created_at')
     return {
         'complaint_id': str(complaint.complaint_id),
@@ -199,19 +199,19 @@ def build_admin_dashboard_stats():
     complaints_qs = (
         Complaint.objects.all()
         .select_related('category', 'submitted_by', 'department', 'current_resolver', 'claimed_by')
-        .prefetch_related('responses', 'assignments')
+        .prefetch_related('timeline_entries', 'assignments')
     )
     complaints = list(complaints_qs)
     total_complaints = len(complaints)
 
+    allowed_statuses = {status for status, _ in Complaint.STATUS_CHOICES}
     resolved_statuses = {'resolved', 'closed'}
     active_statuses = {'pending', 'in_progress', 'escalated'}
 
-    status_counts = Counter(complaint.status for complaint in complaints)
+    status_counts = Counter(complaint.status for complaint in complaints if complaint.status in allowed_statuses)
     resolved_complaints = [complaint for complaint in complaints if complaint.status in resolved_statuses]
     pending_complaints = [complaint for complaint in complaints if complaint.status == 'pending']
     in_progress_complaints = [complaint for complaint in complaints if complaint.status == 'in_progress']
-    rejected_complaints = [complaint for complaint in complaints if complaint.status == 'rejected']
     escalated_complaints = [complaint for complaint in complaints if complaint.status == 'escalated']
     closed_complaints = [complaint for complaint in complaints if complaint.status == 'closed']
 
@@ -224,7 +224,10 @@ def build_admin_dashboard_stats():
 
     complaint_response_hours = []
     for complaint in complaints:
-        responses = sorted(list(complaint.responses.all()), key=lambda item: item.created_at)
+        responses = sorted(
+            list(complaint.timeline_entries.filter(entry_type=ComplaintTimelineEntry.KIND_RESPONSE)),
+            key=lambda item: item.created_at,
+        )
         if responses:
             complaint_response_hours.append(_duration_hours(responses[0].created_at - complaint.created_at))
 
@@ -360,7 +363,10 @@ def build_admin_dashboard_stats():
             ]
             first_response = []
             for item in items:
-                responses = sorted(list(item.responses.all()), key=lambda response: response.created_at)
+                responses = sorted(
+                    list(item.timeline_entries.filter(entry_type=ComplaintTimelineEntry.KIND_RESPONSE)),
+                    key=lambda response: response.created_at,
+                )
                 if responses:
                     first_response.append(_duration_hours(responses[0].created_at - item.created_at))
             top_category = Counter(
@@ -394,7 +400,6 @@ def build_admin_dashboard_stats():
         'in_progress': 'bg-blue-500',
         'escalated': 'bg-orange-500',
         'resolved': 'bg-green-500',
-        'rejected': 'bg-red-500',
         'closed': 'bg-gray-500',
     }
 
@@ -404,7 +409,6 @@ def build_admin_dashboard_stats():
             'total_resolved_complaints': len(resolved_complaints),
             'total_pending_complaints': len(pending_complaints),
             'total_in_progress_complaints': len(in_progress_complaints),
-            'total_rejected_complaints': len(rejected_complaints),
             'complaint_resolution_rate': overall_resolution_rate,
             'average_resolution_time_hours': average_resolution_hours,
             'average_resolution_time_label': _format_duration_hours(average_resolution_hours),
@@ -518,7 +522,11 @@ def build_public_dashboard_stats():
             'total_appointments': appointment_queryset.count(),
             'pending_appointments': appointment_queryset.filter(status='pending').count(),
             'completed_appointments': appointment_queryset.filter(status='completed').count(),
-            'active_officers': CategoryResolver.objects.filter(active=True).values('officer_id').distinct().count(),
+            'active_officers': CategoryResolver.objects.filter(
+                active=True,
+                officers__active=True,
+                officers__officer__is_active=True,
+            ).values('officers__officer_id').distinct().count(),
             'active_category_resolvers': CategoryResolver.objects.filter(active=True).count(),
             'active_categories': Category.objects.filter(is_active=True).count(),
         },

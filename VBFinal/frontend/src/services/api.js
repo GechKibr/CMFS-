@@ -341,7 +341,7 @@ class ApiService {
   }
 
   async getAssignedComplaints() {
-    return this.request('/assignments/my-complaints/');
+    return this.request('/complaints/assigned-complaints/');
   }
 
   async getCCComplaints() {
@@ -809,6 +809,66 @@ class ApiService {
     this._writeCategoryResolversCache(allResolvers);
 
     return { results: allResolvers, count: allResolvers.length };
+  }
+
+  async getResolverOfficers(page = null, pageSize = null) {
+    let url = '/resolver-officers/';
+    const params = new URLSearchParams();
+
+    if (page) params.append('page', page);
+    if (pageSize) params.append('page_size', pageSize);
+
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+
+    return this.request(url);
+  }
+
+  async getAllResolverOfficers() {
+    let allOfficers = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await this.getResolverOfficers(page, 100);
+      const officers = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.results)
+          ? response.results
+          : [];
+
+      if (Array.isArray(officers)) {
+        allOfficers = allOfficers.concat(officers);
+      } else {
+        return { results: [], count: 0 };
+      }
+
+      hasMore = Boolean(response && !Array.isArray(response) && response.next);
+      page++;
+    }
+
+    return { results: allOfficers, count: allOfficers.length };
+  }
+
+  async createResolverOfficer(data) {
+    return this.request('/resolver-officers/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateResolverOfficer(id, data) {
+    return this.request(`/resolver-officers/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteResolverOfficer(id) {
+    return this.request(`/resolver-officers/${id}/`, {
+      method: 'DELETE',
+    });
   }
 
   async getPublicDashboardStats() {

@@ -22,6 +22,7 @@ const getUserLabel = (user) => {
   const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim();
   return getLabel(fullName, user?.full_name, user?.email, `User ${user?.id ?? ''}`);
 };
+const getResolverId = (resolver) => resolver?.resolver_id || resolver?.id || '';
 
 const CategoryResolverManagement = () => {
   const { isDark } = useTheme();
@@ -209,29 +210,22 @@ const CategoryResolverManagement = () => {
         throw new Error('Please select a category.');
       }
 
-      if (editingResolver) {
-        if (!formData.officer) {
-          throw new Error('Please select an officer.');
-        }
+      const selectedOfficerIds = formData.officer_ids?.length
+        ? formData.officer_ids
+        : (formData.officer ? [formData.officer] : []);
 
-        await apiService.updateCategoryResolver(editingResolver.id, {
-          ...payload,
-          officer: formData.officer,
-        });
-      } else {
-        const selectedOfficerIds = formData.officer_ids?.length
-          ? formData.officer_ids
-          : (formData.officer ? [formData.officer] : []);
-
-        if (!selectedOfficerIds.length) {
-          throw new Error('Please select at least one officer.');
-        }
-
-        await apiService.createCategoryResolverBulk({
-          ...payload,
-          officer_ids: selectedOfficerIds,
-        });
+      if (!selectedOfficerIds.length) {
+        throw new Error('Please select at least one officer.');
       }
+
+      // Use bulk-create for both create and edit so we can manage multiple officers
+      // for a resolver. The backend will update_or_create the resolver and create
+      // or update ResolverOfficer rows for the provided officer_ids.
+      await apiService.createCategoryResolverBulk({
+        ...payload,
+        officer_ids: selectedOfficerIds,
+        escalation_level: editingResolver?.escalation_level || 1,
+      });
 
       setEditingResolver(null);
       resetForm();
@@ -244,13 +238,18 @@ const CategoryResolverManagement = () => {
 
   const handleEdit = (resolver) => {
     setEditingResolver(resolver);
+    // Try to read existing officer membership from resolver.officer_ids or resolver.officers
+    const existingOfficerIds = (resolver.officer_ids && Array.isArray(resolver.officer_ids) && resolver.officer_ids.length)
+      ? resolver.officer_ids.map((id) => String(id))
+      : (resolver.officer ? [String(resolver.officer)] : []);
+
     setFormData({
       category: resolver.category || '',
       campus: resolver.campus || '',
       college: resolver.college || '',
       department: resolver.department || '',
       officer: resolver.officer || '',
-      officer_ids: resolver.officer ? [String(resolver.officer)] : [],
+      officer_ids: existingOfficerIds,
       escalation_time: resolver.escalation_time || '2 00:00:00',
       active: resolver.active ?? true,
     });
@@ -398,7 +397,7 @@ const CategoryResolverManagement = () => {
               </tr>
             ) : (
               filteredResolvers.map((resolver) => (
-                <tr key={resolver.id}>
+                <tr key={getResolverId(resolver)}>
                   <td className="px-6 py-4 text-sm text-neutral">{resolver.category_name || getCategoryLabel(categories.find((category) => String(category.category_id || category.id) === String(resolver.category)))}</td>
                   <td className="px-6 py-4 text-sm text-neutral">{resolver.campus_name || getCampusLabel(campuses.find((campus) => String(campus.id) === String(resolver.campus))) || 'General'}</td>
                   <td className="px-6 py-4 text-sm text-neutral">{resolver.college_name || getCollegeLabel(colleges.find((college) => String(college.id) === String(resolver.college))) || 'General'}</td>
@@ -418,7 +417,7 @@ const CategoryResolverManagement = () => {
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDelete(resolver.id)}
+                      onClick={() => handleDelete(getResolverId(resolver))}
                       className="text-error hover:text-red-600"
                     >
                       Delete
@@ -571,52 +570,34 @@ const CategoryResolverManagement = () => {
 
           <div>
             <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              {editingResolver ? 'Officer' : 'Officers'}
+              Officers
             </label>
-            {editingResolver ? (
-              <select
-                value={formData.officer}
-                onChange={(e) => handleFormChange('officer', e.target.value)}
-                className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                required
-              >
-                <option value="">Select Officer</option>
-                {officerOptions.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {getUserLabel(user)}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className={`mt-2 border rounded-md max-h-56 overflow-y-auto ${isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-white'}`}>
-                {officerOptions.length === 0 ? (
-                  <p className={`px-3 py-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>No officers available.</p>
-                ) : (
-                  officerOptions.map((user) => {
-                    const officerId = String(user.id);
-                    const selected = formData.officer_ids.includes(officerId);
-                    return (
-                      <label
-                        key={user.id}
-                        className={`flex items-center gap-2 px-3 py-2 text-sm border-b last:border-b-0 cursor-pointer ${isDark ? 'border-gray-600 text-gray-200 hover:bg-gray-600' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => toggleOfficerSelection(user.id)}
-                        />
-                        <span>{getUserLabel(user)}</span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
-            )}
-            {!editingResolver && (
-              <p className={`mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Selected officers: {formData.officer_ids.length}
-              </p>
-            )}
+            <div className={`mt-2 border rounded-md max-h-56 overflow-y-auto ${isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-white'}`}>
+              {officerOptions.length === 0 ? (
+                <p className={`px-3 py-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>No officers available.</p>
+              ) : (
+                officerOptions.map((user) => {
+                  const officerId = String(user.id);
+                  const selected = formData.officer_ids.includes(officerId);
+                  return (
+                    <label
+                      key={user.id}
+                      className={`flex items-center gap-2 px-3 py-2 text-sm border-b last:border-b-0 cursor-pointer ${isDark ? 'border-gray-600 text-gray-200 hover:bg-gray-600' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleOfficerSelection(user.id)}
+                      />
+                      <span>{getUserLabel(user)}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            <p className={`mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Selected officers: {formData.officer_ids.length}
+            </p>
           </div>
 
           <div>

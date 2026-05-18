@@ -79,7 +79,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
     } finally {
       setLoading(false);
     }
-  }, [complaintId]);
+  }, [complaintId, complaint]);
 
   useEffect(() => {
     if (!complaintId) return;
@@ -262,17 +262,22 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
   const canRespond = role === 'officer' || role === 'admin';
   const complaintMeta = complaint || {};
 
+  const normalizeComplaintStatus = (status) => {
+    if (status === 'claimed') return 'in_progress';
+    if (status === 'rejected') return 'closed';
+    return status || 'pending';
+  };
+
   const statusBadgeClass = (status) => {
+    const normalizedStatus = normalizeComplaintStatus(status);
     const map = {
       pending: isDark ? 'bg-yellow-900/30 text-yellow-200' : 'bg-yellow-100 text-yellow-800',
-      claimed: isDark ? 'bg-blue-900/30 text-blue-200' : 'bg-blue-100 text-blue-800',
       in_progress: isDark ? 'bg-indigo-900/30 text-indigo-200' : 'bg-indigo-100 text-indigo-800',
       escalated: isDark ? 'bg-orange-900/30 text-orange-200' : 'bg-orange-100 text-orange-800',
       resolved: isDark ? 'bg-emerald-900/30 text-emerald-200' : 'bg-emerald-100 text-emerald-800',
       closed: isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800',
-      rejected: isDark ? 'bg-red-900/30 text-red-200' : 'bg-red-100 text-red-800',
     };
-    return map[status] || (isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700');
+    return map[normalizedStatus] || (isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700');
   };
 
   if (loading) {
@@ -321,7 +326,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
         </div>
         <div className={`rounded-xl border p-3 ${isDark ? 'border-gray-700 bg-gray-900/50' : 'border-gray-200 bg-gray-50'}`}>
           <div className="text-xs uppercase tracking-wide opacity-70">Status</div>
-          <div className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(complaintMeta.status)}`}>{String(complaintMeta.status || 'pending').replace('_', ' ')}</div>
+          <div className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(complaintMeta.status)}`}>{String(normalizeComplaintStatus(complaintMeta.status)).replace('_', ' ')}</div>
         </div>
       </div>
 

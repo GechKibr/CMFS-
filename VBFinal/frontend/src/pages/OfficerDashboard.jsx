@@ -35,6 +35,12 @@ const OfficerDashboard = () => {
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [showComplaintModal, setShowComplaintModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
+
+  const normalizeComplaintStatus = (status) => {
+    if (status === 'claimed') return 'in_progress';
+    if (status === 'rejected') return 'closed';
+    return status || 'pending';
+  };
   const [responses, setResponses] = useState([]);
   const [comments, setComments] = useState([]);
   const [threadSyncing, setThreadSyncing] = useState(false);
@@ -164,6 +170,20 @@ const OfficerDashboard = () => {
     } catch (error) {
       console.error('Error updating status:', error);
     }
+  };
+
+  const getAssignmentLabel = (complaint) => {
+    const assignedOfficer = complaint?.assigned_officer || complaint?.claimed_by;
+    if (assignedOfficer) {
+      return `${assignedOfficer.first_name || ''} ${assignedOfficer.last_name || ''}`.trim() || assignedOfficer.email || 'Assigned officer';
+    }
+
+    const resolverLabel = complaint?.current_resolver?.scope_label || complaint?.current_resolver?.category_name;
+    if (resolverLabel) {
+      return `${resolverLabel} queue`;
+    }
+
+    return 'Unassigned';
   };
 
   const fetchResponses = useCallback(async (complaintId = null) => {
@@ -478,28 +498,27 @@ const OfficerDashboard = () => {
                     >
                       <option value="all">All Status</option>
                       <option value="pending">Pending</option>
-                      <option value="claimed">Claimed</option>
                       <option value="in_progress">In Progress</option>
                       <option value="escalated">Escalated</option>
                       <option value="resolved">Resolved</option>
-                      <option value="rejected">Rejected</option>
+                      <option value="closed">Closed</option>
                     </select>
                   </div>
 
                   <div className="space-y-3">
                     {complaints
-                      .filter(complaint => complaintStatusFilter === 'all' || complaint.status === complaintStatusFilter)
+                      .filter(complaint => complaintStatusFilter === 'all' || normalizeComplaintStatus(complaint.status) === complaintStatusFilter)
                       .map(complaint => (
                         <div key={complaint.complaint_id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
                           <div className="flex justify-between items-start mb-2">
                             <h4 className="font-semibold text-lg">{complaint.title}</h4>
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${complaint.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              complaint.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                                complaint.status === 'escalated' ? 'bg-red-100 text-red-800' :
-                                  complaint.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${normalizeComplaintStatus(complaint.status) === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              normalizeComplaintStatus(complaint.status) === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                                normalizeComplaintStatus(complaint.status) === 'escalated' ? 'bg-red-100 text-red-800' :
+                                  normalizeComplaintStatus(complaint.status) === 'resolved' ? 'bg-green-100 text-green-800' :
                                     'bg-gray-100 text-gray-800'
                               }`}>
-                              {complaint.status.replace('_', ' ').toUpperCase()}
+                              {normalizeComplaintStatus(complaint.status).replace('_', ' ').toUpperCase()}
                             </span>
                           </div>
 
@@ -510,7 +529,18 @@ const OfficerDashboard = () => {
                               <span>ID: {complaint.complaint_id.slice(0, 8)}...</span>
                               <span>Category: {complaint.category?.name || complaint.category?.office_name || 'Uncategorized'}</span>
                               <span>Resolver: {complaint.current_resolver?.scope_label || complaint.current_resolver?.category_name || 'Unassigned'}</span>
-                              <span>Claimed: {complaint.claimed_by ? `${complaint.claimed_by.first_name || ''} ${complaint.claimed_by.last_name || ''}`.trim() || complaint.claimed_by.email : 'Not claimed'}</span>
+                              <span>Assignment: {getAssignmentLabel(complaint)}</span>
+                              <span>
+                                Resolver officers: {
+                                  (() => {
+                                    const officers = complaint.current_resolver?.officers || [];
+                                    if (!officers || officers.length === 0) return 0;
+                                    const names = officers.map(o => (o.first_name || o.last_name) ? `${o.first_name || ''} ${o.last_name || ''}`.trim() : o.email || `Officer ${o.id}`);
+                                    if (names.length <= 3) return names.join(', ');
+                                    return `${names.slice(0,3).join(', ')} (+${names.length - 3} more)`;
+                                  })()
+                                }
+                              </span>
                             </div>
                             <span>Created: {new Date(complaint.created_at).toLocaleDateString()}</span>
                           </div>
@@ -547,7 +577,7 @@ const OfficerDashboard = () => {
 
                   <div className="space-y-3">
                     {ccComplaints
-                      .filter(complaint => complaintStatusFilter === 'all' || complaint.status === complaintStatusFilter)
+                      .filter(complaint => complaintStatusFilter === 'all' || normalizeComplaintStatus(complaint.status) === complaintStatusFilter)
                       .map(complaint => (
                         <div
                           key={complaint.complaint_id}
@@ -558,13 +588,13 @@ const OfficerDashboard = () => {
                               <span className="text-purple-600 text-lg">🔗</span>
                               <h4 className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{complaint.title}</h4>
                             </div>
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${complaint.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              complaint.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                                complaint.status === 'escalated' ? 'bg-red-100 text-red-800' :
-                                  complaint.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${normalizeComplaintStatus(complaint.status) === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              normalizeComplaintStatus(complaint.status) === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                                normalizeComplaintStatus(complaint.status) === 'escalated' ? 'bg-red-100 text-red-800' :
+                                  normalizeComplaintStatus(complaint.status) === 'resolved' ? 'bg-green-100 text-green-800' :
                                     'bg-gray-100 text-gray-800'
                               }`}>
-                              {complaint.status.replace('_', ' ').toUpperCase()}
+                              {normalizeComplaintStatus(complaint.status).replace('_', ' ').toUpperCase()}
                             </span>
                           </div>
 
@@ -925,12 +955,10 @@ const OfficerDashboard = () => {
                           className={`flex-1 px-3 py-2 border rounded-md ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
                         >
                           <option value="pending">Pending</option>
-                          <option value="claimed">Claimed</option>
                           <option value="in_progress">In Progress</option>
                           <option value="escalated">Escalated</option>
                           <option value="resolved">Resolved</option>
                           <option value="closed">Closed</option>
-                          <option value="rejected">Rejected</option>
                         </select>
                         <button
                           onClick={handleUpdateStatus}

@@ -43,7 +43,7 @@ class FeedbackTemplateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = FeedbackTemplate
-        fields = ['id', 'title', 'description', 'office', 'status', 'priority', 
+        fields = ['id', 'title', 'description', 'office', 'status', 
                  'audience_scope', 'target_campus', 'target_college', 'target_department',
                  'target_campus_name', 'target_college_name', 'target_department_name', 'target_user_ids',
                  'created_at', 'updated_at', 'fields', 
@@ -72,7 +72,7 @@ class FeedbackTemplateCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = FeedbackTemplate
         fields = [
-            'title', 'description', 'fields', 'priority',
+            'title', 'description', 'fields',
             'audience_scope', 'target_campus', 'target_college', 'target_department', 'target_user_ids'
         ]
 
@@ -194,12 +194,11 @@ class FeedbackResponseSerializer(serializers.ModelSerializer):
         for answer_data in answers_data:
             field_id = answer_data.pop('field_id')
             field = TemplateField.objects.get(id=field_id, template=response.template)
-            answer_data['response'] = response
-            answer_data['field'] = field
+            answer_data['field_id'] = field_id
             
             answer_serializer = FeedbackAnswerSerializer(data=answer_data)
             answer_serializer.is_valid(raise_exception=True)
-            answer_serializer.save()
+            answer_serializer.save(response=response, field=field)
         
         return response
     

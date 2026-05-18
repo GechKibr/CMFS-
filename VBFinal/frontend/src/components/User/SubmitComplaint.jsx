@@ -505,17 +505,23 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
           .map(Number);
 
         if (ccOfficerNumbers.length > 0) {
-          formData.append('cc_officer_ids', JSON.stringify(ccOfficerNumbers));
+          ccOfficerNumbers.forEach((officerId) => {
+            formData.append('cc_officer_ids', String(officerId));
+          });
         }
       }
 
       // Main resolver route officers
       if (resolverOfficerIds.length > 0) {
-        formData.append('resolver_officer_ids', JSON.stringify(resolverOfficerIds.map((officerId) => String(officerId))));
+        resolverOfficerIds.forEach((officerId) => {
+          formData.append('resolver_officer_ids', String(Number(officerId)));
+        });
       }
       // Also send explicit resolver ids (CategoryResolver ids) when user selected specific routes
       if (selectedResolverIds.length > 0) {
-        formData.append('resolver_ids', JSON.stringify(selectedResolverIds.map((id) => String(id))));
+        selectedResolverIds.forEach((id) => {
+          formData.append('resolver_ids', String(id));
+        });
       }
       // Add files to form data
       files.forEach((file, index) => {
@@ -667,9 +673,6 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                   <div className={`rounded-lg border p-4 ${isDark ? 'border-gray-600 bg-gray-800' : 'border-gray-200 bg-white'}`}>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        {/* <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {language === 'am' ? 'ልዩ ሪዞልቨር መንገዶች' : 'Specific resolver routes'}
-                        </p> */}
                         <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                           {language === 'am'
                             ? 'ካምፓስ፣ ኮሌጅ እና ዲፓርትመንት  ይምረጡ።'

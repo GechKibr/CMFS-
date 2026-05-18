@@ -566,6 +566,15 @@ class MicrosoftAuthViewSet(viewsets.ViewSet):
 class TokenViewSet(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
 
+    def dispatch(self, request, *args, **kwargs):
+        self._skip_token_auth = request.path.endswith('/refresh/') or request.path.endswith('/verify/')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_authenticators(self):
+        if getattr(self, '_skip_token_auth', False):
+            return []
+        return super().get_authenticators()
+
     @action(detail=False, methods=['post'], url_path='refresh')
     def refresh(self, request):
         return TokenRefreshView.as_view()(request._request)

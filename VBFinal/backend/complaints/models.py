@@ -1,56 +1,110 @@
-from datetime import datetime
+from __future__ import annotations
 
-from django.db import models
-from django.conf import settings
-from django.utils import timezone
-from django.core.exceptions import ValidationError
 import uuid
+from datetime import datetime
+from datetime import timedelta
+from pathlib import Path
 
-from accounts.models import CAMPUS_CHOICES, ACADEMIC_UNITS
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import models, transaction
+from django.utils import timezone
+
+from accounts.models import ACADEMIC_UNITS, CAMPUS_CHOICES
+
+
+def _now():
+    return timezone.now()
+
 
 class Category(models.Model):
-    category_id = models.CharField(
-        max_length=30,
-        primary_key=True,
-        editable=False
-    )
-
-    office_name = models.CharField(max_length=150)
-    office_description = models.TextField(blank=True)
-
-    parent = models.ForeignKey(
-        "self",
-        null=True,
-        blank=True,
-        related_name="children",
-        on_delete=models.CASCADE
-    )
-
+    category_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=150)
+    description = models.TextField(blank=True, default="")
+    parent = models.ForeignKey("self", null=True, blank=True, related_name="children", on_delete=models.SET_NULL)
+    allow_anonymous = models.BooleanField(default=True)
+    is_sensitive = models.BooleanField(default=False)
+    auto_escalate_to_parent = models.BooleanField(default=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["office_name"]
-        unique_together = ("office_name", "parent")
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["parent", "name"], name="unique_category_name_per_parent"),
+        ]
+        indexes = [
+            models.Index(fields=["is_active", "name"]),
+            models.Index(fields=["parent", "name"]),
+        ]
+
+    def clean(self):
+        if self.parent_id and self.parent_id == self.category_id:
+            raise ValidationError({"parent": "A category cannot be its own parent."})
+
+        ancestor = self.parent
+        seen = {self.category_id} if self.category_id else set()
+        while ancestor:
+            if ancestor.category_id in seen:
+                raise ValidationError({"parent": "Category hierarchy cannot contain cycles."})
+            seen.add(ancestor.category_id)
+            ancestor = ancestor.parent
 
     def save(self, *args, **kwargs):
-        if not self.category_id:
-            self.category_id = f"CAT-{uuid.uuid4().hex[:10].upper()}"
         self.full_clean()
-        super().save(*args, **kwargs)
+        return super().save(*args, **kwargs)
 
     def __str__(self):
-        return self.office_name
+        return self.name
+
+    @property
+    def office_name(self):
+        return self.name
+
+    @property
+    def office_description(self):
+        return self.description
+
+    @property
+    def root(self):
+        node = self
+        while node.parent_id:
+            node = node.parent
+        return node
+
+    @property
+    def depth(self):
+        depth = 0
+        node = self.parent
+        while node:
+            depth += 1
+            node = node.parent
+        return depth
+
+    def ancestors(self):
+        current = self.parent
+        while current:
+            yield current
+            current = current.parent
+
+    def get_best_resolver(self, complaint: "Complaint"):
+        resolvers = [
+            resolver
+            for resolver in self.resolvers.filter(active=True).select_related("department")
+            if resolver.matches_complaint_scope(complaint)
+        ]
+        if not resolvers:
+            return None
+        resolvers.sort(key=lambda resolver: (resolver.escalation_level, -resolver.scope_rank(), resolver.created_at, str(resolver.resolver_id)))
+        return resolvers[0]
 
 
 class CategoryResolver(models.Model):
-    category = models.ForeignKey(
-        Category,
-        on_delete=models.CASCADE,
-        related_name="resolvers"
-    )
-    campus = models.CharField(max_length=50, choices=CAMPUS_CHOICES, null=True, blank=True)
-    college = models.CharField(max_length=50, choices=ACADEMIC_UNITS, null=True, blank=True)
+    resolver_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="resolvers")
+    campus = models.CharField(max_length=50, choices=CAMPUS_CHOICES, null=True, blank=True, db_index=True)
+    college = models.CharField(max_length=50, choices=ACADEMIC_UNITS, null=True, blank=True, db_index=True)
     department = models.ForeignKey(
         "accounts.Department",
         on_delete=models.SET_NULL,
@@ -58,478 +112,599 @@ class CategoryResolver(models.Model):
         blank=True,
         related_name="complaint_resolvers",
     )
-    officer = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="assigned_categories"
-    )
-    escalation_time = models.DurationField(
-        help_text="Time before escalation for this category-officer assignment (e.g. 48:00:00)."
-    )
-
+    escalation_level = models.PositiveIntegerField(default=1)
+    escalation_time = models.DurationField()
+    resolution_time = models.DurationField(null=True, blank=True)
     active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("category", "campus", "college", "department", "officer")
-
-    @property
-    def campus_id(self):
-        return self.campus
+        ordering = ["category", "escalation_level", "created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["category", "campus", "college", "department", "escalation_level"],
+                name="unique_resolver_scope_level",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["category", "active", "escalation_level"]),
+            models.Index(fields=["campus", "college", "department", "active"]),
+        ]
 
     def clean(self):
-        if self.department_id:
-            if self.department.department_college and self.college and self.department.department_college != self.college:
-                raise ValidationError("Selected department does not belong to the selected academic unit.")
+        if self.escalation_time is not None and self.escalation_time <= timedelta(0):
+            raise ValidationError({"escalation_time": "Escalation time must be greater than zero."})
+
+        if self.resolution_time is not None and self.resolution_time <= timedelta(0):
+            raise ValidationError({"resolution_time": "Resolution time must be greater than zero."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.category} - Level {self.escalation_level} - {self.scope_label()}"
 
     def scope_rank(self):
         if self.department_id:
             return 3
         if self.college:
             return 2
-        if self.campus_id:
+        if self.campus:
             return 1
         return 0
 
     def scope_label(self):
-        if self.department_id:
-            return "Department"
+        if self.department:
+            return self.department.department_name or str(self.department)
         if self.college:
-            return "College"
-        if self.campus_id:
-            return "Campus"
-        return "General"
+            return dict(ACADEMIC_UNITS).get(self.college, self.college)
+        if self.campus:
+            return dict(CAMPUS_CHOICES).get(self.campus, self.campus)
+        return "University"
 
-    def matches_scope(self, campus=None, college=None, department=None):
-        if self.department_id:
-            return bool(department and self.department_id == getattr(department, 'id', department))
-        if self.college:
-            # college param can be a code (string) or an object; support both
-            if isinstance(college, str):
-                return bool(college and self.college == college)
-            return bool(college and (getattr(college, 'department_college', None) == self.college or getattr(college, 'college_code', None) == self.college or getattr(college, 'id', None) == self.college))
-        if self.campus_id:
-            return bool(campus and self.campus_id == campus)
+    def matches_complaint_scope(self, complaint: "Complaint"):
+        if self.campus and complaint.campus != self.campus:
+            return False
+        if self.college and complaint.college != self.college:
+            return False
+        if self.department_id and complaint.department_id != self.department_id:
+            return False
         return True
 
-    def matches_user_scope(self, user):
-        profile = getattr(user, "officer_profile", None) or getattr(user, "student_profile", None)
-        if profile is None:
-            return False
 
-        department = getattr(profile, "department", None)
-        college_code = getattr(profile, "college", None) or (department.department_college if department else None)
-        campus_code = getattr(profile, "campus_id", None)
-        return self.matches_scope(campus=campus_code, college=college_code, department=department)
+class ResolverOfficer(models.Model):
+    resolver = models.ForeignKey(CategoryResolver, on_delete=models.CASCADE, related_name="officers")
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="resolver_memberships",
+    )
+    can_claim = models.BooleanField(default=True)
+    can_close = models.BooleanField(default=True)
+    can_escalate = models.BooleanField(default=True)
+    notification_preferences = models.JSONField(default=dict, blank=True)
+    receives_notifications = models.BooleanField(default=True)
+    active = models.BooleanField(default=True)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-    def matches_complaint_scope(self, complaint):
-        return self.matches_scope(
-            campus=complaint.submitter_campus,
-            college=complaint.submitter_college,
-            department=complaint.submitter_department,
-        )
-
-    def matches_officer(self, officer_user):
-        return self.matches_user_scope(officer_user)
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["resolver", "officer"], name="unique_resolver_officer"),
+        ]
+        indexes = [
+            models.Index(fields=["resolver", "active"]),
+            models.Index(fields=["officer", "active"]),
+        ]
 
     def __str__(self):
-        return f"{self.officer} → {self.category} ({self.scope_label()})"
-
+        return f"{self.officer} -> {self.resolver}"
 
 
 class Complaint(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_CLAIMED = "claimed"
+    STATUS_IN_PROGRESS = "in_progress"
+    STATUS_ESCALATED = "escalated"
+    STATUS_RESOLVED = "resolved"
+    STATUS_CLOSED = "closed"
+    STATUS_REJECTED = "rejected"
+
     STATUS_CHOICES = [
-        ("pending", "Pending"),
-        ("in_progress", "In Progress"),
-        ("escalated", "Escalated"),
-        ("resolved", "Resolved"),
-        ("closed", "Closed"),
+        (STATUS_PENDING, "Pending"),
+        (STATUS_CLAIMED, "Claimed"),
+        (STATUS_IN_PROGRESS, "In Progress"),
+        (STATUS_ESCALATED, "Escalated"),
+        (STATUS_RESOLVED, "Resolved"),
+        (STATUS_CLOSED, "Closed"),
+        (STATUS_REJECTED, "Rejected"),
     ]
 
-    complaint_id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False
-    )
-
+    complaint_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     submitted_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="complaints_made"
-    )
-
-    category = models.ForeignKey(
-        Category,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="complaints"
-    )
-
-    submitter_campus = models.CharField(max_length=50, choices=CAMPUS_CHOICES, null=True, blank=True)
-    submitter_college = models.CharField(max_length=50, choices=ACADEMIC_UNITS, null=True, blank=True)
-    submitter_department = models.ForeignKey(
-        "accounts.Department",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="submitted_complaints",
     )
-
-    title = models.CharField(max_length=255)
-    description = models.TextField()
-    attachment = models.FileField(
-        upload_to="attachments/",
+    reporter_name = models.CharField(max_length=150, blank=True, default="")
+    reporter_email = models.EmailField(blank=True, default="")
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints")
+    campus = models.CharField(max_length=50, choices=CAMPUS_CHOICES, null=True, blank=True, db_index=True)
+    college = models.CharField(max_length=50, choices=ACADEMIC_UNITS, null=True, blank=True, db_index=True)
+    department = models.ForeignKey(
+        "accounts.Department",
+        on_delete=models.SET_NULL,
         null=True,
-        blank=True
+        blank=True,
+        related_name="complaints",
     )
-    is_anonymous = models.BooleanField(default=False)
-
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default="pending"
-    )
-
     current_resolver = models.ForeignKey(
         CategoryResolver,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="complaints"
+        related_name="current_complaints",
     )
-    assigned_officer = models.ForeignKey(
+    claimed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="active_complaints"
+        related_name="claimed_complaints",
     )
-    escalation_deadline = models.DateTimeField(null=True, blank=True)
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    is_anonymous = models.BooleanField(default=False)
+    is_confidential = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    escalation_deadline = models.DateTimeField(null=True, blank=True, db_index=True)
+    resolution_deadline = models.DateTimeField(null=True, blank=True, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    last_escalated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]
-
-    def _get_submitter_scope(self):
-        student_profile = getattr(self.submitted_by, "student_profile", None)
-        if student_profile is not None:
-            department = student_profile.department
-            college = department.department_college if department else None
-            campus = student_profile.campus_id
-            return campus, college, department
-
-        officer_profile = getattr(self.submitted_by, "officer_profile", None)
-        if officer_profile is not None:
-            department = officer_profile.department
-            college = officer_profile.college or (department.department_college if department else None)
-            campus = None
-            return campus, college, department
-
-        return None, None, None
-
-    def _sync_submitter_scope_snapshot(self):
-        campus, college, department = self._get_submitter_scope()
-        self.submitter_campus = campus
-        self.submitter_college = college
-        self.submitter_department = department
-
-    def clean(self):
-        if self.submitted_by_id:
-            self._sync_submitter_scope_snapshot()
-
-        if self.current_resolver_id and self.category:
-            if self.current_resolver.category_id != self.category_id:
-                raise ValidationError("Current resolver does not belong to the selected complaint category.")
-
-            if not self.current_resolver.matches_complaint_scope(self):
-                raise ValidationError("Current resolver does not match the complainant's campus/college/department.")
-
-        if self.assigned_officer_id and self.current_resolver_id:
-            if self.current_resolver.officer_id != self.assigned_officer_id:
-                raise ValidationError("Assigned officer does not match the current resolver.")
+        indexes = [
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["category", "status"]),
+            models.Index(fields=["current_resolver", "status"]),
+            models.Index(fields=["claimed_by", "status"]),
+            models.Index(fields=["campus", "college", "department"]),
+            models.Index(fields=["escalation_deadline"]),
+            models.Index(fields=["resolution_deadline"]),
+        ]
 
     def __str__(self):
-        return f"{self.complaint_id}  {self.title}  ({self.status})"
+        return f"{self.title} ({self.status})"
 
-    def _get_current_assignment(self):
-        if not (self.category_id and self.current_resolver_id and self.assigned_officer_id):
-            return None
+    def clean(self):
+        if self.category and self.category.is_sensitive:
+            self.is_confidential = True
 
-        return CategoryResolver.objects.filter(
-            category_id=self.category_id,
-            id=self.current_resolver_id,
-            officer_id=self.assigned_officer_id,
-            active=True,
-        ).first()
+        if self.is_anonymous and self.category and not self.category.allow_anonymous:
+            raise ValidationError({"is_anonymous": "This category does not support anonymous complaints."})
 
-    def _matching_resolvers_for_category(self, category):
-        category_id = getattr(category, 'category_id', None)
-        if not category_id:
-            return []
+        if not self.is_anonymous and not self.submitted_by_id and not self.reporter_email:
+            raise ValidationError({"submitted_by": "A complainant or contact email is required unless the complaint is anonymous."})
 
-        return [
-            resolver
-            for resolver in CategoryResolver.objects.filter(
-                category_id=category_id,
+        if self.current_resolver and self.category and self.current_resolver.category_id != self.category_id:
+            raise ValidationError({"current_resolver": "Current resolver must belong to the complaint category."})
+
+        if self.current_resolver and not self.current_resolver.matches_complaint_scope(self):
+            raise ValidationError({"current_resolver": "Current resolver does not match the complaint scope."})
+
+        if self.claimed_by_id and self.current_resolver_id:
+            membership_exists = self.current_resolver.officers.filter(
+                officer_id=self.claimed_by_id,
                 active=True,
-            ).select_related("officer", "category", "department")
-            if resolver.matches_complaint_scope(self)
-        ]
+                officer__is_active=True,
+            ).exists()
+            if not membership_exists:
+                raise ValidationError({"claimed_by": "Claimed officer must be an active officer on the current resolver."})
 
-    def calculate_escalation_deadline(self, escalation_time=None, base_time=None):
-        if not self.current_resolver:
-            return None
-
-        effective_escalation_time = escalation_time
-        if effective_escalation_time is None:
-            assignment = self._get_current_assignment()
-            effective_escalation_time = assignment.escalation_time if assignment else None
-
-        if not effective_escalation_time:
-            return None
-
-        deadline_base = base_time or self.created_at or timezone.now()
-        return deadline_base + effective_escalation_time
-
-    def set_escalation_deadline(self, escalation_time=None, base_time=None):
-        self.escalation_deadline = self.calculate_escalation_deadline(
-            escalation_time=escalation_time,
-            base_time=base_time,
-        )
+        if self.resolution_deadline and self.escalation_deadline and self.resolution_deadline < self.escalation_deadline:
+            raise ValidationError({"resolution_deadline": "Resolution deadline must be on or after the escalation deadline."})
 
     def save(self, *args, **kwargs):
-        if self.category_id and self.assigned_officer_id and not self.current_resolver_id:
-            candidate = CategoryResolver.objects.filter(
-                category_id=self.category_id,
-                officer_id=self.assigned_officer_id,
-                active=True,
-            ).select_related("officer", "category").first()
-            if candidate and candidate.matches_complaint_scope(self):
-                self.current_resolver = candidate
-
-        if self.current_resolver and not self.escalation_deadline:
-            self.set_escalation_deadline()
         self.full_clean()
-        super().save(*args, **kwargs)
+        return super().save(*args, **kwargs)
 
-    def escalate_to_next_level(self):
-        """Escalate complaint to the next broader resolver scope within the same category."""
-        if not self.category or not self.current_resolver:
+    @property
+    def assigned_officer(self):
+        return self.claimed_by
+
+    @property
+    def assigned_officer_id(self):
+        return self.claimed_by_id
+
+    @property
+    def current_resolver_officers(self):
+        if not self.current_resolver_id:
+            return ResolverOfficer.objects.none()
+        return self.current_resolver.officers.select_related("officer").filter(active=True, officer__is_active=True)
+
+    def is_visible_to_officer(self, officer):
+        if not officer or not getattr(officer, "is_authenticated", False):
             return False
+        if officer.is_admin():
+            return True
+        if self.submitted_by_id == officer.id:
+            return True
+        if self.claimed_by_id == officer.id:
+            return True
+        if self.current_resolver_id:
+            return self.current_resolver.officers.filter(officer_id=officer.id, active=True, officer__is_active=True).exists()
+        return False
 
-        candidates = [
-            resolver for resolver in self._matching_resolvers_for_category(self.category)
-            if resolver.matches_complaint_scope(self) and resolver.scope_rank() < self.current_resolver.scope_rank()
-        ]
-
-        if not candidates:
-            return False
-
-        next_resolver = max(candidates, key=lambda resolver: (resolver.scope_rank(), -resolver.id))
-
-        Assignment.objects.create(
+    def _record_assignment(self, resolver, officer, reason):
+        Assignment.objects.filter(complaint=self, ended_at__isnull=True).update(ended_at=_now())
+        return Assignment.objects.create(
             complaint=self,
-            officer=next_resolver.officer,
-            resolver=next_resolver,
-            reason='escalation'
+            resolver=resolver,
+            officer=officer,
+            reason=reason,
         )
 
-        self.current_resolver = next_resolver
-        self.assigned_officer = next_resolver.officer
-        self.status = 'escalated'
-        self.set_escalation_deadline(next_resolver.escalation_time, base_time=self.created_at)
-        self.save()
-
-        return True
-
-    def escalate_to_parent_category(self):
-        """Escalate complaint to parent category with broadest scope resolver."""
-        if not self.category or not self.category.parent:
-            return False
-
-        parent_category = self.category.parent
-
-        # Find resolvers for the parent category that match complaint scope, ordered by broadest scope first
-        candidates = self._matching_resolvers_for_category(parent_category)
-
-        if not candidates:
-            return False
-
-        # Select resolver with broadest scope (highest scope_rank)
-        parent_resolver = max(candidates, key=lambda resolver: (resolver.scope_rank(), -resolver.id))
-
-        Assignment.objects.create(
+    def _record_system_entry(self, entry_type, message, actor=None, title="", is_internal=False):
+        return ComplaintTimelineEntry.objects.create(
             complaint=self,
-            officer=parent_resolver.officer,
-            resolver=parent_resolver,
-            reason='parent_escalation'
+            author=actor,
+            entry_type=entry_type,
+            title=title,
+            message=message,
+            is_internal=is_internal,
         )
 
-        self.category = parent_category
-        self.current_resolver = parent_resolver
-        self.assigned_officer = parent_resolver.officer
-        self.status = 'escalated'
-        self.set_escalation_deadline(parent_resolver.escalation_time, base_time=self.created_at)
-        self.save()
+    def _set_deadlines_from_resolver(self, resolver=None, base_time=None):
+        resolver = resolver or self.current_resolver
+        if not resolver:
+            self.escalation_deadline = None
+            self.resolution_deadline = None
+            return
 
-        return True
+        reference_time = base_time or self.created_at or _now()
+        self.escalation_deadline = reference_time + resolver.escalation_time if resolver.escalation_time else None
+        self.resolution_deadline = reference_time + resolver.resolution_time if resolver.resolution_time else None
+
+    def refresh_workflow_deadlines(self, base_time=None):
+        self._set_deadlines_from_resolver(base_time=base_time)
+
+    def _best_matching_resolver(self, category=None, minimum_level=None):
+        category = category or self.category
+        if not category:
+            return None
+
+        queryset = category.resolvers.filter(active=True)
+        if minimum_level is not None:
+            queryset = queryset.filter(escalation_level__gt=minimum_level)
+
+        candidates = [resolver for resolver in queryset.select_related("department") if resolver.matches_complaint_scope(self)]
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda resolver: (resolver.escalation_level, -resolver.scope_rank(), resolver.created_at, str(resolver.resolver_id)))
+        return candidates[0]
+
+    def _advance_to_resolver(self, resolver, reason, actor=None, status=None):
+        if not resolver:
+            return None
+
+        with transaction.atomic():
+            self.current_resolver = resolver
+            self.claimed_by = None
+            self.status = status or self.STATUS_ESCALATED
+            self.last_escalated_at = _now()
+            self._set_deadlines_from_resolver(resolver=resolver, base_time=self.last_escalated_at)
+            self.save(update_fields=[
+                "current_resolver",
+                "claimed_by",
+                "status",
+                "last_escalated_at",
+                "escalation_deadline",
+                "resolution_deadline",
+                "updated_at",
+            ])
+            self._record_assignment(resolver, None, reason)
+            self._record_system_entry("escalation", reason, actor=actor, title="Complaint escalated")
+        return resolver
+
+    def escalate_to_next_resolver(self, actor=None):
+        if not self.current_resolver_id:
+            return self.escalate_to_parent_category(actor=actor)
+
+        next_resolver = self._best_matching_resolver(minimum_level=self.current_resolver.escalation_level)
+        if not next_resolver:
+            return self.escalate_to_parent_category(actor=actor)
+
+        return self._advance_to_resolver(
+            next_resolver,
+            reason="Escalated to next resolver level",
+            actor=actor,
+        )
+
+    def escalate_to_parent_category(self, actor=None):
+        parent = self.category.parent if self.category_id and self.category and self.category.parent_id else None
+        while parent:
+            resolver = parent.get_best_resolver(self)
+            if resolver:
+                return self._advance_to_resolver(
+                    resolver,
+                    reason=f"Escalated to parent category {parent.name}",
+                    actor=actor,
+                )
+            if not parent.auto_escalate_to_parent:
+                break
+            parent = parent.parent
+        return None
+
+    def claim(self, officer, note=""):
+        if not self.current_resolver_id:
+            raise ValidationError({"current_resolver": "Complaint is not routed to a resolver yet."})
+
+        membership = self.current_resolver.officers.filter(
+            officer=officer,
+            active=True,
+            officer__is_active=True,
+            can_claim=True,
+        ).first()
+        if not membership:
+            raise ValidationError({"claimed_by": "Officer is not allowed to claim this complaint."})
+
+        with transaction.atomic():
+            self.claimed_by = officer
+            self.status = self.STATUS_CLAIMED
+            self.save(update_fields=["claimed_by", "status", "updated_at"])
+            self._record_assignment(self.current_resolver, officer, "claim")
+            self._record_system_entry("comment", note or f"Complaint claimed by {officer.full_name}.", actor=officer, title="Complaint claimed")
+        return self
+
+    def mark_in_progress(self, actor=None, note=""):
+        self.status = self.STATUS_IN_PROGRESS
+        self.save(update_fields=["status", "updated_at"])
+        self._record_system_entry("comment", note or "Complaint marked in progress.", actor=actor, title="Complaint in progress")
+        return self
+
+    def resolve(self, actor=None, note=""):
+        self.status = self.STATUS_RESOLVED
+        self.resolved_at = _now()
+        self.save(update_fields=["status", "resolved_at", "updated_at"])
+        self._record_system_entry("resolution_note", note or "Complaint resolved.", actor=actor, title="Complaint resolved")
+        return self
+
+    def close(self, actor=None, note=""):
+        self.status = self.STATUS_CLOSED
+        self.closed_at = _now()
+        self.save(update_fields=["status", "closed_at", "updated_at"])
+        self._record_system_entry("system", note or "Complaint closed.", actor=actor, title="Complaint closed")
+        return self
+
+    def reject(self, actor=None, note=""):
+        self.status = self.STATUS_REJECTED
+        self.save(update_fields=["status", "updated_at"])
+        self._record_system_entry("system", note or "Complaint rejected.", actor=actor, title="Complaint rejected")
+        return self
 
 
 class ComplaintCC(models.Model):
-    complaint = models.ForeignKey(
-        Complaint,
-        on_delete=models.CASCADE,
-        related_name='cc_list'
-    )
+    complaint = models.ForeignKey(Complaint, on_delete=models.CASCADE, related_name="cc_list")
     email = models.EmailField()
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('complaint', 'email')
+        constraints = [
+            models.UniqueConstraint(fields=["complaint", "email"], name="unique_complaint_cc_email"),
+        ]
+        indexes = [models.Index(fields=["email"])]
 
     def __str__(self):
-        return f"CC {self.email} on {self.complaint.complaint_id}"
+        return f"CC {self.email} on {self.complaint_id}"
 
 
 class ComplaintAttachment(models.Model):
-    complaint = models.ForeignKey(
-        Complaint,
-        on_delete=models.CASCADE,
-        related_name="attachments"
+    complaint = models.ForeignKey(Complaint, on_delete=models.CASCADE, related_name="attachments")
+    timeline_entry = models.ForeignKey(
+        "ComplaintTimelineEntry",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attachments",
     )
     file = models.FileField(upload_to="complaint_attachments/")
-    file_data = models.BinaryField(null=True, blank=True)
-    filename = models.CharField(max_length=255)
-    file_size = models.PositiveIntegerField()
-    content_type = models.CharField(max_length=100)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaint_attachments")
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["complaint", "uploaded_at"]),
+            models.Index(fields=["timeline_entry", "uploaded_at"]),
+            models.Index(fields=["uploaded_by", "uploaded_at"]),
+        ]
+
+    def clean(self):
+        if not self.complaint_id and not self.timeline_entry_id:
+            raise ValidationError({"complaint": "An attachment must belong to a complaint or timeline entry."})
+        if self.timeline_entry_id and not self.complaint_id:
+            self.complaint = self.timeline_entry.complaint
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        return super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"{self.complaint.complaint_id} - {self.filename}"
+        return self.filename
+
+    @property
+    def filename(self):
+        return Path(self.file.name).name if self.file else "attachment"
+
+    @property
+    def file_size(self):
+        try:
+            return self.file.size
+        except Exception:
+            return None
+
+    @property
+    def content_type(self):
+        file_obj = getattr(self.file, "file", None)
+        return getattr(file_obj, "content_type", None)
+
+    @property
+    def file_data(self):
+        return None
 
 
 class Assignment(models.Model):
-    ASSIGNMENT_REASON = [
-        ("initial", "Initial Assignment"),
-        ("escalation", "Escalation"),
-        ("manual", "Manual Reassignment"),
+    REASON_INITIAL = "initial"
+    REASON_CLAIM = "claim"
+    REASON_ESCALATION = "escalation"
+    REASON_MANUAL = "manual"
+
+    REASON_CHOICES = [
+        (REASON_INITIAL, "Initial"),
+        (REASON_CLAIM, "Claim"),
+        (REASON_ESCALATION, "Escalation"),
+        (REASON_MANUAL, "Manual"),
     ]
 
-    complaint = models.ForeignKey(
-        Complaint,
-        on_delete=models.CASCADE,
-        related_name="assignments"
-    )
-    
-    officer = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="assignment_history"
-    )
-    resolver = models.ForeignKey(
-        CategoryResolver,
-        on_delete=models.CASCADE
-    )
-
+    complaint = models.ForeignKey(Complaint, on_delete=models.CASCADE, related_name="assignments")
+    resolver = models.ForeignKey(CategoryResolver, on_delete=models.CASCADE, related_name="assignment_history")
+    officer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaint_assignments")
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES)
+    note = models.TextField(blank=True, default="")
     assigned_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
 
-    reason = models.CharField(
-        max_length=20,
-        choices=ASSIGNMENT_REASON
-    )
-
     class Meta:
-        ordering = ["-assigned_at"]
+        ordering = ["assigned_at"]
+        indexes = [
+            models.Index(fields=["complaint", "assigned_at"]),
+            models.Index(fields=["resolver", "ended_at"]),
+            models.Index(fields=["officer", "ended_at"]),
+        ]
 
     def __str__(self):
-        return f"{self.complaint.complaint_id}  → {self.officer} ({self.resolver.scope_label()})"
+        officer_label = self.officer.full_name if self.officer_id else "Unassigned"
+        return f"{self.complaint_id} -> {self.resolver} ({officer_label}, {self.reason})"
 
 
-class Comment(models.Model):
-    COMMENT_TYPE_CHOICES = [
-        ('comment', 'Comment'),
+class ComplaintTimelineEntry(models.Model):
+    KIND_COMMENT = "comment"
+    KIND_RESPONSE = "response"
+    KIND_SYSTEM = "system"
+    KIND_ESCALATION = "escalation"
+    KIND_RESOLUTION_NOTE = "resolution_note"
+
+    ENTRY_CHOICES = [
+        (KIND_COMMENT, "Comment"),
+        (KIND_RESPONSE, "Response"),
+        (KIND_SYSTEM, "System Message"),
+        (KIND_ESCALATION, "Escalation Log"),
+        (KIND_RESOLUTION_NOTE, "Resolution Note"),
     ]
 
-    complaint = models.ForeignKey(Complaint,on_delete=models.CASCADE, related_name="comments")
-    author = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE
-    )
-    comment_type = models.CharField(
-        max_length=20,
-        choices=COMMENT_TYPE_CHOICES,
-        default='comment'
-    )
-    message = models.TextField()
-    
+    complaint = models.ForeignKey(Complaint, on_delete=models.CASCADE, related_name="timeline_entries")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaint_timeline_entries")
+    entry_type = models.CharField(max_length=24, choices=ENTRY_CHOICES, default=KIND_COMMENT, db_index=True)
+    title = models.CharField(max_length=255, blank=True, default="")
+    message = models.TextField(blank=True, default="")
+    is_internal = models.BooleanField(default=False)
+    is_public = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["created_at"]
         indexes = [
-            models.Index(fields=['complaint', 'comment_type']),
-            models.Index(fields=['author', 'created_at']),
+            models.Index(fields=["complaint", "created_at"]),
+            models.Index(fields=["complaint", "entry_type", "created_at"]),
         ]
 
     def clean(self):
-        pass
-        
+        if self.entry_type in {self.KIND_COMMENT, self.KIND_RESPONSE} and not self.author_id:
+            raise ValidationError({"author": "Timeline comments and responses require an author."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"Comment by {self.author} on {self.complaint.complaint_id}"
+        return f"{self.complaint_id} - {self.entry_type}"
+
+    @property
+    def comment_type(self):
+        return self.entry_type
+
+    @comment_type.setter
+    def comment_type(self, value):
+        self.entry_type = value
+
+    @property
+    def response_type(self):
+        return self.entry_type
+
+    @response_type.setter
+    def response_type(self, value):
+        self.entry_type = value
+
+    @property
+    def responder(self):
+        return self.author
+
+    @responder.setter
+    def responder(self, value):
+        self.author = value
+
+    @property
+    def attachment(self):
+        attachment = self.attachments.order_by("uploaded_at").first()
+        return attachment.file if attachment else None
 
 
-class Response(models.Model):
-    RESPONSE_TYPE_CHOICES = [
-        ('initial', 'Initial Response'),
-        ('update', 'Status Update'),
-        ('resolution', 'Final Resolution'),
-        ('escalation', 'Escalation Response'),
-    ]
+class _EntryProxyManager(models.Manager):
+    entry_type = None
 
-    complaint = models.ForeignKey(
-        Complaint,
-        on_delete=models.CASCADE,
-        related_name="responses"
-    )
-    responder = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="complaint_responses"
-    )
-    response_type = models.CharField(
-        max_length=20,
-        choices=RESPONSE_TYPE_CHOICES,
-        default='update'
-    )
-    title = models.CharField(max_length=255)
-    message = models.TextField()
-    attachment = models.FileField(
-        upload_to="response_attachments/",
-        null=True,
-        blank=True
-    )
-    is_public = models.BooleanField(
-        default=True,
-        help_text="Whether this response is visible to the complainant"
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.entry_type is None:
+            return queryset
+        return queryset.filter(entry_type=self.entry_type)
+
+    def create(self, **kwargs):
+        if self.entry_type is not None:
+            kwargs.setdefault("entry_type", self.entry_type)
+        return super().create(**kwargs)
+
+
+class Comment(ComplaintTimelineEntry):
+    objects = _EntryProxyManager()
+    objects.entry_type = ComplaintTimelineEntry.KIND_COMMENT
 
     class Meta:
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=['complaint', 'response_type']),
-            models.Index(fields=['responder', 'created_at']),
-        ]
+        proxy = True
+        verbose_name = "Comment"
+        verbose_name_plural = "Comments"
 
-    def __str__(self):
-        return f"{self.response_type.title()} response by {self.responder} on {self.complaint.complaint_id}"
+
+class Response(ComplaintTimelineEntry):
+    objects = _EntryProxyManager()
+    objects.entry_type = ComplaintTimelineEntry.KIND_RESPONSE
+
+    class Meta:
+        proxy = True
+        verbose_name = "Response"
+        verbose_name_plural = "Responses"
+
+
+ComplaintMessage = ComplaintTimelineEntry
+
 
 class AppointmentAvailability(models.Model):
     SOURCE_MANUAL = 'manual'
@@ -586,8 +761,7 @@ class AppointmentAvailability(models.Model):
             available_date=self.available_date,
             is_active=True,
         )
-        
-        # Exclude the current object if it exists (has a pk)
+
         if self.pk:
             overlapping = overlapping.exclude(pk=self.pk)
 
@@ -723,7 +897,6 @@ class AnnouncementComment(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-
 
 
 class Appointment(models.Model):

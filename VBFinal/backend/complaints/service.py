@@ -1,83 +1,83 @@
+from __future__ import annotations
+
 import logging
 
-from complaints.models import Assignment, CategoryResolver
+from django.db import transaction
+
+from .models import Assignment, CategoryResolver, Complaint
 
 logger = logging.getLogger(__name__)
 
 
 class ComplaintService:
-    def _matching_resolvers(self, complaint, preferred_officer_ids=None):
-        queryset = CategoryResolver.objects.filter(
-            category=complaint.category,
-            active=True,
+    def _matching_resolvers(self, complaint, preferred_officer_ids=None, preferred_resolver_ids=None):
+        queryset = CategoryResolver.objects.filter(category=complaint.category, active=True).select_related(
+            "category",
+            "department",
         )
+
+        if preferred_resolver_ids:
+            queryset = queryset.filter(resolver_id__in=preferred_resolver_ids)
+
+        resolvers = [resolver for resolver in queryset if resolver.matches_complaint_scope(complaint)]
 
         if preferred_officer_ids:
-            queryset = queryset.filter(officer_id__in=preferred_officer_ids)
+            preferred_officer_ids = {int(officer_id) for officer_id in preferred_officer_ids}
+            preferred_resolvers = [
+                resolver
+                for resolver in resolvers
+                if resolver.officers.filter(active=True, officer__is_active=True, officer_id__in=preferred_officer_ids).exists()
+            ]
+            if preferred_resolvers:
+                resolvers = preferred_resolvers
 
-        return list(
-            queryset.select_related('officer', 'category', 'department').order_by(
-                'department_id',
-                'college',
-                'campus',
-                'id',
+        resolvers.sort(key=lambda resolver: (resolver.escalation_level, -resolver.scope_rank(), resolver.created_at, str(resolver.resolver_id)))
+        return resolvers
+
+    def _set_initial_routing(self, complaint, resolver):
+        with transaction.atomic():
+            complaint.current_resolver = resolver
+            complaint.claimed_by = None
+            complaint.status = Complaint.STATUS_PENDING
+            complaint.refresh_workflow_deadlines(base_time=complaint.created_at)
+            complaint.save()
+
+            Assignment.objects.create(
+                complaint=complaint,
+                resolver=resolver,
+                officer=None,
+                reason=Assignment.REASON_INITIAL,
             )
-        )
 
-    def assign_to_first_level_officer(self, complaint, preferred_officer_ids=None):
+            complaint._record_system_entry(
+                "system",
+                f"Complaint routed to {resolver.scope_label()} at level {resolver.escalation_level}.",
+            )
+
+        return resolver
+
+    def route_complaint(self, complaint, preferred_officer_ids=None, preferred_resolver_ids=None):
         try:
-            if not complaint.category:
+            if not complaint.category_id:
                 return None
 
-            candidates = [
-                resolver
-                for resolver in self._matching_resolvers(complaint, preferred_officer_ids=preferred_officer_ids)
-                if resolver.matches_complaint_scope(complaint)
-            ]
-
-            if not candidates and preferred_officer_ids:
-                candidates = [
-                    resolver
-                    for resolver in self._matching_resolvers(complaint)
-                    if resolver.matches_complaint_scope(complaint)
-                ]
+            candidates = self._matching_resolvers(
+                complaint,
+                preferred_officer_ids=preferred_officer_ids,
+                preferred_resolver_ids=preferred_resolver_ids,
+            )
 
             if not candidates:
                 return None
 
-            top_rank = max(resolver.scope_rank() for resolver in candidates)
-            matched_resolvers = [resolver for resolver in candidates if resolver.scope_rank() == top_rank]
-            representative = matched_resolvers[0]
-
-            complaint.current_resolver = representative
-            complaint.assigned_officer = representative.officer
-            complaint.set_escalation_deadline(representative.escalation_time, base_time=complaint.created_at)
-            complaint.save()
-
-            for resolver in matched_resolvers:
-                Assignment.objects.create(
-                    complaint=complaint,
-                    officer=resolver.officer,
-                    resolver=resolver,
-                    reason='initial',
-                )
-
-            return matched_resolvers
-        except Exception as e:
-            logger.error(f"Assignment failed: {e}")
+            resolver = candidates[0]
+            return self._set_initial_routing(complaint, resolver)
+        except Exception as exc:
+            logger.error("Complaint routing failed: %s", exc, exc_info=True)
             return None
 
     def process_complaint(self, complaint, preferred_officer_ids=None):
-        try:
-            complaint.save()
-            assigned_officer = self.assign_to_first_level_officer(complaint, preferred_officer_ids=preferred_officer_ids)
-            return {
-                'category': complaint.category,
-                'assigned_officer': assigned_officer,
-            }
-        except Exception as e:
-            logger.error(f"Complaint processing failed: {e}")
-            return None
+        return self.route_complaint(complaint, preferred_officer_ids=preferred_officer_ids)
 
 
 service = ComplaintService()

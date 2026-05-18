@@ -3,6 +3,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import apiService from '../../services/api';
 import { CategoryManagement } from './CategoryManagement';
 import CategoryResolverManagement from './CategoryResolverManagement';
+import OfficersManagement from './OfficersManagement';
 
 const CrudSection = ({ isDark, title, items, columns, onAdd, onEdit, onDelete, loading, showAddButton = true, addButtonLabel = '+ Add' }) => {
   const thCls = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
@@ -213,8 +214,9 @@ const InstitutionManagement = () => {
 
   const tabs = [
     { id: 'departments', label: 'Departments', icon: '🏢' },
-    { id: 'offices', label: 'Office', icon: '📂' },
-    { id: 'office-assignments', label: 'Assignment', icon: '👥' },
+    { id: 'categories', label: 'Offices', icon: '📂' },
+    { id: 'resolvers', label: 'Assignments', icon: '🔁' },
+    { id: 'officers', label: 'Officers', icon: '👥' },
   ];
 
   const renderContent = () => {
@@ -301,11 +303,14 @@ const InstitutionManagement = () => {
           </div>
         );
 
-      case 'offices':
+      case 'categories':
         return <CategoryManagement />;
 
-      case 'office-assignments':
+      case 'resolvers':
         return <CategoryResolverManagement />;
+
+      case 'officers':
+        return <OfficersManagement />;
 
       default:
         return null;

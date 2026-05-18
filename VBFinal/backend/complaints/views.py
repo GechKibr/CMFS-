@@ -25,6 +25,7 @@ from .models import (
     Complaint,
     ComplaintAttachment,
     ComplaintCC,
+    ResolverOfficer,
     PublicAnnouncement,
     Response,
 )
@@ -66,64 +67,31 @@ def accessible_complaints_for(user):
     if user.is_admin():
         return Complaint.objects.all()
     if user.is_officer():
-        resolver_categories = list(
-            CategoryResolver.objects.filter(
-                officer=user,
-                active=True,
-            ).select_related('category', 'department', 'officer')
-        )
-
-        complaints = Complaint.objects.filter(
-            models.Q(assigned_officer=user)
-            | models.Q(submitted_by=user)
+        return Complaint.objects.filter(
+            models.Q(submitted_by=user)
+            | models.Q(claimed_by=user)
             | models.Q(cc_list__email=user.email)
-            | models.Q(category__resolvers__officer=user, category__resolvers__active=True)
-        ).distinct().select_related('category', 'current_resolver', 'assigned_officer')
-
-        visible_ids = []
-        for complaint in complaints:
-            if complaint.submitted_by_id == user.id or complaint.assigned_officer_id == user.id:
-                visible_ids.append(complaint.pk)
-                continue
-
-            if complaint.cc_list.filter(email=user.email).exists():
-                visible_ids.append(complaint.pk)
-                continue
-
-            if complaint.category_id and any(
-                resolver.category_id == complaint.category_id and resolver.matches_complaint_scope(complaint)
-                for resolver in resolver_categories
-            ):
-                visible_ids.append(complaint.pk)
-
-        return Complaint.objects.filter(pk__in=visible_ids)
+            | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
+        ).distinct().select_related('category', 'current_resolver', 'claimed_by')
     return Complaint.objects.filter(submitted_by=user)
 
 
 def can_manage_complaint(user, complaint):
-    is_category_resolver = False
-    if (
+    is_category_resolver = bool(
         user
         and user.is_authenticated
         and user.is_officer()
         and complaint
-        and complaint.category_id
-    ):
-        is_category_resolver = any(
-            resolver.matches_complaint_scope(complaint)
-            for resolver in CategoryResolver.objects.filter(
-                officer=user,
-                category_id=complaint.category_id,
-                active=True,
-            ).select_related('category', 'department', 'officer')
-        )
+        and complaint.current_resolver_id
+        and complaint.current_resolver.officers.filter(officer=user, active=True, officer__is_active=True).exists()
+    )
 
     return bool(
         user
         and user.is_authenticated
         and (
             user.is_admin()
-            or (user.is_officer() and complaint.assigned_officer_id == user.id)
+            or (user.is_officer() and complaint.claimed_by_id == user.id)
             or is_category_resolver
         )
     )
@@ -196,8 +164,8 @@ class CategoryViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelViewSet):
             data.append(
                 {
                     'category_id': cat.category_id,
-                    'name': cat.office_name,
-                    'description': cat.office_description,
+                    'name': cat.name,
+                    'description': cat.description,
                     'is_active': cat.is_active,
                 }
             )
@@ -206,9 +174,11 @@ class CategoryViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='officers')
     def officers(self, request, pk=None):
         category = self.get_object()
-        officer_ids = CategoryResolver.objects.filter(
-            category=category,
+        officer_ids = ResolverOfficer.objects.filter(
+            resolver__category=category,
+            resolver__active=True,
             active=True,
+            officer__is_active=True,
         ).values_list('officer_id', flat=True)
 
         officers = User.objects.filter(id__in=officer_ids).order_by('first_name', 'last_name', 'email')
@@ -224,10 +194,10 @@ class CategoryViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelViewSet):
 
 
 class CategoryResolverViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelViewSet):
-    queryset = CategoryResolver.objects.select_related('category', 'department', 'officer').order_by(
+    queryset = CategoryResolver.objects.select_related('category', 'department').prefetch_related('officers').order_by(
         'category_id',
-        'officer_id',
-        'id',
+        'escalation_level',
+        'resolver_id',
     )
     serializer_class = CategoryResolverSerializer
 
@@ -241,6 +211,8 @@ class CategoryResolverViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelVi
         active = payload.get('active', True)
         officer_ids = payload.get('officer_ids')
         escalation_time = payload.get('escalation_time')
+        escalation_level = int(payload.get('escalation_level') or 1)
+        resolution_time = payload.get('resolution_time')
 
         if not category_id or escalation_time is None:
             return DRFResponse(
@@ -286,32 +258,49 @@ class CategoryResolverViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelVi
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        assignments = []
+        parsed_resolution_time = parse_duration(str(resolution_time)) if resolution_time is not None else None
+        if resolution_time is not None and parsed_resolution_time is None:
+            return DRFResponse(
+                {'error': 'Invalid resolution_time format. Use Django duration format.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        created_resolvers = []
         try:
             with transaction.atomic():
+                resolver, _ = CategoryResolver.objects.update_or_create(
+                    category_id=category_id,
+                    campus=campus_id,
+                    college=college_id,
+                    department_id=department_id,
+                    escalation_level=escalation_level,
+                    defaults={
+                        'escalation_time': parsed_escalation_time,
+                        'resolution_time': parsed_resolution_time,
+                        'active': active,
+                    },
+                )
+
                 for officer_id in unique_officer_ids:
-                    resolver, _ = CategoryResolver.objects.update_or_create(
-                        category_id=category_id,
-                        campus=campus_id,
-                        college=college_id,
-                        department_id=department_id,
+                    ResolverOfficer.objects.update_or_create(
+                        resolver=resolver,
                         officer_id=officer_id,
                         defaults={
-                            'escalation_time': parsed_escalation_time,
                             'active': active,
                         },
                     )
-                    assignments.append(resolver)
+
+                created_resolvers.append(resolver)
         except Exception as exc:
             return DRFResponse(
                 {'error': str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = self.get_serializer(assignments, many=True)
+        serializer = self.get_serializer(created_resolvers, many=True)
         return DRFResponse(
             {
-                'count': len(assignments),
+                'count': len(created_resolvers),
                 'results': serializer.data,
             },
             status=status.HTTP_201_CREATED,
@@ -368,8 +357,9 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             return DRFResponse({'error': 'Only officers and admins can view assigned complaints.'}, status=status.HTTP_403_FORBIDDEN)
 
         complaints_qs = Complaint.objects.filter(
-            assigned_officer=user,
-        ).select_related('category', 'current_resolver', 'assigned_officer').order_by('-created_at')
+            models.Q(claimed_by=user)
+            | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
+        ).distinct().select_related('category', 'current_resolver', 'claimed_by').order_by('-created_at')
 
         serializer = ComplaintSerializer(complaints_qs, many=True, context={'request': request})
         return DRFResponse({'count': complaints_qs.count(), 'results': serializer.data}, status=status.HTTP_200_OK)
@@ -653,12 +643,6 @@ class ComplaintViewSet(viewsets.ModelViewSet):
 
         filename = attachment.filename or 'attachment'
         content_type = attachment.content_type or 'application/octet-stream'
-
-        if attachment.file_data:
-            response = HttpResponse(attachment.file_data, content_type=content_type)
-            response['Content-Disposition'] = f'inline; filename="{filename}"'
-            return response
-
         if attachment.file:
             try:
                 file_handle = attachment.file.open('rb')
@@ -739,7 +723,7 @@ class ResponseViewSet(viewsets.ModelViewSet):
         if not accessible_complaints_for(user).filter(pk=complaint.pk).exists():
             raise PermissionDenied('You do not have access to this complaint.')
 
-        serializer.save(responder=user)
+        serializer.save(author=user)
 
     def destroy(self, request, *args, **kwargs):
         response = self.get_object()

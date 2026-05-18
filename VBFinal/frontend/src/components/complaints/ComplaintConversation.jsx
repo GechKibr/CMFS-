@@ -13,6 +13,12 @@ const formatTime = (value) => {
   }
 };
 
+const normalizeEntryType = (value) => {
+  const kind = String(value || '').toLowerCase();
+  if (kind === 'response' || kind === 'resolution_note' || kind === 'system' || kind === 'escalation') return kind;
+  return 'comment';
+};
+
 const ComplaintConversation = ({ complaint, role = 'user' }) => {
   const { user } = useAuth();
   const { isDark } = useTheme();
@@ -33,13 +39,38 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
     if (!complaintId) return;
 
     try {
-      const [responsesData, commentsData] = await Promise.all([
+      const [responsesData, commentsData, complaintData] = await Promise.all([
         apiService.getComplaintResponses(complaintId),
         apiService.getComplaintComments(complaintId),
+        apiService.getComplaint(complaintId).catch(() => null),
       ]);
 
-      setResponses(responsesData.results ?? responsesData ?? []);
-      setComments(commentsData.results ?? commentsData ?? []);
+      const nextComplaint = complaintData || complaint;
+      const timelineEntries = Array.isArray(nextComplaint?.timeline_entries) ? nextComplaint.timeline_entries : [];
+
+      const normalizedResponses = (responsesData.results ?? responsesData ?? []).map((response) => ({
+        ...response,
+        entry_type: normalizeEntryType(response.response_type || response.entry_type || 'response'),
+      }));
+      const normalizedComments = (commentsData.results ?? commentsData ?? []).map((comment) => ({
+        ...comment,
+        entry_type: normalizeEntryType(comment.comment_type || comment.entry_type || 'comment'),
+      }));
+
+      const responseIndex = new Set(normalizedResponses.map((item) => String(item.id)));
+      const commentIndex = new Set(normalizedComments.map((item) => String(item.id)));
+      const timelineFallback = timelineEntries
+        .filter((entry) => !responseIndex.has(String(entry.id)) && !commentIndex.has(String(entry.id)))
+        .map((entry) => ({
+          ...entry,
+          author: entry.author || entry.responder || null,
+          title: entry.title || '',
+          response_type: entry.entry_type,
+          comment_type: entry.entry_type,
+        }));
+
+      setResponses([...normalizedResponses, ...timelineFallback.filter((entry) => normalizeEntryType(entry.entry_type) === 'response')]);
+      setComments([...normalizedComments, ...timelineFallback.filter((entry) => normalizeEntryType(entry.entry_type) !== 'response')]);
       setError('');
     } catch (err) {
       setError(err.message || 'Failed to load complaint conversation');
@@ -104,7 +135,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
     const responseMessages = responses.map((response) => ({
       id: response.id,
       kind: 'response',
-      author: response.responder,
+      author: response.responder || response.author,
       message: response.message,
       title: response.title,
       response_type: response.response_type,
@@ -116,7 +147,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
     const commentMessages = comments.map((comment) => ({
       id: comment.id,
       kind: 'comment',
-      author: comment.author,
+      author: comment.author || comment.responder,
       message: comment.message,
       title: null,
       response_type: comment.comment_type,
@@ -229,6 +260,20 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
 
   const canComment = role === 'user';
   const canRespond = role === 'officer' || role === 'admin';
+  const complaintMeta = complaint || {};
+
+  const statusBadgeClass = (status) => {
+    const map = {
+      pending: isDark ? 'bg-yellow-900/30 text-yellow-200' : 'bg-yellow-100 text-yellow-800',
+      claimed: isDark ? 'bg-blue-900/30 text-blue-200' : 'bg-blue-100 text-blue-800',
+      in_progress: isDark ? 'bg-indigo-900/30 text-indigo-200' : 'bg-indigo-100 text-indigo-800',
+      escalated: isDark ? 'bg-orange-900/30 text-orange-200' : 'bg-orange-100 text-orange-800',
+      resolved: isDark ? 'bg-emerald-900/30 text-emerald-200' : 'bg-emerald-100 text-emerald-800',
+      closed: isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800',
+      rejected: isDark ? 'bg-red-900/30 text-red-200' : 'bg-red-100 text-red-800',
+    };
+    return map[status] || (isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700');
+  };
 
   if (loading) {
     return (
@@ -242,7 +287,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
     <div className={`rounded-xl border ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} shadow-sm`}>
       <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
         <div>
-          <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}> Conversation</h4>
+          <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Complaint timeline</h4>
           <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             status: {connectionState}
           </p>
@@ -260,6 +305,25 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
           {error}
         </div>
       )}
+
+      <div className={`mx-4 mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+        <div className={`rounded-xl border p-3 ${isDark ? 'border-gray-700 bg-gray-900/50' : 'border-gray-200 bg-gray-50'}`}>
+          <div className="text-xs uppercase tracking-wide opacity-70">Category</div>
+          <div className="mt-1 font-medium">{complaintMeta.category?.name || complaintMeta.category?.office_name || 'Uncategorized'}</div>
+        </div>
+        <div className={`rounded-xl border p-3 ${isDark ? 'border-gray-700 bg-gray-900/50' : 'border-gray-200 bg-gray-50'}`}>
+          <div className="text-xs uppercase tracking-wide opacity-70">Current resolver</div>
+          <div className="mt-1 font-medium">{complaintMeta.current_resolver?.scope_label || complaintMeta.current_resolver?.category_name || 'Unassigned'}</div>
+        </div>
+        <div className={`rounded-xl border p-3 ${isDark ? 'border-gray-700 bg-gray-900/50' : 'border-gray-200 bg-gray-50'}`}>
+          <div className="text-xs uppercase tracking-wide opacity-70">Claimed by</div>
+          <div className="mt-1 font-medium">{complaintMeta.claimed_by?.first_name || complaintMeta.assigned_officer?.first_name ? `${complaintMeta.claimed_by?.first_name || complaintMeta.assigned_officer?.first_name} ${complaintMeta.claimed_by?.last_name || complaintMeta.assigned_officer?.last_name || ''}`.trim() : 'No officer claim yet'}</div>
+        </div>
+        <div className={`rounded-xl border p-3 ${isDark ? 'border-gray-700 bg-gray-900/50' : 'border-gray-200 bg-gray-50'}`}>
+          <div className="text-xs uppercase tracking-wide opacity-70">Status</div>
+          <div className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(complaintMeta.status)}`}>{String(complaintMeta.status || 'pending').replace('_', ' ')}</div>
+        </div>
+      </div>
 
       <div ref={listRef} className="max-h-[32rem] overflow-y-auto px-4 py-4 space-y-4">
         {threadMessages.length === 0 ? (
@@ -284,7 +348,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold">
-                          {item.kind === 'response' ? 'Officer response' : 'User comment'}
+                          {item.kind === 'response' ? 'Officer response' : item.kind === 'system' ? 'System note' : item.kind === 'escalation' ? 'Escalation log' : 'User comment'}
                         </span>
                         <span className={`text-[11px] px-2 py-0.5 rounded-full ${isDark ? 'bg-black/20 text-gray-200' : 'bg-white text-gray-600'}`}>
                           {formatTime(item.created_at)}

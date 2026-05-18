@@ -109,7 +109,17 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
 
     try {
       const resolverData = await apiService.getAllCategoryResolvers();
-      setCategoryResolvers(resolverData?.results || resolverData || []);
+      const normalizedResolvers = (resolverData?.results || resolverData || []).map((resolver) => ({
+        ...resolver,
+        id: resolver.resolver_id || resolver.id,
+        officer_name: resolver.category_name || resolver.scope_label || 'Resolver route',
+        scope_label: resolver.scope_label || resolver.category_name || 'Resolver route',
+        campus_name: resolver.campus_name || '',
+        college_name: resolver.college_name || '',
+        department_name: resolver.department_name || '',
+        officer: resolver.officer || null,
+      }));
+      setCategoryResolvers(normalizedResolvers);
     } catch (error) {
       console.warn('Failed to load category resolvers:', error);
       setCategoryResolvers([]);
@@ -501,11 +511,11 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
 
       // Main resolver route officers
       if (resolverOfficerIds.length > 0) {
-        formData.append('resolver_officer_ids', JSON.stringify(resolverOfficerIds.map((officerId) => Number(officerId))));
+        formData.append('resolver_officer_ids', JSON.stringify(resolverOfficerIds.map((officerId) => String(officerId))));
       }
       // Also send explicit resolver ids (CategoryResolver ids) when user selected specific routes
       if (selectedResolverIds.length > 0) {
-        formData.append('resolver_ids', JSON.stringify(selectedResolverIds.map((id) => Number(id))));
+        formData.append('resolver_ids', JSON.stringify(selectedResolverIds.map((id) => String(id))));
       }
       // Add files to form data
       files.forEach((file, index) => {

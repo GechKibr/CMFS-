@@ -72,12 +72,21 @@ const AdminComplaints = () => {
   const getStatusBadge = (status) => {
     const badges = {
       pending: 'bg-yellow-100 text-yellow-800',
+      claimed: 'bg-blue-100 text-blue-800',
       in_progress: 'bg-blue-100 text-blue-800',
+      rejected: 'bg-red-100 text-red-800',
       resolved: 'bg-green-100 text-green-800',
       closed: 'bg-gray-100 text-gray-800',
       escalated: 'bg-red-100 text-red-800'
     };
     return badges[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getResolverLabel = (complaint) => complaint?.current_resolver?.scope_label || complaint?.current_resolver?.category_name || 'Unassigned';
+
+  const getClaimedLabel = (complaint) => {
+    if (!complaint?.claimed_by) return 'Not claimed';
+    return `${complaint.claimed_by.first_name || ''} ${complaint.claimed_by.last_name || ''}`.trim() || complaint.claimed_by.email;
   };
 
 
@@ -110,10 +119,12 @@ const AdminComplaints = () => {
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
+              <option value="claimed">Claimed</option>
               <option value="in_progress">In Progress</option>
               <option value="resolved">Resolved</option>
               <option value="closed">Closed</option>
               <option value="escalated">Escalated</option>
+              <option value="rejected">Rejected</option>
             </select>
           </div>
           <div>
@@ -165,6 +176,9 @@ const AdminComplaints = () => {
                     Submitted
                   </th>
                   <th className={`px-6 py-3 text-left text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                    Workflow
+                  </th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
                     Actions
                   </th>
                 </tr>
@@ -206,6 +220,12 @@ const AdminComplaints = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {new Date(complaint.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="space-y-1">
+                        <div className="text-gray-700 dark:text-gray-200">{getResolverLabel(complaint)}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Claimed: {getClaimedLabel(complaint)}</div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                       <button

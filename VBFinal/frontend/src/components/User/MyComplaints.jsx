@@ -6,10 +6,12 @@ import apiService from '../../services/api';
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
+  { value: 'claimed', label: 'Claimed' },
   { value: 'in_progress', label: 'In Progress' },
   { value: 'escalated', label: 'Escalated' },
   { value: 'resolved', label: 'Resolved' },
   { value: 'closed', label: 'Closed' },
+  { value: 'rejected', label: 'Rejected' },
 ];
 
 const MyComplaints = ({ getStatusBadge }) => {
@@ -101,6 +103,13 @@ const MyComplaints = ({ getStatusBadge }) => {
   };
 
   const stats = getStats();
+
+  const getResolverLabel = (complaint) => complaint?.current_resolver?.scope_label || complaint?.current_resolver?.category_name || 'Unassigned';
+
+  const getClaimedLabel = (complaint) => {
+    if (!complaint?.claimed_by) return 'Not claimed';
+    return `${complaint.claimed_by.first_name || ''} ${complaint.claimed_by.last_name || ''}`.trim() || complaint.claimed_by.email;
+  };
 
   if (loading) {
     return (
@@ -215,15 +224,14 @@ const MyComplaints = ({ getStatusBadge }) => {
                         ? `${complaint.description.substring(0, 100)}...`
                         : complaint.description}
                     </p>
-                    <div className="flex items-center space-x-4 text-xs text-gray-500">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 text-xs text-gray-500">
                       <span>ID: {complaint.complaint_id.slice(0, 8)}</span>
                       <span>Category: {complaint.category?.name || 'Uncategorized'}</span>
+                      <span>Resolver: {getResolverLabel(complaint)}</span>
+                      <span>Claimed: {getClaimedLabel(complaint)}</span>
                       <span>Created: {new Date(complaint.created_at).toLocaleDateString()}</span>
-                      {complaint.attachments?.length > 0 && (
-                        <span className="flex items-center">
-                          📎 {complaint.attachments.length} file(s)
-                        </span>
-                      )}
+                      <span>Escalates: {complaint.escalation_deadline ? new Date(complaint.escalation_deadline).toLocaleDateString() : 'Not set'}</span>
+                      {complaint.attachments?.length > 0 && <span>📎 {complaint.attachments.length} file(s)</span>}
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">

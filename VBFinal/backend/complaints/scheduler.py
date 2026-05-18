@@ -33,11 +33,11 @@ def start_escalation_scheduler():
     """
     scheduler = BackgroundScheduler()
     
-    # Schedule to run every 30 minutes
+    # Schedule to run every 60 minutes
     scheduler.add_job(
         check_escalations_task,
         'interval',
-        minutes=30,
+        minutes=60,
         id='check_escalations',
         name='Check for complaint escalations',
         replace_existing=True,
@@ -59,7 +59,7 @@ from celery.schedules import crontab
 CELERY_BEAT_SCHEDULE = {
     'check-escalations': {
         'task': 'complaints.tasks.check_escalations',
-        'schedule': crontab(minute='*/30'),  # Run every 30 minutes
+        'schedule': crontab(minute='*/60'),  # Run every 60 minutes
     },
 }
 """
@@ -67,6 +67,6 @@ CELERY_BEAT_SCHEDULE = {
 # CRON JOB SETUP (System-level scheduling)
 # Add this to your crontab (crontab -e):
 """
-# Run escalation check every 30 minutes
-*/30 * * * * cd /path/to/project && python manage.py check_escalations >> /var/log/cmfs_escalations.log 2>&1
+# Run escalation check every 60 minutes
+*/60 * * * * cd /path/to/project && python manage.py check_escalations >> /var/log/cmfs_escalations.log 2>&1
 """

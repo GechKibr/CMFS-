@@ -478,9 +478,11 @@ const OfficerDashboard = () => {
                     >
                       <option value="all">All Status</option>
                       <option value="pending">Pending</option>
+                      <option value="claimed">Claimed</option>
                       <option value="in_progress">In Progress</option>
                       <option value="escalated">Escalated</option>
                       <option value="resolved">Resolved</option>
+                      <option value="rejected">Rejected</option>
                     </select>
                   </div>
 
@@ -506,7 +508,9 @@ const OfficerDashboard = () => {
                           <div className="flex justify-between items-center text-sm text-gray-500">
                             <div className="space-x-4">
                               <span>ID: {complaint.complaint_id.slice(0, 8)}...</span>
-                              <span>Category: {complaint.category?.office_name || complaint.category?.name || 'Uncategorized'}</span>
+                              <span>Category: {complaint.category?.name || complaint.category?.office_name || 'Uncategorized'}</span>
+                              <span>Resolver: {complaint.current_resolver?.scope_label || complaint.current_resolver?.category_name || 'Unassigned'}</span>
+                              <span>Claimed: {complaint.claimed_by ? `${complaint.claimed_by.first_name || ''} ${complaint.claimed_by.last_name || ''}`.trim() || complaint.claimed_by.email : 'Not claimed'}</span>
                             </div>
                             <span>Created: {new Date(complaint.created_at).toLocaleDateString()}</span>
                           </div>
@@ -921,10 +925,12 @@ const OfficerDashboard = () => {
                           className={`flex-1 px-3 py-2 border rounded-md ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
                         >
                           <option value="pending">Pending</option>
+                          <option value="claimed">Claimed</option>
                           <option value="in_progress">In Progress</option>
                           <option value="escalated">Escalated</option>
                           <option value="resolved">Resolved</option>
                           <option value="closed">Closed</option>
+                          <option value="rejected">Rejected</option>
                         </select>
                         <button
                           onClick={handleUpdateStatus}

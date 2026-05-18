@@ -71,6 +71,17 @@ const OfficerComplaintDetail = () => {
     })).filter((file) => Boolean(file.url));
   }, [complaint]);
 
+  const timelineHighlights = useMemo(() => {
+    if (!complaint) return [];
+    const entries = Array.isArray(complaint.timeline_entries) ? complaint.timeline_entries : [];
+    return entries.slice(-4).reverse();
+  }, [complaint]);
+
+  const currentResolver = complaint?.current_resolver?.scope_label || complaint?.current_resolver?.category_name || 'Unassigned';
+  const claimedByLabel = complaint?.claimed_by
+    ? `${complaint.claimed_by.first_name || ''} ${complaint.claimed_by.last_name || ''}`.trim() || complaint.claimed_by.email
+    : 'Not claimed';
+
   const handleUpdateStatus = async () => {
     if (!complaint) return;
     try {
@@ -217,19 +228,62 @@ const OfficerComplaintDetail = () => {
             <section className="bg-white rounded-lg border border-gray-200 p-5 space-y-3">
               <h2 className="text-2xl font-semibold">{complaint.title}</h2>
               <p className="text-gray-700">{complaint.description}</p>
-              <div className="grid md:grid-cols-2 gap-2 text-sm text-gray-600">
-                <p>ID: {complaint.complaint_id}</p>
-                <p>Status: {complaint.status}</p>
-                <p>Category: {complaint.category?.office_name || complaint.category?.name || 'Uncategorized'}</p>
-                <p>Created: {new Date(complaint.created_at).toLocaleString()}</p>
-                {!complaint.is_anonymous && complaint.submitted_by && (
-                  <p>Submitted by: {complaint.submitted_by?.first_name} {complaint.submitted_by?.last_name}</p>
-                )}
-                {complaint.is_anonymous && (
-                  <p className="text-red-600 font-medium">Submitted by: Anonymous</p>
-                )}
+              <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3 text-sm text-gray-600">
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">Complaint ID</div>
+                  <div className="mt-1 font-medium text-gray-800">{complaint.complaint_id}</div>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">Status</div>
+                  <div className="mt-1 font-medium text-gray-800">{String(complaint.status || 'pending').replace('_', ' ')}</div>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">Current resolver</div>
+                  <div className="mt-1 font-medium text-gray-800">{currentResolver}</div>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">Claimed by</div>
+                  <div className="mt-1 font-medium text-gray-800">{claimedByLabel}</div>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">Category</div>
+                  <div className="mt-1 font-medium text-gray-800">{complaint.category?.name || complaint.category?.office_name || 'Uncategorized'}</div>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">SLA escalation</div>
+                  <div className="mt-1 font-medium text-gray-800">{complaint.escalation_deadline ? new Date(complaint.escalation_deadline).toLocaleString() : 'Not set'}</div>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">Resolution deadline</div>
+                  <div className="mt-1 font-medium text-gray-800">{complaint.resolution_deadline ? new Date(complaint.resolution_deadline).toLocaleString() : 'Not set'}</div>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">Submitted by</div>
+                  <div className="mt-1 font-medium text-gray-800">
+                    {!complaint.is_anonymous && complaint.submitted_by
+                      ? `${complaint.submitted_by?.first_name || ''} ${complaint.submitted_by?.last_name || ''}`.trim() || complaint.submitted_by?.email
+                      : 'Anonymous'}
+                  </div>
+                </div>
               </div>
             </section>
+
+            {timelineHighlights.length > 0 && (
+              <section className="bg-white rounded-lg border border-gray-200 p-5 space-y-3">
+                <h3 className="text-lg font-semibold">Recent workflow activity</h3>
+                <div className="space-y-2">
+                  {timelineHighlights.map((entry) => (
+                    <div key={entry.id} className="rounded-lg border border-gray-200 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium capitalize">{entry.entry_type?.replace('_', ' ')}</span>
+                        <span className="text-xs text-gray-500">{new Date(entry.created_at).toLocaleString()}</span>
+                      </div>
+                      <p className="mt-1 text-sm text-gray-700">{entry.message || entry.title || 'Workflow update'}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className="bg-white rounded-lg border border-gray-200 p-5 space-y-3">
               <div className="flex flex-wrap gap-2 items-center">

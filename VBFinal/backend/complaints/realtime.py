@@ -4,7 +4,7 @@ from datetime import timedelta
 from collections import Counter, defaultdict
 
 from asgiref.sync import async_to_sync
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from .models import Appointment, CategoryResolver, Category
@@ -107,7 +107,10 @@ def build_complaint_analytics(user):
         queryset = Complaint.objects.all()
         scope = 'admin'
     else:
-        queryset = Complaint.objects.filter(assigned_officer=user)
+        queryset = Complaint.objects.filter(
+            Q(claimed_by=user) |
+            Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
+        ).distinct()
         scope = 'officer'
 
     status_counts = {
@@ -135,9 +138,9 @@ def build_complaint_analytics(user):
         })
 
     category_breakdown = (
-        queryset.values('category__office_name')
+        queryset.values('category__name')
         .annotate(count=Count('complaint_id'))
-        .order_by('-count', 'category__office_name')[:6]
+        .order_by('-count', 'category__name')[:6]
     )
 
     recent_complaints = [
@@ -145,7 +148,7 @@ def build_complaint_analytics(user):
             'complaint_id': str(item.complaint_id),
             'title': item.title,
             'status': item.status,
-            'category': item.category.office_name if item.category else 'Uncategorized',
+            'category': item.category.name if item.category else 'Uncategorized',
             'created_at': item.created_at.isoformat(),
             'updated_at': item.updated_at.isoformat(),
         }
@@ -159,7 +162,7 @@ def build_complaint_analytics(user):
         'daily_trend': daily_trend,
         'category_breakdown': [
             {
-                'label': item['category__office_name'] or 'Uncategorized',
+                'label': item['category__name'] or 'Uncategorized',
                 'count': item['count'],
             }
             for item in category_breakdown
@@ -195,7 +198,7 @@ def build_admin_dashboard_stats():
 
     complaints_qs = (
         Complaint.objects.all()
-        .select_related('category', 'assigned_officer', 'current_resolver', 'submitter_department')
+        .select_related('category', 'submitted_by', 'department', 'current_resolver', 'claimed_by')
         .prefetch_related('responses', 'assignments')
     )
     complaints = list(complaints_qs)
@@ -296,7 +299,7 @@ def build_admin_dashboard_stats():
         for key, label in Complaint.STATUS_CHOICES
     ]
 
-    category_counts = Counter((complaint.category.office_name if complaint.category else 'Uncategorized') for complaint in complaints)
+    category_counts = Counter((complaint.category.name if complaint.category else 'Uncategorized') for complaint in complaints)
     category_breakdown = [
         {'label': label, 'count': count}
         for label, count in category_counts.most_common(8)
@@ -333,10 +336,10 @@ def build_admin_dashboard_stats():
     staff_groups = defaultdict(list)
 
     for complaint in complaints:
-        college_key = college_labels.get(complaint.submitter_college, complaint.submitter_college or 'Unspecified')
-        department_key = complaint.submitter_department.department_name if complaint.submitter_department else 'Unspecified'
-        campus_key = campus_labels.get(complaint.submitter_campus, complaint.submitter_campus or 'Unspecified')
-        staff_key = complaint.assigned_officer.full_name if complaint.assigned_officer_id else 'Unassigned'
+        college_key = college_labels.get(complaint.college, complaint.college or 'Unspecified')
+        department_key = complaint.department.department_name if complaint.department else 'Unspecified'
+        campus_key = campus_labels.get(complaint.campus, complaint.campus or 'Unspecified')
+        staff_key = complaint.claimed_by.full_name if complaint.claimed_by_id else 'Unassigned'
 
         complaints_by_college[college_key].append(complaint)
         complaints_by_department[department_key].append(complaint)
@@ -361,7 +364,7 @@ def build_admin_dashboard_stats():
                 if responses:
                     first_response.append(_duration_hours(responses[0].created_at - item.created_at))
             top_category = Counter(
-                item.category.office_name if item.category else 'Uncategorized' for item in items
+                item.category.name if item.category else 'Uncategorized' for item in items
             ).most_common(1)
             overdue = sum(1 for item in items if item.escalation_deadline and item.escalation_deadline < now and item.status in active_statuses)
             feedback_values = department_feedback.get(label, [])
@@ -487,11 +490,11 @@ def build_public_dashboard_stats():
         })
 
     recent_items = []
-    for complaint in complaint_queryset.select_related('category', 'assigned_officer').order_by('-updated_at')[:4]:
+    for complaint in complaint_queryset.select_related('category', 'claimed_by').order_by('-updated_at')[:4]:
         recent_items.append({
             'kind': 'complaint',
             'title': complaint.title,
-            'detail': complaint.category.office_name if complaint.category else 'Uncategorized',
+            'detail': complaint.category.name if complaint.category else 'Uncategorized',
             'status': complaint.status,
             'timestamp': complaint.updated_at.isoformat(),
         })

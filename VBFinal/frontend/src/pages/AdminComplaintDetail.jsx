@@ -75,6 +75,17 @@ const AdminComplaintDetail = () => {
     setResponses(data.results || data || []);
   }, [complaintId]);
 
+  const timelineHighlights = useMemo(() => {
+    if (!complaint) return [];
+    const entries = Array.isArray(complaint.timeline_entries) ? complaint.timeline_entries : [];
+    return entries.slice(-5).reverse();
+  }, [complaint]);
+
+  const currentResolver = complaint?.current_resolver?.scope_label || complaint?.current_resolver?.category_name || 'Unassigned';
+  const claimedByLabel = complaint?.claimed_by
+    ? `${complaint.claimed_by.first_name || ''} ${complaint.claimed_by.last_name || ''}`.trim() || complaint.claimed_by.email
+    : 'Not claimed';
+
   const loadPageData = useCallback(async () => {
     setLoading(true);
     try {
@@ -290,7 +301,7 @@ const AdminComplaintDetail = () => {
                 <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>ID: {complaint.complaint_id}</span>
               </div>
 
-              <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
                 {!complaint.is_anonymous && (
                   <div>
                     <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Submitted by:</span>
@@ -319,8 +330,41 @@ const AdminComplaintDetail = () => {
                     {new Date(complaint.updated_at).toLocaleString()}
                   </span>
                 </div>
+                <div>
+                  <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Current resolver:</span>
+                  <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{currentResolver}</span>
+                </div>
+                <div>
+                  <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Claimed by:</span>
+                  <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{claimedByLabel}</span>
+                </div>
+                <div>
+                  <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Escalation deadline:</span>
+                  <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{complaint.escalation_deadline ? new Date(complaint.escalation_deadline).toLocaleString() : 'Not set'}</span>
+                </div>
+                <div>
+                  <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Resolution deadline:</span>
+                  <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{complaint.resolution_deadline ? new Date(complaint.resolution_deadline).toLocaleString() : 'Not set'}</span>
+                </div>
               </div>
             </section>
+
+            {timelineHighlights.length > 0 && (
+              <section className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg border p-6`}>
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-3`}>Recent timeline</h3>
+                <div className="space-y-2">
+                  {timelineHighlights.map((entry) => (
+                    <div key={entry.id} className={`rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`text-sm font-medium capitalize ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{entry.entry_type?.replace('_', ' ')}</span>
+                        <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{new Date(entry.created_at).toLocaleString()}</span>
+                      </div>
+                      <p className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{entry.message || entry.title || 'Workflow event'}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg border p-6 space-y-4`}>
               <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Management</h3>

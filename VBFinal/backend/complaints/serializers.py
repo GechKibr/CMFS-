@@ -19,6 +19,7 @@ from .models import (
     Complaint,
     ComplaintAttachment,
     ComplaintCC,
+    ComplaintTimelineEntry,
     PublicAnnouncement,
     Response,
 )
@@ -56,18 +57,6 @@ def _validate_uploaded_file(uploaded_file):
         raise serializers.ValidationError(f"File '{uploaded_file.name}' exceeds 5MB size limit.")
 
 
-def _attachment_payload(uploaded_file):
-    file_bytes = uploaded_file.read()
-    uploaded_file.seek(0)
-    return {
-        "file": uploaded_file,
-        "file_data": file_bytes,
-        "filename": uploaded_file.name,
-        "file_size": uploaded_file.size,
-        "content_type": uploaded_file.content_type,
-    }
-
-
 class ComplaintUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -76,53 +65,57 @@ class ComplaintUserSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    parent_name = serializers.CharField(source="parent.office_name", read_only=True)
+    parent_name = serializers.CharField(source="parent.name", read_only=True)
 
     class Meta:
         model = Category
         fields = [
             "category_id",
-            "office_name",
-            "office_description",
+            "name",
+            "description",
             "parent",
             "parent_name",
+            "allow_anonymous",
+            "is_sensitive",
+            "auto_escalate_to_parent",
             "is_active",
             "created_at",
+            "updated_at",
         ]
-        read_only_fields = ["category_id", "created_at"]
+        read_only_fields = ["category_id", "created_at", "updated_at"]
 
     def validate(self, attrs):
-        if not attrs.get("office_name"):
-            legacy_name = self.initial_data.get("name")
+        if not attrs.get("name"):
+            legacy_name = self.initial_data.get("office_name")
             if legacy_name:
-                attrs["office_name"] = legacy_name
+                attrs["name"] = legacy_name
 
-        if "office_description" not in attrs:
-            legacy_description = self.initial_data.get("description")
+        if "description" not in attrs:
+            legacy_description = self.initial_data.get("office_description")
             if legacy_description is not None:
-                attrs["office_description"] = legacy_description
+                attrs["description"] = legacy_description
 
         return attrs
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data["name"] = data.get("office_name", "")
-        data["description"] = data.get("office_description", "")
+        data["office_name"] = data.get("name", "")
+        data["office_description"] = data.get("description", "")
         return data
 
 
 class CategoryResolverSerializer(serializers.ModelSerializer):
-    officer_name = serializers.CharField(source="officer.full_name", read_only=True)
-    category_name = serializers.CharField(source="category.office_name", read_only=True)
+    category_name = serializers.CharField(source="category.name", read_only=True)
     campus_name = serializers.CharField(source="get_campus_display", read_only=True, allow_null=True)
     college_name = serializers.CharField(source="get_college_display", read_only=True, allow_null=True)
     department_name = serializers.CharField(source="department.department_name", read_only=True, allow_null=True)
     scope_label = serializers.SerializerMethodField()
+    officers_count = serializers.SerializerMethodField()
 
     class Meta:
         model = CategoryResolver
         fields = [
-            "id",
+            "resolver_id",
             "category",
             "category_name",
             "campus",
@@ -131,24 +124,98 @@ class CategoryResolverSerializer(serializers.ModelSerializer):
             "college_name",
             "department",
             "department_name",
-            "officer",
-            "officer_name",
             "scope_label",
+            "escalation_level",
             "escalation_time",
+            "resolution_time",
             "active",
+            "officers_count",
+            "created_at",
+            "updated_at",
         ]
-        read_only_fields = ["id", "officer_name", "category_name", "campus_name", "college_name", "department_name", "scope_label"]
+        read_only_fields = [
+            "resolver_id",
+            "category_name",
+            "campus_name",
+            "college_name",
+            "department_name",
+            "scope_label",
+            "officers_count",
+            "created_at",
+            "updated_at",
+        ]
 
     def get_scope_label(self, obj):
         return obj.scope_label()
 
+    def get_officers_count(self, obj):
+        return obj.officers.filter(active=True, officer__is_active=True).count()
+
+
+class ComplaintAttachmentSerializer(serializers.ModelSerializer):
+    stored_in_database = serializers.SerializerMethodField()
+    download_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ComplaintAttachment
+        fields = [
+            "id",
+            "complaint",
+            "timeline_entry",
+            "file",
+            "filename",
+            "file_size",
+            "content_type",
+            "uploaded_at",
+            "stored_in_database",
+            "download_url",
+        ]
+        read_only_fields = ["id", "uploaded_at", "filename", "file_size", "content_type"]
+
+    def get_stored_in_database(self, obj):
+        return False
+
+    def get_download_url(self, obj):
+        path = reverse("complaint-download-attachment", kwargs={"pk": obj.complaint_id, "attachment_id": obj.id})
+        request = self.context.get("request")
+        return request.build_absolute_uri(path) if request else path
+
+
+class CCSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ComplaintCC
+        fields = ["email"]
+
+
+class ComplaintTimelineEntrySerializer(serializers.ModelSerializer):
+    author = ComplaintUserSerializer(read_only=True)
+    attachments = ComplaintAttachmentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ComplaintTimelineEntry
+        fields = [
+            "id",
+            "complaint",
+            "author",
+            "entry_type",
+            "title",
+            "message",
+            "is_internal",
+            "is_public",
+            "attachments",
+            "created_at",
+            "updated_at",
+        ]
+
 
 class ComplaintCreateSerializer(serializers.ModelSerializer):
+    attachment = serializers.FileField(required=False, write_only=True, allow_null=True)
+    attachments = serializers.ListField(child=serializers.FileField(), required=False, write_only=True, default=list)
     cc_emails = serializers.ListField(child=serializers.EmailField(), required=False, write_only=True, default=list)
     cc_office_ids = serializers.ListField(child=serializers.CharField(), required=False, write_only=True, default=list)
     cc_officer_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False, write_only=True, default=list)
     resolver_officer_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False, write_only=True, default=list)
-    resolver_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False, write_only=True, default=list)
+    resolver_ids = serializers.ListField(child=serializers.CharField(), required=False, write_only=True, default=list)
 
     class Meta:
         model = Complaint
@@ -156,8 +223,15 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "category",
-            "attachment",
+            "campus",
+            "college",
+            "department",
+            "reporter_name",
+            "reporter_email",
             "is_anonymous",
+            "is_confidential",
+            "attachment",
+            "attachments",
             "cc_emails",
             "cc_office_ids",
             "cc_officer_ids",
@@ -170,14 +244,16 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
         uploaded_files = []
 
         if request and hasattr(request, "FILES"):
-            uploaded_files = [
+            uploaded_files.extend(
                 uploaded_file
                 for key, uploaded_file in request.FILES.items()
                 if key.startswith("attachment_")
-            ]
+            )
 
         if attrs.get("attachment"):
             uploaded_files.append(attrs["attachment"])
+
+        uploaded_files.extend(attrs.get("attachments", []) or [])
 
         if len(uploaded_files) > MAX_ATTACHMENTS_PER_COMPLAINT:
             raise serializers.ValidationError(
@@ -187,25 +263,26 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
         for uploaded_file in uploaded_files:
             _validate_uploaded_file(uploaded_file)
 
-        submitter = attrs.get("submitted_by")
-        if submitter is None and request and getattr(request, "user", None) and request.user.is_authenticated:
-            submitter = request.user
-        category = attrs.get("category")
-        if submitter and category:
-            draft = Complaint(
-                submitted_by=submitter,
-                category=category,
-                title=attrs.get("title", ""),
-                description=attrs.get("description", ""),
-                attachment=attrs.get("attachment"),
-                is_anonymous=attrs.get("is_anonymous", False),
-            )
-            try:
-                draft.full_clean(exclude=["complaint_id", "created_at", "updated_at", "status"])
-            except DjangoValidationError as exc:
-                if hasattr(exc, "message_dict"):
-                    raise serializers.ValidationError(exc.message_dict)
-                raise serializers.ValidationError({"detail": exc.messages})
+        request_user = getattr(request, "user", None)
+        draft = Complaint(
+            submitted_by=request_user if request_user and request_user.is_authenticated else None,
+            category=attrs.get("category"),
+            title=attrs.get("title", ""),
+            description=attrs.get("description", ""),
+            campus=attrs.get("campus"),
+            college=attrs.get("college"),
+            department=attrs.get("department"),
+            reporter_name=attrs.get("reporter_name", ""),
+            reporter_email=attrs.get("reporter_email", ""),
+            is_anonymous=attrs.get("is_anonymous", False),
+            is_confidential=attrs.get("is_confidential", False),
+        )
+        try:
+            draft.full_clean(exclude=["complaint_id", "created_at", "updated_at", "status", "current_resolver", "claimed_by", "escalation_deadline", "resolution_deadline", "resolved_at", "closed_at", "last_escalated_at"])
+        except DjangoValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                raise serializers.ValidationError(exc.message_dict)
+            raise serializers.ValidationError({"detail": exc.messages})
 
         return attrs
 
@@ -218,35 +295,49 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
         cc_officer_ids = validated_data.pop("cc_officer_ids", [])
         resolver_officer_ids = validated_data.pop("resolver_officer_ids", [])
         resolver_ids = validated_data.pop("resolver_ids", [])
+        attachment = validated_data.pop("attachment", None)
+        extra_attachments = validated_data.pop("attachments", [])
         request = self.context.get("request")
 
-        office_category_ids = [str(category_id) for category_id in cc_office_ids if str(category_id).strip()]
+        office_category_ids = [str(category_id).strip() for category_id in cc_office_ids if str(category_id).strip()]
         office_categories = Category.objects.filter(category_id__in=office_category_ids, is_active=True)
         found_office_ids = {str(category.category_id) for category in office_categories}
         missing_office_ids = [category_id for category_id in office_category_ids if category_id not in found_office_ids]
         if missing_office_ids:
-            raise serializers.ValidationError({"cc_office_ids": [f"Invalid office selection: {', '.join(sorted(set(missing_office_ids)))}"]})
+            raise serializers.ValidationError({"cc_office_ids": [f"Invalid category selection: {', '.join(sorted(set(missing_office_ids)))}"]})
 
         try:
             with transaction.atomic():
                 complaint = Complaint.objects.create(**validated_data)
 
+                files = []
+                if attachment:
+                    files.append(attachment)
+                files.extend(extra_attachments or [])
                 if request and hasattr(request, "FILES"):
-                    for key, file in request.FILES.items():
-                        if key.startswith("attachment_"):
-                            ComplaintAttachment.objects.create(complaint=complaint, **_attachment_payload(file))
+                    files.extend(
+                        uploaded_file
+                        for key, uploaded_file in request.FILES.items()
+                        if key.startswith("attachment_")
+                    )
+
+                for uploaded_file in files:
+                    ComplaintAttachment.objects.create(
+                        complaint=complaint,
+                        file=uploaded_file,
+                        uploaded_by=getattr(request, "user", None) if request and request.user.is_authenticated else None,
+                    )
 
                 for email in cc_emails:
                     ComplaintCC.objects.get_or_create(complaint=complaint, email=email)
 
                 cc_office_officer_ids = set()
                 if office_categories.exists():
-                    for resolver in CategoryResolver.objects.filter(
-                        category__in=office_categories,
-                        active=True,
-                    ).select_related("category", "department", "officer"):
+                    for resolver in CategoryResolver.objects.filter(category__in=office_categories, active=True).select_related("category", "department"):
                         if resolver.matches_complaint_scope(complaint):
-                            cc_office_officer_ids.add(resolver.officer_id)
+                            cc_office_officer_ids.update(
+                                resolver.officers.filter(active=True, officer__is_active=True).values_list("officer_id", flat=True)
+                            )
 
                 cc_officer_ids = {int(officer_id) for officer_id in cc_officer_ids}
                 cc_officer_ids.update(cc_office_officer_ids)
@@ -267,7 +358,7 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
                         title=f"CC Complaint: {complaint.title}",
                         message=(
                             f"You were added as CC on complaint '{complaint.title}' "
-                            f"by {complaint.submitted_by.first_name} {complaint.submitted_by.last_name}."
+                            f"by {complaint.submitted_by.full_name if complaint.submitted_by_id else 'a complainant'}."
                         ),
                     )
 
@@ -276,44 +367,32 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
                     except Exception:
                         continue
 
-                # If the client provided explicit resolver IDs (specific CategoryResolver records),
-                # create assignments for all matching resolvers so a complaint can be visible to multiple officers.
                 if resolver_ids:
-                    selected_resolver_ids = [int(resolver_id) for resolver_id in resolver_ids if str(resolver_id).strip()]
                     selected_resolvers = list(
-                        CategoryResolver.objects.filter(id__in=selected_resolver_ids, active=True).select_related(
-                            "officer", "category", "department"
-                        )
+                        CategoryResolver.objects.filter(resolver_id__in=resolver_ids, active=True).select_related("category", "department")
                     )
 
-                    if len(selected_resolvers) != len(set(selected_resolver_ids)):
+                    if len(selected_resolvers) != len(set(resolver_ids)):
                         raise serializers.ValidationError({"resolver_ids": ["One or more selected resolvers are invalid or inactive."]})
 
                     selected_resolvers = [
-                        resolver for resolver in selected_resolvers
+                        resolver
+                        for resolver in selected_resolvers
                         if resolver.category_id == complaint.category_id and resolver.matches_complaint_scope(complaint)
                     ]
 
                     if not selected_resolvers:
                         raise serializers.ValidationError({"resolver_ids": ["No selected resolvers matched the complaint category and scope."]})
 
-                    representative = max(selected_resolvers, key=lambda r: (r.scope_rank(), -r.id))
-
+                    representative = min(selected_resolvers, key=lambda resolver: (resolver.escalation_level, -resolver.scope_rank(), str(resolver.resolver_id)))
                     complaint.current_resolver = representative
-                    complaint.assigned_officer = representative.officer
-                    complaint.set_escalation_deadline(representative.escalation_time, base_time=complaint.created_at)
+                    complaint.refresh_workflow_deadlines(base_time=complaint.created_at)
                     complaint.save()
-
-                    for resolver in selected_resolvers:
-                        Assignment.objects.create(
-                            complaint=complaint,
-                            officer=resolver.officer,
-                            resolver=resolver,
-                            reason='initial',
-                        )
+                    complaint._record_assignment(representative, None, "initial")
+                    complaint._record_system_entry("system", "Complaint routed manually to selected resolver.")
                 else:
                     preferred_resolver_officer_ids = [int(officer_id) for officer_id in resolver_officer_ids if str(officer_id).strip()]
-                    service.process_complaint(
+                    service.route_complaint(
                         complaint,
                         preferred_officer_ids=preferred_resolver_officer_ids if preferred_resolver_officer_ids else None,
                     )
@@ -325,50 +404,60 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
         return complaint
 
 
-class ComplaintAttachmentSerializer(serializers.ModelSerializer):
-    stored_in_database = serializers.SerializerMethodField()
-    download_url = serializers.SerializerMethodField()
-
-    class Meta:
-        model = ComplaintAttachment
-        fields = ["id", "file", "filename", "file_size", "content_type", "uploaded_at", "stored_in_database", "download_url"]
-        read_only_fields = ["id", "uploaded_at"]
-
-    def get_stored_in_database(self, obj):
-        return bool(obj.file_data)
-
-    def get_download_url(self, obj):
-        path = reverse("complaint-download-attachment", kwargs={"pk": obj.complaint_id, "attachment_id": obj.id})
-        request = self.context.get("request")
-        return request.build_absolute_uri(path) if request else path
-
-
-class CCSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ComplaintCC
-        fields = ["email"]
-
-
 class ComplaintSerializer(serializers.ModelSerializer):
     submitted_by = serializers.SerializerMethodField()
+    assigned_officer = ComplaintUserSerializer(source="claimed_by", read_only=True)
+    claimed_by = ComplaintUserSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
-    assigned_officer = ComplaintUserSerializer(read_only=True)
     current_resolver = CategoryResolverSerializer(read_only=True)
     attachments = ComplaintAttachmentSerializer(many=True, read_only=True)
+    timeline_entries = ComplaintTimelineEntrySerializer(many=True, read_only=True)
     cc_list = CCSerializer(many=True, read_only=True)
     is_cc_user = serializers.SerializerMethodField()
+    current_resolver_officers_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Complaint
         fields = [
-            "complaint_id", "submitted_by", "category",
-            "title", "description", "attachment", "attachments", "cc_list",
-            "created_at", "updated_at", "status",
-            "submitter_campus", "submitter_college", "submitter_department",
-            "assigned_officer", "current_resolver", "escalation_deadline",
-            "is_cc_user", "is_anonymous",
+            "complaint_id",
+            "submitted_by",
+            "reporter_name",
+            "reporter_email",
+            "category",
+            "title",
+            "description",
+            "campus",
+            "college",
+            "department",
+            "attachments",
+            "timeline_entries",
+            "cc_list",
+            "created_at",
+            "updated_at",
+            "status",
+            "current_resolver",
+            "claimed_by",
+            "assigned_officer",
+            "escalation_deadline",
+            "resolution_deadline",
+            "resolved_at",
+            "closed_at",
+            "last_escalated_at",
+            "is_cc_user",
+            "is_anonymous",
+            "is_confidential",
+            "current_resolver_officers_count",
         ]
-        read_only_fields = ["complaint_id", "created_at", "updated_at", "escalation_deadline"]
+        read_only_fields = [
+            "complaint_id",
+            "created_at",
+            "updated_at",
+            "escalation_deadline",
+            "resolution_deadline",
+            "resolved_at",
+            "closed_at",
+            "last_escalated_at",
+        ]
 
     def get_submitted_by(self, obj):
         request = self.context.get("request")
@@ -383,7 +472,7 @@ class ComplaintSerializer(serializers.ModelSerializer):
                 "role": "user",
             }
 
-        return ComplaintUserSerializer(obj.submitted_by, context=self.context).data
+        return ComplaintUserSerializer(obj.submitted_by, context=self.context).data if obj.submitted_by_id else None
 
     def get_is_cc_user(self, obj):
         request = self.context.get("request")
@@ -391,21 +480,47 @@ class ComplaintSerializer(serializers.ModelSerializer):
             return obj.cc_list.filter(email=request.user.email).exists()
         return False
 
+    def get_current_resolver_officers_count(self, obj):
+        if not obj.current_resolver_id:
+            return 0
+        return obj.current_resolver.officers.filter(active=True, officer__is_active=True).count()
+
 
 class CommentSerializer(serializers.ModelSerializer):
     author = ComplaintUserSerializer(read_only=True)
+    attachments = ComplaintAttachmentSerializer(many=True, read_only=True)
+    comment_type = serializers.CharField(source="entry_type", required=False)
 
     class Meta:
         model = Comment
-        fields = ["id", "complaint", "author", "comment_type", "message", "created_at", "updated_at"]
+        fields = ["id", "complaint", "author", "comment_type", "message", "attachments", "created_at", "updated_at"]
 
 
 class ResponseSerializer(serializers.ModelSerializer):
-    responder = ComplaintUserSerializer(read_only=True)
+    responder = ComplaintUserSerializer(source="author", read_only=True)
+    attachments = ComplaintAttachmentSerializer(many=True, read_only=True)
+    response_type = serializers.CharField(source="entry_type", required=False)
+    attachment = serializers.SerializerMethodField()
 
     class Meta:
         model = Response
-        fields = ["id", "complaint", "responder", "response_type", "title", "message", "attachment", "is_public", "created_at", "updated_at"]
+        fields = [
+            "id",
+            "complaint",
+            "responder",
+            "response_type",
+            "title",
+            "message",
+            "attachment",
+            "attachments",
+            "is_public",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_attachment(self, obj):
+        attachment = obj.attachments.order_by("uploaded_at").first()
+        return ComplaintAttachmentSerializer(attachment, context=self.context).data if attachment else None
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -414,7 +529,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Assignment
-        fields = ["id", "complaint", "officer", "resolver", "assigned_at", "ended_at", "reason"]
+        fields = ["id", "complaint", "officer", "resolver", "assigned_at", "ended_at", "reason", "note"]
 
 
 class PublicAnnouncementSerializer(serializers.ModelSerializer):

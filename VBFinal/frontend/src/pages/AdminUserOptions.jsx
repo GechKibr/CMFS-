@@ -5,7 +5,6 @@ import DashboardNavbar from '../components/UI/DashboardNavbar';
 import Sidebar from '../components/UI/Sidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import apiService from '../services/api';
 
 const ADMIN_MENU_ITEMS = [
   { id: 'overview', name: 'Dashboard', icon: '📊' },
@@ -103,20 +102,7 @@ const AdminUserOptions = () => {
     }
   };
 
-  const handleSendPasswordReset = async () => {
-    if (!user || actionLoading) return;
-
-    try {
-      setActionLoading(true);
-      await apiService.requestPasswordReset(user.email);
-      window.alert('If the account exists, an OTP has been sent to the user.');
-    } catch (error) {
-      console.error('Failed to send password reset OTP:', error);
-      window.alert('Failed to send password reset OTP. Please try again.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  
 
   const handleSidebarToggle = () => {
     if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
@@ -222,14 +208,7 @@ const AdminUserOptions = () => {
                 >
                   Edit Details
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSendPasswordReset}
-                  disabled={actionLoading}
-                  className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  Send Reset OTP
-                </button>
+                
                 <button
                   type="button"
                   onClick={handleToggleUserStatus}

@@ -136,3 +136,83 @@ class ComplaintVisibilityScopeTests(TestCase):
 		returned_ids = {item['complaint_id'] for item in response.data['results']}
 		self.assertIn(str(self.matching_complaint.complaint_id), returned_ids)
 		self.assertNotIn(str(self.mismatched_complaint.complaint_id), returned_ids)
+
+
+class CategoryResolverAPITests(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(
+			email='api-user@example.com',
+			password='12345678',
+			first_name='API',
+			last_name='User',
+			role=User.ROLE_USER,
+		)
+		self.category = Category.objects.create(
+			name='Scoped Routing',
+			description='Category resolver API tests',
+		)
+		self.department = Department.objects.create(
+			department_name='Library Services',
+			department_college='business_economics',
+		)
+		self.campus_resolver = CategoryResolver.objects.create(
+			category=self.category,
+			campus='maraki',
+			college='business_economics',
+			department=self.department,
+			escalation_time=timedelta(hours=1),
+		)
+		self.campus_college_resolver = CategoryResolver.objects.create(
+			category=self.category,
+			campus='maraki',
+			college='business_economics',
+			escalation_time=timedelta(hours=1),
+		)
+		self.other_resolver = CategoryResolver.objects.create(
+			category=self.category,
+			campus='atse_fasil',
+			college='business_economics',
+			escalation_time=timedelta(hours=1),
+		)
+		self.officer = User.objects.create_user(
+			email='resolver-officer@example.com',
+			password='12345678',
+			first_name='Resolver',
+			last_name='Officer',
+			role=User.ROLE_OFFICER,
+		)
+		Officer.objects.create(user=self.officer, employee_id='EMP-007')
+		ResolverOfficer.objects.create(resolver=self.campus_resolver, officer=self.officer)
+
+	def test_category_resolver_list_filters_by_scope(self):
+		client = APIClient()
+		client.force_authenticate(user=self.user)
+
+		response = client.get('/api/resolver-assignments/', {
+			'category': str(self.category.id),
+			'campus': 'maraki',
+			'college': 'humanities',
+		})
+
+		self.assertEqual(response.status_code, 200)
+		results = response.data.get('results', [])
+		returned_ids = {item['resolver_id'] for item in results}
+
+		self.assertIn(str(self.campus_resolver.resolver_id), returned_ids)
+		self.assertIn(str(self.campus_college_resolver.resolver_id), returned_ids)
+		self.assertNotIn(str(self.other_resolver.resolver_id), returned_ids)
+
+	def test_category_officers_action_filters_by_scope(self):
+		client = APIClient()
+		client.force_authenticate(user=self.user)
+
+		url = f'/api/categories/{self.category.category_id}/officers/'
+		response = client.get(url, {
+			'campus': 'maraki',
+			'college': 'humanities',
+			'department': str(self.department.id),
+		})
+
+		self.assertEqual(response.status_code, 200)
+		returned_ids = {item['id'] for item in response.data}
+		self.assertIn(self.officer.id, returned_ids)

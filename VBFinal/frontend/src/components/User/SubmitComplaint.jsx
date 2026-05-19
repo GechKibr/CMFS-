@@ -380,6 +380,36 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     filteredCcResolvers.filter((resolver) => !ccOfficerIds.includes(String(resolver.id)))
   ), [filteredCcResolvers, ccOfficerIds]);
 
+  const getComplaintScopeFromSelection = useCallback(() => {
+    const resolvedScope = selectedCategoryResolvers.find((resolver) => {
+      if (resolverFilters.campus && resolver.campus_name !== resolverFilters.campus) return false;
+      if (resolverFilters.college && resolver.college_name !== resolverFilters.college) return false;
+      if (resolverFilters.department && resolver.department_name !== resolverFilters.department) return false;
+      return true;
+    });
+
+    if (resolvedScope) {
+      return {
+        campus: resolvedScope.campus || '',
+        college: resolvedScope.college || '',
+        department: resolvedScope.department || '',
+      };
+    }
+
+    if (selectedResolverIds.length > 0) {
+      const selectedResolver = selectedCategoryResolvers.find((resolver) => selectedResolverIds.includes(String(resolver.id)));
+      if (selectedResolver) {
+        return {
+          campus: selectedResolver.campus || '',
+          college: selectedResolver.college || '',
+          department: selectedResolver.department || '',
+        };
+      }
+    }
+
+    return { campus: '', college: '', department: '' };
+  }, [resolverFilters, selectedCategoryResolvers, selectedResolverIds]);
+
   const validateStep = (step) => {
     const errors = validateForm();
     if (step === 1) {
@@ -494,6 +524,16 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
       formData.append('category', complaintForm.category);
       formData.append('is_anonymous', complaintForm.isAnonymous ? 'true' : 'false');
 
+      const selectedScope = getComplaintScopeFromSelection();
+      if (selectedScope.campus) {
+        formData.append('campus', selectedScope.campus);
+      }
+      if (selectedScope.college) {
+        formData.append('college', selectedScope.college);
+      }
+      if (selectedScope.department) {
+        formData.append('department', selectedScope.department);
+      }
 
       // CC CategoryResolver officers as JSON
       if (ccOfficerIds.length > 0) {

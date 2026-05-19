@@ -3,7 +3,7 @@ from __future__ import annotations
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.core.exceptions import PermissionDenied
-from django.db.models import Q
+from django.db.models import F, Q
 
 from accounts.models import User
 
@@ -18,6 +18,39 @@ from .realtime import (
 )
 
 
+def _user_can_access_complaint(user, complaint):
+    if not user or not user.is_authenticated or not complaint:
+        return False
+    if user.is_admin():
+        return True
+    if complaint.submitted_by_id == user.id:
+        return True
+    if complaint.claimed_by_id == user.id:
+        return True
+    if complaint.current_resolver_id and complaint.current_resolver.officers.filter(
+        officer_id=user.id,
+        active=True,
+        officer__is_active=True,
+    ).exists():
+        return True
+    if complaint.category_id:
+        resolver_scope_q = (
+            (Q(category__resolvers__campus__isnull=True) | Q(category__resolvers__campus=F('campus')))
+            & (Q(category__resolvers__college__isnull=True) | Q(category__resolvers__college=F('college')))
+            & (Q(category__resolvers__department__isnull=True) | Q(category__resolvers__department=F('department')))
+        )
+
+        return CategoryResolver.objects.filter(
+            category=complaint.category,
+            active=True,
+            officers__officer=user,
+            officers__active=True,
+            officers__officer__is_active=True,
+        ).filter(resolver_scope_q).exists()
+
+    return False
+
+
 @database_sync_to_async
 def _get_complaint_for_user(user, complaint_id):
     if not user or not user.is_authenticated:
@@ -27,7 +60,26 @@ def _get_complaint_for_user(user, complaint_id):
     if user.is_admin():
         return queryset.first()
     if user.is_officer():
-        return queryset.filter(Q(submitted_by=user) | Q(assigned_officer=user)).first()
+        resolver_scope_q = (
+            (Q(category__resolvers__campus__isnull=True) | Q(category__resolvers__campus=F('campus')))
+            & (Q(category__resolvers__college__isnull=True) | Q(category__resolvers__college=F('college')))
+            & (Q(category__resolvers__department__isnull=True) | Q(category__resolvers__department=F('department')))
+        )
+
+        return queryset.filter(
+            Q(submitted_by=user)
+            | Q(claimed_by=user)
+            | Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
+            | (
+                Q(
+                    category__resolvers__officers__officer=user,
+                    category__resolvers__active=True,
+                    category__resolvers__officers__active=True,
+                    category__resolvers__officers__officer__is_active=True,
+                )
+                & resolver_scope_q
+            )
+        ).distinct().first()
     return queryset.filter(submitted_by=user).first()
 
 
@@ -56,14 +108,8 @@ def _create_response(user, complaint_id, title, message, response_type='update')
         raise PermissionDenied('Only officers and admins can respond to complaints.')
 
     complaint = Complaint.objects.get(complaint_id=complaint_id)
-    if not (
-        complaint.submitted_by_id == user.id
-        or complaint.assigned_officer_id == user.id
-        or user.is_admin()
-    ):
-        # Admins can always respond; officers must be assigned or at least involved in the thread.
-        if not user.is_admin():
-            raise PermissionDenied('You do not have access to this complaint.')
+    if not _user_can_access_complaint(user, complaint):
+        raise PermissionDenied('You do not have access to this complaint.')
 
     response = Response.objects.create(
         complaint=complaint,

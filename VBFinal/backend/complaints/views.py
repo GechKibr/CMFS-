@@ -184,12 +184,25 @@ class CategoryViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='officers')
     def officers(self, request, pk=None):
         category = self.get_object()
-        officer_ids = ResolverOfficer.objects.filter(
+        campus = request.query_params.get('campus')
+        college = request.query_params.get('college')
+        department_id = request.query_params.get('department')
+
+        resolver_officers_qs = ResolverOfficer.objects.filter(
             resolver__category=category,
             resolver__active=True,
             active=True,
             officer__is_active=True,
-        ).values_list('officer_id', flat=True)
+        )
+
+        if campus is not None and campus != '':
+            resolver_officers_qs = resolver_officers_qs.filter(resolver__campus=campus)
+        if college is not None and college != '':
+            resolver_officers_qs = resolver_officers_qs.filter(resolver__college=college)
+        if department_id is not None and department_id != '':
+            resolver_officers_qs = resolver_officers_qs.filter(resolver__department_id=department_id)
+
+        officer_ids = resolver_officers_qs.values_list('officer_id', flat=True).distinct()
 
         officers = User.objects.filter(id__in=officer_ids).order_by('first_name', 'last_name', 'email')
         serializer = ComplaintUserSerializer(officers, many=True)
@@ -210,6 +223,24 @@ class CategoryResolverViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelVi
         'resolver_id',
     )
     serializer_class = CategoryResolverSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        category_id = self.request.query_params.get('category')
+        campus = self.request.query_params.get('campus')
+        college = self.request.query_params.get('college')
+        department_id = self.request.query_params.get('department')
+
+        if category_id is not None and category_id != '':
+            queryset = queryset.filter(category_id=category_id)
+        if campus is not None and campus != '':
+            queryset = queryset.filter(campus=campus)
+        if college is not None and college != '':
+            queryset = queryset.filter(college=college)
+        if department_id is not None and department_id != '':
+            queryset = queryset.filter(department_id=department_id)
+
+        return queryset
 
     @action(detail=False, methods=['post'], url_path='bulk-create')
     def bulk_create(self, request):
@@ -415,42 +446,32 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         if not user or not user.is_authenticated or (not user.is_officer() and not user.is_admin()):
             return DRFResponse({'error': 'Only officers and admins can view assigned complaints.'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Start with claims and current resolver assignments
-        complaints_qs = Complaint.objects.filter(
-            models.Q(claimed_by=user)
-            | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
-        )
+        if user.is_admin():
+            complaints_qs = Complaint.objects.all()
+        else:
+            resolver_scope_q = (
+                (models.Q(category__resolvers__campus__isnull=True) | models.Q(category__resolvers__campus=models.F('campus')))
+                & (models.Q(category__resolvers__college__isnull=True) | models.Q(category__resolvers__college=models.F('college')))
+                & (models.Q(category__resolvers__department__isnull=True) | models.Q(category__resolvers__department=models.F('department')))
+            )
 
-        # For officers, also include unrouted complaints in categories where they are resolvers
-        if user.is_officer() and not user.is_admin():
-            # Get all categories where this officer has resolver assignments
-            officer_categories = Category.objects.filter(
-                resolvers__officers__officer=user,
-                resolvers__officers__active=True,
-                resolvers__active=True,
-            ).distinct()
-            
-            # Include unrouted complaints in those categories (and apply scope matching where resolver exists)
-            for category in officer_categories:
-                unrouted_complaints = Complaint.objects.filter(
-                    category=category,
-                    current_resolver__isnull=True,
-                ).exclude(
-                    complaint_id__in=complaints_qs.values_list('complaint_id', flat=True)
+            complaints_qs = Complaint.objects.filter(
+                models.Q(claimed_by=user)
+                | models.Q(
+                    current_resolver__officers__officer=user,
+                    current_resolver__officers__active=True,
+                    current_resolver__officers__officer__is_active=True,
                 )
-                
-                # Check scope matching for each unrouted complaint
-                for resolver in category.resolvers.filter(
-                    officers__officer=user,
-                    officers__active=True,
-                    active=True,
-                ).distinct():
-                    scoped_complaints = [
-                        c.complaint_id for c in unrouted_complaints
-                        if resolver.matches_complaint_scope(c)
-                    ]
-                    if scoped_complaints:
-                        complaints_qs = complaints_qs | Complaint.objects.filter(complaint_id__in=scoped_complaints)
+                | (
+                    models.Q(
+                        category__resolvers__officers__officer=user,
+                        category__resolvers__active=True,
+                        category__resolvers__officers__active=True,
+                        category__resolvers__officers__officer__is_active=True,
+                    )
+                    & resolver_scope_q
+                )
+            )
 
         complaints_qs = complaints_qs.distinct().select_related('category', 'current_resolver', 'claimed_by').order_by('-created_at')
 

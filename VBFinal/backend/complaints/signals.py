@@ -13,6 +13,13 @@ from .realtime import (
 from notifications.realtime import broadcast_notification_update
 
 
+def _safe_create_notification(**kwargs):
+    user = kwargs.get('user')
+    if not user:
+        return None
+    return Notification.objects.create(**kwargs)
+
+
 @receiver(post_save, sender=Complaint)
 def complaint_saved(sender, instance, created, **kwargs):
     # Auto-route complaints that weren't routed during creation
@@ -30,7 +37,7 @@ def complaint_saved(sender, instance, created, **kwargs):
     
     if created and instance.submitted_by_id:
         try:
-            Notification.objects.create(
+            _safe_create_notification(
                 user=instance.submitted_by,
                 complaint=instance,
                 notification_type='complaint_update',
@@ -64,7 +71,7 @@ def assignment_saved(sender, instance, created, **kwargs):
         return
 
     try:
-        Notification.objects.create(
+        _safe_create_notification(
             user=instance.officer,
             complaint=instance.complaint,
             notification_type='new_assignment',
@@ -75,7 +82,7 @@ def assignment_saved(sender, instance, created, **kwargs):
         pass
 
     try:
-        Notification.objects.create(
+        _safe_create_notification(
             user=instance.complaint.submitted_by,
             complaint=instance.complaint,
             notification_type='complaint_update',
@@ -104,7 +111,7 @@ def comment_saved(sender, instance, created, **kwargs):
     if target_user and (target_user_id := getattr(target_user, 'id', None)):
         if target_user_id != instance.author_id:
             try:
-                Notification.objects.create(
+                _safe_create_notification(
                     user=target_user,
                     complaint=instance.complaint,
                     notification_type='complaint_update',
@@ -132,7 +139,7 @@ def response_saved(sender, instance, created, **kwargs):
     target_user = instance.complaint.submitted_by
     if target_user and target_user.id != instance.author_id:
         try:
-            Notification.objects.create(
+            _safe_create_notification(
                 user=target_user,
                 complaint=instance.complaint,
                 notification_type='complaint_update',

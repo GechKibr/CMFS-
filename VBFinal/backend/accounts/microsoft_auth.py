@@ -5,8 +5,12 @@ from rest_framework import status
 from django.shortcuts import redirect
 from django.http import JsonResponse
 from urllib.parse import urlencode
-import requests
+import json
 import os
+
+import jwt
+import requests
+from jwt import InvalidTokenError
 
 from .microsoft_auth_service import generate_jwt_pair_for_user, normalize_microsoft_profile, upsert_microsoft_user
 
@@ -33,6 +37,55 @@ def _fetch_microsoft_user_info(access_token):
     if response.status_code != 200:
         raise MicrosoftTokenValidationError('Unable to validate Microsoft access token.')
     return response.json()
+
+
+def _fetch_azure_openid_config(tenant_id):
+    metadata_url = f'https://login.microsoftonline.com/{tenant_id}/v2.0/.well-known/openid-configuration'
+    response = requests.get(metadata_url, timeout=15)
+    if response.status_code != 200:
+        raise MicrosoftTokenValidationError('Unable to fetch Azure OpenID configuration.')
+    return response.json()
+
+
+def _fetch_azure_jwks(jwks_uri):
+    response = requests.get(jwks_uri, timeout=15)
+    if response.status_code != 200:
+        raise MicrosoftTokenValidationError('Unable to fetch Azure JWKS.')
+    return response.json()
+
+
+def _validate_microsoft_id_token(id_token):
+    client_id = os.getenv('MICROSOFT_CLIENT_ID', '').strip()
+    tenant_id = os.getenv('MICROSOFT_TENANT_ID', 'common').strip()
+    if not client_id:
+        raise MicrosoftTokenValidationError('Microsoft client ID is not configured.')
+
+    config = _fetch_azure_openid_config(tenant_id)
+    jwks = _fetch_azure_jwks(config.get('jwks_uri'))
+    unverified_header = jwt.get_unverified_header(id_token)
+    kid = unverified_header.get('kid')
+    key_data = next((key for key in jwks.get('keys', []) if key.get('kid') == kid), None)
+    if not key_data:
+        raise MicrosoftTokenValidationError('Unable to locate matching Azure signing key.')
+
+    public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data))
+    issuer = config.get('issuer', '')
+
+    try:
+        claims = jwt.decode(
+            id_token,
+            public_key,
+            algorithms=['RS256'],
+            audience=client_id,
+            issuer=issuer,
+        )
+    except InvalidTokenError as exc:
+        raise MicrosoftTokenValidationError(f'Invalid Microsoft ID token: {exc}')
+
+    if not claims.get('email') and not claims.get('preferred_username') and not claims.get('upn'):
+        raise MicrosoftTokenValidationError('Microsoft ID token is missing required email claims.')
+
+    return claims
 
 
 @api_view(['GET'])
@@ -162,15 +215,41 @@ def microsoft_callback(request):
 @permission_classes([AllowAny])
 def microsoft_mobile_auth(request):
     access_token = (request.data.get('access_token') or '').strip()
+    id_token = (request.data.get('id_token') or '').strip()
 
     if not access_token:
         return Response({'error': 'access_token is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
+        claims = None
+        if id_token:
+            claims = _validate_microsoft_id_token(id_token)
+
         user_info = _fetch_microsoft_user_info(access_token)
         profile = normalize_microsoft_profile(user_info)
+
+        if not profile['email'] and claims:
+            profile['email'] = (
+                claims.get('email') or
+                claims.get('preferred_username') or
+                claims.get('upn') or
+                ''
+            ).strip().lower()
+
         if not profile['email']:
             return Response({'error': 'No email found in Microsoft profile.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if claims:
+            token_email = (
+                claims.get('email') or
+                claims.get('preferred_username') or
+                claims.get('upn') or
+                ''
+            ).strip().lower()
+            if token_email and profile['email'].lower() != token_email.lower():
+                raise MicrosoftTokenValidationError(
+                    'Microsoft access token and ID token belong to different users.'
+                )
 
         user, is_new = upsert_microsoft_user(user_info)
         tokens = generate_jwt_pair_for_user(user)
@@ -189,13 +268,70 @@ def microsoft_mobile_auth(request):
             },
             status=status.HTTP_200_OK,
         )
-    except MicrosoftTokenValidationError:
-        return Response({'error': 'Invalid or expired Microsoft access token.'}, status=status.HTTP_401_UNAUTHORIZED)
+    except MicrosoftTokenValidationError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def microsoft_flutter_auth(request):
+    """
+    Endpoint for Flutter mobile app Microsoft authentication.
+    Accepts a Microsoft access_token from client-side OAuth flow,
+    validates it with Microsoft Graph API, and returns JWT tokens.
+    
+    URL: POST /auth/microsoft/flutter/
+    """
+    access_token = (request.data.get('access_token') or '').strip()
+    id_token = (request.data.get('id_token') or '').strip()
+
+    if not access_token:
+        return Response({'error': 'access_token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        claims = None
+        if id_token:
+            claims = _validate_microsoft_id_token(id_token)
+
+        user_info = _fetch_microsoft_user_info(access_token)
+        profile = normalize_microsoft_profile(user_info)
+
+        if not profile['email'] and claims:
+            profile['email'] = (
+                claims.get('email') or
+                claims.get('preferred_username') or
+                claims.get('upn') or
+                ''
+            ).strip().lower()
+
+        if not profile['email']:
+            return Response({'error': 'No email found in Microsoft profile.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if claims:
+            token_email = (
+                claims.get('email') or
+                claims.get('preferred_username') or
+                claims.get('upn') or
+                ''
+            ).strip().lower()
+            if token_email and profile['email'].lower() != token_email.lower():
+                raise MicrosoftTokenValidationError(
+                    'Microsoft access token and ID token belong to different users.'
+                )
+
+        user, is_new = upsert_microsoft_user(user_info)
+        tokens = generate_jwt_pair_for_user(user)
+
+        return Response(
+            {
+                'access': tokens['access'],
+                'refresh': tokens['refresh'],
+                'email': profile['email'].lower(),
+            },
+            status=status.HTTP_200_OK,
+        )
+    except MicrosoftTokenValidationError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
     """
     Endpoint for Flutter mobile app Microsoft authentication.
     Accepts a Microsoft access_token from client-side OAuth flow,

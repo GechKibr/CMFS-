@@ -987,6 +987,10 @@ class AnnouncementCommentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        # Short-circuit during schema generation (drf-yasg) to avoid evaluating request.user
+        if getattr(self, 'swagger_fake_view', False):
+            return AnnouncementComment.objects.none()
+
         user = self.request.user
         if user.is_authenticated and getattr(user, 'role', None) == 'admin':
             return AnnouncementComment.objects.select_related('user', 'announcement').all()

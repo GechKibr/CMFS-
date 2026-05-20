@@ -5,6 +5,7 @@ import DashboardNavbar from '../components/UI/DashboardNavbar';
 import Sidebar from '../components/UI/Sidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import apiService from '../services/api';
 
 const ADMIN_MENU_ITEMS = [
   { id: 'overview', name: 'Dashboard', icon: '📊' },

@@ -841,7 +841,53 @@ class ResponseViewSet(viewsets.ModelViewSet):
         if not accessible_complaints_for(user).filter(pk=complaint.pk).exists():
             raise PermissionDenied('You do not have access to this complaint.')
 
-        serializer.save(author=user)
+        # Save the response and attach uploaded files (if any) to the created timeline entry.
+        response_entry = serializer.save(author=user)
+
+        # Handle uploaded attachments: look for keys starting with 'attachment_' or 'attachments'
+        files = []
+        request = getattr(self, 'request', None)
+        if request and hasattr(request, 'FILES'):
+            for key, uploaded_file in request.FILES.items():
+                if key.startswith('attachment_') or key.startswith('attachments'):
+                    files.append(uploaded_file)
+
+        for uploaded_file in files:
+            try:
+                ComplaintAttachment.objects.create(
+                    complaint=response_entry.complaint,
+                    timeline_entry=response_entry,
+                    file=uploaded_file,
+                    uploaded_by=user if user and user.is_authenticated else None,
+                )
+            except Exception:
+                # Ignore attachment save failures — don't block the response creation.
+                continue
+
+        # Notify complainant and assigned officer (if different)
+        try:
+            if response_entry.complaint.submitted_by_id:
+                Notification.objects.create(
+                    user=response_entry.complaint.submitted_by,
+                    complaint=response_entry.complaint,
+                    notification_type='complaint_update',
+                    title='Officer responded to your complaint',
+                    message=f"Your complaint '{response_entry.complaint.title}' has a new response.",
+                )
+                broadcast_notification_update(response_entry.complaint.submitted_by_id)
+
+            if response_entry.complaint.assigned_officer_id and response_entry.complaint.assigned_officer_id != response_entry.complaint.submitted_by_id:
+                Notification.objects.create(
+                    user=response_entry.complaint.assigned_officer,
+                    complaint=response_entry.complaint,
+                    notification_type='complaint_update',
+                    title='New response on assigned complaint',
+                    message=f"Complaint '{response_entry.complaint.title}' has a new response.",
+                )
+                broadcast_notification_update(response_entry.complaint.assigned_officer_id)
+        except Exception:
+            # Do not fail the request if notifications fail
+            pass
 
     def destroy(self, request, *args, **kwargs):
         response = self.get_object()

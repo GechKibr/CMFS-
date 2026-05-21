@@ -174,35 +174,39 @@ const ComplaintAnalyticsPanel = ({
     setLoading(true);
     loadAnalytics();
 
-    const socket = openRealtimeSocket('/ws/analytics/', {
-      onOpen: () => {
-        if (mounted) setConnectionState('live');
-      },
-      onMessage: (event) => {
-        if (!mounted) return;
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload.type?.startsWith('analytics.')) {
+    let socketInstance = null;
+    (async () => {
+      const maybeSocket = await openRealtimeSocket('/ws/analytics/', {
+        onOpen: () => {
+          if (mounted) setConnectionState('live');
+        },
+        onMessage: (event) => {
+          if (!mounted) return;
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.type?.startsWith('analytics.')) {
+              loadAnalytics();
+            }
+          } catch {
             loadAnalytics();
           }
-        } catch {
-          loadAnalytics();
-        }
-      },
-      onClose: () => {
-        if (mounted) setConnectionState('polling');
-      },
-      onError: () => {
-        if (mounted) setConnectionState('polling');
-      },
-    });
+        },
+        onClose: () => {
+          if (mounted) setConnectionState('polling');
+        },
+        onError: () => {
+          if (mounted) setConnectionState('polling');
+        },
+      });
 
-    socketRef.current = socket;
+      socketInstance = maybeSocket;
+      socketRef.current = socketInstance;
+    })();
     timerRef.current = setInterval(loadAnalytics, 30000);
 
     return () => {
       mounted = false;
-      if (socket) socket.close();
+      if (socketRef.current) socketRef.current.close();
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [loadAnalytics]);
@@ -370,7 +374,7 @@ const ComplaintAnalyticsPanel = ({
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
               {[
-               
+
                 ['Resolution rate', `${adminSummary.complaint_resolution_rate ?? 0}%`],
                 ['Avg resolution', adminSummary.average_resolution_time_label || `${adminSummary.average_resolution_time_hours ?? 0} hrs`],
                 ['Students', adminSummary.total_registered_students ?? 0],

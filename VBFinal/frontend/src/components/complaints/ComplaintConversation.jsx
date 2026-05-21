@@ -56,11 +56,26 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
         ...comment,
         entry_type: normalizeEntryType(comment.comment_type || comment.entry_type || 'comment'),
       }));
+      // Filter out empty/default comments (no message) to avoid showing placeholder entries
+      const filteredComments = normalizedComments.filter((c) => {
+        const msg = (c.message || '').toString().trim();
+        return msg.length > 0;
+      });
 
       const responseIndex = new Set(normalizedResponses.map((item) => String(item.id)));
-      const commentIndex = new Set(normalizedComments.map((item) => String(item.id)));
+      const commentIndex = new Set(filteredComments.map((item) => String(item.id)));
       const timelineFallback = timelineEntries
         .filter((entry) => !responseIndex.has(String(entry.id)) && !commentIndex.has(String(entry.id)))
+        .filter((entry) => {
+          const entryMsg = (entry.message || '').toString().trim();
+          const compDesc = (nextComplaint?.description || '').toString().trim();
+          // Skip entries that are exactly the complaint description (avoid duplicate default comment)
+          if (entryMsg && compDesc && entryMsg === compDesc) return false;
+          const entryTitle = (entry.title || '').toString().trim();
+          const compTitle = (nextComplaint?.title || '').toString().trim();
+          if (entryTitle && compTitle && entryTitle === compTitle) return false;
+          return true;
+        })
         .map((entry) => ({
           ...entry,
           author: entry.author || entry.responder || null,
@@ -70,7 +85,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
         }));
 
       setResponses([...normalizedResponses, ...timelineFallback.filter((entry) => normalizeEntryType(entry.entry_type) === 'response')]);
-      setComments([...normalizedComments, ...timelineFallback.filter((entry) => normalizeEntryType(entry.entry_type) !== 'response')]);
+      setComments([...filteredComments, ...timelineFallback.filter((entry) => normalizeEntryType(entry.entry_type) !== 'response')]);
       setError('');
     } catch (err) {
       setError(err.message || 'Failed to load complaint conversation');
@@ -89,38 +104,43 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
     setConnectionState('connecting');
     loadThread();
 
-    const socket = openRealtimeSocket(`/ws/complaints/${complaintId}/`, {
-      onOpen: () => {
-        if (mounted) setConnectionState('live');
-      },
-      onMessage: (event) => {
-        if (!mounted) return;
-        try {
-          const payload = JSON.parse(event.data);
-          if (['thread.snapshot', 'thread.updated', 'chat.created', 'notification.updated'].includes(payload.type)) {
+    let socketInstance = null;
+    (async () => {
+      const maybeSocket = await openRealtimeSocket(`/ws/complaints/${complaintId}/`, {
+        onOpen: () => {
+          if (mounted) setConnectionState('live');
+        },
+        onMessage: (event) => {
+          if (!mounted) return;
+          try {
+            const payload = JSON.parse(event.data);
+            if (['thread.snapshot', 'thread.updated', 'chat.created', 'notification.updated'].includes(payload.type)) {
+              loadThread();
+            }
+            if (payload.type === 'error' && payload.message) {
+              setError(payload.message);
+            }
+          } catch {
             loadThread();
           }
-          if (payload.type === 'error' && payload.message) {
-            setError(payload.message);
-          }
-        } catch {
-          loadThread();
-        }
-      },
-      onClose: () => {
-        if (mounted) setConnectionState('polling');
-      },
-      onError: () => {
-        if (mounted) setConnectionState('polling');
-      },
-    });
+        },
+        onClose: () => {
+          if (mounted) setConnectionState('polling');
+        },
+        onError: () => {
+          if (mounted) setConnectionState('polling');
+        },
+      });
 
-    socketRef.current = socket;
+      socketInstance = maybeSocket;
+      socketRef.current = socketInstance;
+    })();
+
     fallbackTimerRef.current = setInterval(loadThread, 15000);
 
     return () => {
       mounted = false;
-      if (socket) socket.close();
+      if (socketRef.current) socketRef.current.close();
       if (fallbackTimerRef.current) clearInterval(fallbackTimerRef.current);
     };
   }, [complaintId, loadThread]);

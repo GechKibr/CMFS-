@@ -2,8 +2,10 @@ from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from accounts.email_service import EmailService
+from django.db import models
 
 from .models import Assignment, Comment, Complaint, Response
+from .models import ComplaintTimelineEntry
 from notifications.models import Notification
 from .realtime import (
     broadcast_admin_analytics_update,
@@ -45,6 +47,30 @@ def complaint_saved(sender, instance, created, **kwargs):
                 message=f"Your complaint '{instance.title}' has been received and is being processed.",
             )
         except Exception:
+            pass
+
+    # Cleanup accidental duplicate timeline entries that exactly mirror the complaint
+    # (some older codepaths or integrations created a comment/response with the same
+    # title/message at creation time). Remove comment/response entries that match
+    # the complaint title or description and were created immediately after complaint creation.
+    if created:
+        try:
+            from datetime import timedelta
+
+            window_end = instance.created_at + timedelta(seconds=5)
+            duplicates = ComplaintTimelineEntry.objects.filter(
+                complaint=instance,
+                entry_type__in=(ComplaintTimelineEntry.KIND_COMMENT, ComplaintTimelineEntry.KIND_RESPONSE),
+            ).filter(
+                # message or title exactly matches the complaint's description/title
+                (models.Q(message=instance.description) | models.Q(title=instance.title)),
+                created_at__gte=instance.created_at,
+                created_at__lte=window_end,
+            )
+            if duplicates.exists():
+                duplicates.delete()
+        except Exception:
+            # Be defensive: if cleanup fails, don't block normal processing
             pass
 
     broadcast_thread_update(instance.complaint_id)

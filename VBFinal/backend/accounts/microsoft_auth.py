@@ -361,23 +361,47 @@ def microsoft_flutter_auth(request):
         )
     except MicrosoftTokenValidationError as exc:
         return Response({'error': str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
-    """
-    Endpoint for Flutter mobile app Microsoft authentication.
-    Accepts a Microsoft access_token from client-side OAuth flow,
-    validates it with Microsoft Graph API, and returns JWT tokens.
-    
-    URL: POST /auth/microsoft/flutter/
-    """
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def microsoft_mobile_auth(request):
     access_token = (request.data.get('access_token') or '').strip()
+    id_token = (request.data.get('id_token') or '').strip()
 
     if not access_token:
         return Response({'error': 'access_token is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
+        claims = None
+        if id_token:
+            claims = _validate_microsoft_id_token(id_token)
+
         user_info = _fetch_microsoft_user_info(access_token)
         profile = normalize_microsoft_profile(user_info)
+
+        if not profile['email'] and claims:
+            profile['email'] = (
+                claims.get('email') or
+                claims.get('preferred_username') or
+                claims.get('upn') or
+                ''
+            ).strip().lower()
+
         if not profile['email']:
             return Response({'error': 'No email found in Microsoft profile.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if claims:
+            token_email = (
+                claims.get('email') or
+                claims.get('preferred_username') or
+                claims.get('upn') or
+                ''
+            ).strip().lower()
+            if token_email and profile['email'].lower() != token_email.lower():
+                raise MicrosoftTokenValidationError(
+                    'Microsoft access token and ID token belong to different users.'
+                )
 
         user, is_new = upsert_microsoft_user(user_info)
         tokens = generate_jwt_pair_for_user(user)
@@ -386,9 +410,15 @@ def microsoft_flutter_auth(request):
             {
                 'access': tokens['access'],
                 'refresh': tokens['refresh'],
-                'email': profile['email'].lower(),
+                'is_new': is_new,
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'role': user.role,
+                    'auth_provider': user.auth_provider,
+                },
             },
             status=status.HTTP_200_OK,
         )
-    except MicrosoftTokenValidationError:
-        return Response({'error': 'Invalid or expired Microsoft access token.'}, status=status.HTTP_401_UNAUTHORIZED)
+    except MicrosoftTokenValidationError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_401_UNAUTHORIZED)

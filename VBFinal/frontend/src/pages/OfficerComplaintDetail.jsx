@@ -268,22 +268,7 @@ const OfficerComplaintDetail = () => {
               </div>
             </section>
 
-            {timelineHighlights.length > 0 && (
-              <section className="bg-white rounded-lg border border-gray-200 p-5 space-y-3">
-                <h3 className="text-lg font-semibold">Recent workflow activity</h3>
-                <div className="space-y-2">
-                  {timelineHighlights.map((entry) => (
-                    <div key={entry.id} className="rounded-lg border border-gray-200 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium capitalize">{entry.entry_type?.replace('_', ' ')}</span>
-                        <span className="text-xs text-gray-500">{new Date(entry.created_at).toLocaleString()}</span>
-                      </div>
-                      <p className="mt-1 text-sm text-gray-700">{entry.message || entry.title || 'Workflow update'}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+            {/* Recent workflow activity removed per request */}
 
             <section className="bg-white rounded-lg border border-gray-200 p-5 space-y-3">
               <div className="flex flex-wrap gap-2 items-center">

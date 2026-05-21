@@ -31,57 +31,58 @@ export const useHelpdeskSocket = ({ sessionId, onMessage, enabled = true }) => {
     }
 
     clearReconnectTimer();
-
-    const socket = openRealtimeSocket(`/ws/helpdesk/${sessionId}/`, {
-      onOpen: () => {
-        reconnectAttemptRef.current = 0;
-        setConnectionError('');
-        setIsConnected(true);
-      },
-      onMessage: (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (typeof onMessageRef.current === 'function') {
-            onMessageRef.current(payload);
+    (async () => {
+      const maybeSocket = await openRealtimeSocket(`/ws/helpdesk/${sessionId}/`, {
+        onOpen: () => {
+          reconnectAttemptRef.current = 0;
+          setConnectionError('');
+          setIsConnected(true);
+        },
+        onMessage: (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (typeof onMessageRef.current === 'function') {
+              onMessageRef.current(payload);
+            }
+          } catch {
+            setConnectionError('Failed to parse incoming message.');
           }
-        } catch {
-          setConnectionError('Failed to parse incoming message.');
-        }
-      },
-      onError: () => {
-        setConnectionError('Realtime connection error. Retrying...');
-      },
-      onClose: (event) => {
-        setIsConnected(false);
+        },
+        onError: () => {
+          setConnectionError('Realtime connection error. Retrying...');
+        },
+        onClose: (event) => {
+          setIsConnected(false);
 
-        if (NON_RETRY_CLOSE_CODES.has(event?.code)) {
-          if (event.code === 4401) {
-            setConnectionError('Realtime authentication failed. Please sign in again.');
-          } else if (event.code === 4403) {
-            setConnectionError('You do not have access to this helpdesk session.');
-          } else {
-            setConnectionError('Realtime connection was rejected by server policy.');
+          if (NON_RETRY_CLOSE_CODES.has(event?.code)) {
+            if (event.code === 4401) {
+              setConnectionError('Realtime authentication failed. Please sign in again.');
+            } else if (event.code === 4403) {
+              setConnectionError('You do not have access to this helpdesk session.');
+            } else {
+              setConnectionError('Realtime connection was rejected by server policy.');
+            }
+            return;
           }
-          return;
-        }
 
-        if (manuallyClosedRef.current) {
-          return;
-        }
-        reconnectAttemptRef.current += 1;
-        const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, MAX_DELAY_MS);
-        reconnectTimerRef.current = setTimeout(() => {
-          connect();
-        }, delay);
-      },
-    });
+          if (manuallyClosedRef.current) {
+            return;
+          }
+          reconnectAttemptRef.current += 1;
+          const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, MAX_DELAY_MS);
+          reconnectTimerRef.current = setTimeout(() => {
+            connect();
+          }, delay);
+        },
+      });
 
-    if (!socket) {
-      setConnectionError('Missing auth token for websocket connection.');
-      return;
-    }
+      if (!maybeSocket) {
+        setConnectionError('Missing auth token or realtime server unreachable.');
+        return;
+      }
 
-    socketRef.current = socket;
+      socketRef.current = maybeSocket;
+    })();
   }, [clearReconnectTimer, enabled, sessionId]);
 
   useEffect(() => {

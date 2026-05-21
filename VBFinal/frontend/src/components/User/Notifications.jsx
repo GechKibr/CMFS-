@@ -61,23 +61,28 @@ const Notifications = ({ setUnreadCount }) => {
 
   useEffect(() => {
     let mounted = true;
-    const socket = openRealtimeSocket('/ws/notifications/', {
-      onMessage: () => {
-        if (mounted) loadNotifications();
-      },
-      onClose: () => {
-        if (mounted) {
-          // Polling fallback keeps the list fresh if websocket connectivity drops.
-        }
-      },
-    });
+    let socketInstance = null;
+    (async () => {
+      const maybeSocket = await openRealtimeSocket('/ws/notifications/', {
+        onMessage: () => {
+          if (mounted) loadNotifications();
+        },
+        onClose: () => {
+          if (mounted) {
+            // Polling fallback keeps the list fresh if websocket connectivity drops.
+          }
+        },
+      });
 
-    socketRef.current = socket;
+      socketInstance = maybeSocket;
+      socketRef.current = socketInstance;
+    })();
+
     const refreshInterval = setInterval(loadNotifications, 30000);
 
     return () => {
       mounted = false;
-      if (socket) socket.close();
+      if (socketRef.current) socketRef.current.close();
       clearInterval(refreshInterval);
     };
   }, [loadNotifications]);

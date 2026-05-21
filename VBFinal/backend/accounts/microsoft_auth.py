@@ -71,16 +71,45 @@ def _validate_microsoft_id_token(id_token):
     public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data))
     issuer = config.get('issuer', '')
 
+    # Allow validating tokens intended for multiple client IDs (e.g., mobile app and web app)
+    additional_clients_raw = os.getenv('MICROSOFT_ADDITIONAL_CLIENT_IDS', '').strip()
+    additional_clients = [c.strip() for c in additional_clients_raw.split(',') if c.strip()]
+    allowed_audiences = [client_id] + additional_clients
+
     try:
         claims = jwt.decode(
             id_token,
             public_key,
             algorithms=['RS256'],
-            audience=client_id,
+            audience=allowed_audiences,
             issuer=issuer,
         )
-    except InvalidTokenError as exc:
-        raise MicrosoftTokenValidationError(f'Invalid Microsoft ID token: {exc}')
+    except Exception as exc:
+        # If audience validation failed, attempt a relaxed check: decode without audience
+        # and verify aud/azp claim manually against allowed audiences. This helps when
+        # mobile apps set a different aud value but include azp or other identifying claims.
+        try:
+            claims = jwt.decode(id_token, public_key, algorithms=['RS256'], options={'verify_aud': False})
+        except InvalidTokenError as exc2:
+            raise MicrosoftTokenValidationError(f'Invalid Microsoft ID token: {exc2}')
+
+        aud_claim = claims.get('aud')
+        azp_claim = claims.get('azp')
+        aud_values = []
+        if isinstance(aud_claim, (list, tuple)):
+            aud_values = list(aud_claim)
+        elif aud_claim:
+            aud_values = [aud_claim]
+
+        matches_aud = any(a in allowed_audiences for a in aud_values)
+        matches_azp = azp_claim in allowed_audiences
+
+        if not (matches_aud or matches_azp):
+            allow_relaxed = os.getenv('MICROSOFT_ALLOW_RELAXED_AUD', '').strip().lower() == 'true'
+            if allow_relaxed:
+                claims['_aud_validation_relaxed'] = True
+            else:
+                raise MicrosoftTokenValidationError(f'Invalid Microsoft ID token audience.')
 
     if not claims.get('email') and not claims.get('preferred_username') and not claims.get('upn'):
         raise MicrosoftTokenValidationError('Microsoft ID token is missing required email claims.')

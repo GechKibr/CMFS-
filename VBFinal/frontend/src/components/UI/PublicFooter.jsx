@@ -5,10 +5,9 @@ const PublicFooter = () => {
   const currentYear = new Date().getFullYear();
 
   const quickLinks = [
-    { label: 'Home', href: '/landing' },
-    { label: 'Features', href: '/landing#features' },
-    { label: 'Workflow', href: '/landing#workflow' },
-    { label: 'Contact', href: '/landing#contact' },
+    { label: 'Home', href: '/' },
+    { label: 'Features', href: '/#features' },
+    { label: 'Workflow', href: '/#workflow' },
   ];
 
   const socialLinks = [
@@ -18,8 +17,21 @@ const PublicFooter = () => {
     { label: 'YouTube', href: 'https://www.youtube.com/@UniversityGondar' },
   ];
 
+  const handleNavClick = (e, href) => {
+    e.preventDefault();
+    if (href === '/') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (href.includes('#')) {
+      const hash = href.split('#')[1];
+      const element = document.getElementById(hash);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
   return (
-    <footer className={`${isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'} border-t`}>
+    <footer className={`${isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'} border-t w-full mt-auto`}>
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[1.4fr_0.8fr_0.8fr]">
           <div className="space-y-4">
@@ -37,7 +49,7 @@ const PublicFooter = () => {
             </div>
 
             <p className={`max-w-2xl text-sm leading-7 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              A modern service operations platform for  complaint tracking, appointment handling,
+              A modern service operations platform for complaint tracking, appointment handling,
               quality templates, and real-time helpdesk communication.
             </p>
 
@@ -64,7 +76,8 @@ const PublicFooter = () => {
                 <li key={item.label}>
                   <a
                     href={item.href}
-                    className={`text-sm font-medium transition-colors ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-blue-700'}`}
+                    onClick={(e) => handleNavClick(e, item.href)}
+                    className={`text-sm font-medium transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-blue-700'}`}
                   >
                     {item.label}
                   </a>
@@ -78,8 +91,8 @@ const PublicFooter = () => {
               Contact & Social
             </h4>
             <div className={`mt-4 space-y-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              <p>Email: xxxxx@xxxx.com</p>
-              <p>Phone: +251 xxxx xxx xx</p>
+              <p>Email: support@cmts.com</p>
+              <p>Phone: +251 000 000 000</p>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -87,6 +100,8 @@ const PublicFooter = () => {
                 <a
                   key={item.label}
                   href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className={`rounded-full border px-3 py-2 text-sm font-medium transition-colors ${isDark ? 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-white' : 'border-slate-200 text-slate-600 hover:border-blue-200 hover:text-blue-700'}`}
                 >
                   {item.label}
@@ -99,8 +114,9 @@ const PublicFooter = () => {
         <div className={`mt-10 flex flex-col gap-3 border-t pt-6 text-sm sm:flex-row sm:items-center sm:justify-between ${isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-600'}`}>
           <p>© {currentYear} Complaint Management and Feedback Tracking Platform.</p>
           <a
-            href="/landing"
-            className={`font-medium transition-colors ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-700 hover:text-slate-900'}`}
+            href="/"
+            onClick={(e) => handleNavClick(e, '/')}
+            className={`font-medium transition-colors cursor-pointer ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-700 hover:text-slate-900'}`}
           >
             Return to top
           </a>

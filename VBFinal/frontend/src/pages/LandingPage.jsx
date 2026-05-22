@@ -318,10 +318,10 @@ const LandingPage = () => {
   };
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} scroll-smooth`}>
+    <div className={`min-h-screen flex flex-col ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} scroll-smooth`}>
       <PublicNavbar />
 
-      <main className="relative overflow-hidden">
+      <main className="relative overflow-hidden flex-1">
         {/* Background decorative elements */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -top-28 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-blue-500/10 blur-3xl" />

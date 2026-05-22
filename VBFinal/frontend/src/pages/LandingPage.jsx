@@ -16,6 +16,7 @@ const featureCards = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 4.5h14A1.5 1.5 0 0 1 20.5 6v12A1.5 1.5 0 0 1 19 19.5H7.8L4.5 21V6A1.5 1.5 0 0 1 6 4.5Z" />
       </svg>
     ),
+    gradient: 'from-blue-500 to-blue-600',
   },
   {
     slug: 'appointments',
@@ -28,6 +29,7 @@ const featureCards = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h3m0 0h3m-3 0v3" />
       </svg>
     ),
+    gradient: 'from-purple-500 to-purple-600',
   },
   {
     slug: 'templates',
@@ -39,6 +41,7 @@ const featureCards = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 9h7m-7 3h7m-7 3h4" />
       </svg>
     ),
+    gradient: 'from-emerald-500 to-emerald-600',
   },
   {
     slug: 'helpdesk',
@@ -50,6 +53,7 @@ const featureCards = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 8.5h8M8 11.5h5" />
       </svg>
     ),
+    gradient: 'from-rose-500 to-rose-600',
   },
 ];
 
@@ -62,6 +66,7 @@ const workflowSteps = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0 5-5m-5 5-5-5" />
       </svg>
     ),
+    color: 'blue',
   },
   {
     title: 'System Logs & Assigns',
@@ -72,6 +77,7 @@ const workflowSteps = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M17.5 15.5l2 2 3-3" />
       </svg>
     ),
+    color: 'purple',
   },
   {
     title: 'Staff Handles Request',
@@ -82,6 +88,7 @@ const workflowSteps = [
         <circle cx="12" cy="9" r="3.5" />
       </svg>
     ),
+    color: 'emerald',
   },
   {
     title: 'Real-Time Communication',
@@ -91,6 +98,7 @@ const workflowSteps = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 6.5A2 2 0 0 1 6.5 4.5h11A2 2 0 0 1 19.5 6.5v7a2 2 0 0 1-2 2H11l-4.5 3v-3.5h0A2 2 0 0 1 4.5 13.5v-7Z" />
       </svg>
     ),
+    color: 'orange',
   },
   {
     title: 'Resolution & Feedback',
@@ -101,24 +109,7 @@ const workflowSteps = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 19.5h14" />
       </svg>
     ),
-  },
-];
-
-const serviceMetrics = [
-  {
-    label: 'Resolution time',
-    value: 'Track SLAs',
-    detail: 'Measure how quickly the team responds and closes requests.',
-  },
-  {
-    label: 'Service efficiency',
-    value: 'Monitor throughput',
-    detail: 'See how many requests are handled per team or queue.',
-  },
-  {
-    label: 'Complaint trends',
-    value: 'Spot recurring issues',
-    detail: 'Identify patterns across departments, services, and locations.',
+    color: 'teal',
   },
 ];
 
@@ -279,15 +270,6 @@ const LandingPage = () => {
   const navigate = useNavigate();
   const [dashboardStats, setDashboardStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [contactForm, setContactForm] = useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: '',
-  });
-  const [contactSending, setContactSending] = useState(false);
-  const [contactSuccess, setContactSuccess] = useState('');
-  const [contactError, setContactError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -335,57 +317,21 @@ const LandingPage = () => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const handleContactChange = (event) => {
-    const { name, value } = event.target;
-    setContactForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleContactSubmit = async (event) => {
-    event.preventDefault();
-    setContactError('');
-    setContactSuccess('');
-
-    const payload = {
-      name: contactForm.name.trim(),
-      email: contactForm.email.trim(),
-      subject: contactForm.subject.trim(),
-      message: contactForm.message.trim(),
-    };
-
-    if (!payload.name || !payload.email || !payload.subject || !payload.message) {
-      setContactError('Please complete all contact fields before sending.');
-      return;
-    }
-
-    try {
-      setContactSending(true);
-      await apiService.sendContact(payload);
-      setContactSuccess('Your message has been sent successfully.');
-      setContactForm({ name: '', email: '', subject: '', message: '' });
-    } catch (error) {
-      console.error('Failed to send contact message:', error);
-      setContactError('Unable to send your message right now. Please try again later.');
-    } finally {
-      setContactSending(false);
-    }
-  };
-
   return (
     <div className={`min-h-screen ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} scroll-smooth`}>
       <PublicNavbar />
 
       <main className="relative overflow-hidden">
+        {/* Background decorative elements */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -top-28 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-blue-500/10 blur-3xl" />
           <div className="absolute right-[-6rem] top-32 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
           <div className="absolute left-[-4rem] top-[42rem] h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl" />
         </div>
 
+        {/* Hero Section */}
         <section id="hero" className="relative scroll-mt-28 pb-16 pt-14 sm:pb-20 sm:pt-18 lg:pb-24 lg:pt-24">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
               <Reveal>
                 <div className="max-w-2xl">
@@ -553,22 +499,23 @@ const LandingPage = () => {
           </div>
         </section>
 
+        {/* Features Section */}
         <section id="features" className="scroll-mt-28 border-t border-slate-200/70 py-16 sm:py-20 dark:border-slate-800">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
-            {/* <Reveal>
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <Reveal>
               <SectionHeading
                 eyebrow="Features"
                 title="Everything teams need to manage requests in one place"
                 description="A clean SaaS-style experience for complaints, appointments, service templates, and live helpdesk support."
               />
-            </Reveal> */}
+            </Reveal>
 
             <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
               {featureCards.map((feature, index) => (
                 <Reveal key={feature.slug} delay={index * 90} className="h-full">
                   <article className={`group h-full rounded-[1.75rem] border p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
                     <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/20 transition-transform duration-300 group-hover:scale-105">
+                      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${feature.gradient} text-white shadow-lg transition-transform duration-300 group-hover:scale-105`}>
                         {feature.icon}
                       </div>
                       <div>
@@ -584,8 +531,9 @@ const LandingPage = () => {
           </div>
         </section>
 
+        {/* Workflow Section */}
         <section id="workflow" className="scroll-mt-28 py-16 sm:py-20">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <Reveal>
               <SectionHeading
                 eyebrow="How It Works"
@@ -600,10 +548,10 @@ const LandingPage = () => {
                 {workflowSteps.map((step, index) => (
                   <Reveal key={step.title} delay={index * 90} className="relative">
                     <article className={`h-full rounded-[1.5rem] border p-5 text-center shadow-sm ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
-                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/20">
+                      <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-${step.color}-600 to-${step.color}-500 text-white shadow-lg`}>
                         {step.icon}
                       </div>
-                      <div className="mx-auto mt-4 inline-flex rounded-full border border-blue-200/80 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300">
+                      <div className={`mx-auto mt-4 inline-flex rounded-full border border-${step.color}-200/80 bg-${step.color}-50 px-3 py-1 text-xs font-semibold text-${step.color}-700 dark:border-${step.color}-500/20 dark:bg-${step.color}-500/10 dark:text-${step.color}-300`}>
                         Step {index + 1}
                       </div>
                       <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white">{step.title}</h3>
@@ -616,100 +564,9 @@ const LandingPage = () => {
           </div>
         </section>
 
+        {/* CTA Section */}
         <section className="py-16 sm:py-20">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
-            <Reveal>
-              <SectionHeading
-                eyebrow="Analytics & Service Quality"
-                title="Measure and improve service performance"
-                description="Track resolution time, monitor service efficiency, and analyze complaint trends to keep service quality moving forward."
-                centered
-              />
-            </Reveal>
-
-            <div className="mt-10 grid gap-5 lg:grid-cols-[1fr_1.05fr]">
-              <div className="space-y-5">
-                {serviceMetrics.map((metric, index) => (
-                  <Reveal key={metric.label} delay={index * 90}>
-                    <article className={`rounded-[1.5rem] border p-5 shadow-sm ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">{metric.label}</p>
-                          <h3 className="mt-2 text-xl font-bold text-slate-900 dark:text-white">{metric.value}</h3>
-                          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{metric.detail}</p>
-                        </div>
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-600/20">
-                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5h15" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 16V9m5 7V6m5 10v-4" />
-                          </svg>
-                        </div>
-                      </div>
-                    </article>
-                  </Reveal>
-                ))}
-              </div>
-
-              <Reveal delay={100} className="h-full">
-                <div className={`h-full rounded-[2rem] border p-6 shadow-[0_25px_70px_rgba(15,23,42,0.1)] ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">Performance dashboard</p>
-                      <h3 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">Service quality at a glance</h3>
-                    </div>
-                    <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
-                      Updated now
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                    <div className={`rounded-2xl p-4 ${isDark ? 'bg-slate-950/80' : 'bg-slate-50'}`}>
-                      <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Resolution trend</p>
-                      <div className="mt-4 flex h-32 items-end gap-3">
-                        {[22, 38, 30, 62, 70, 58, 82].map((height) => (
-                          <div key={height} className="flex-1 rounded-t-2xl bg-slate-200/80 dark:bg-slate-800/80">
-                            <div
-                              className="rounded-t-2xl bg-gradient-to-t from-indigo-600 to-cyan-400"
-                              style={{ height: `${height}%` }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className={`rounded-2xl p-4 ${isDark ? 'bg-slate-950/80' : 'bg-slate-50'}`}>
-                      <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Trend summary</p>
-                      <div className="mt-4 space-y-4">
-                        {[
-                          ['Faster response', '74%'],
-                          ['Higher satisfaction', '91%'],
-                          ['Lower backlog', '18%'],
-                        ].map(([label, value]) => (
-                          <div key={label}>
-                            <div className="mb-2 flex items-center justify-between text-sm">
-                              <span className="font-medium text-slate-700 dark:text-slate-200">{label}</span>
-                              <span className="font-semibold text-blue-600 dark:text-blue-300">{value}</span>
-                            </div>
-                            <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-800">
-                              <div className="h-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500" style={{ width: value }} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl border border-blue-200/70 bg-blue-50 px-4 py-4 text-sm text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200">
-                    Use the dashboard to analyze complaint volume, service response, and template performance without leaving the platform.
-                  </div>
-                </div>
-              </Reveal>
-            </div>
-          </div>
-        </section>
-
-        <section className="py-16 sm:py-20">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <Reveal>
               <div className="overflow-hidden rounded-[2rem] bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 px-6 py-10 shadow-[0_30px_80px_rgba(37,99,235,0.3)] sm:px-10 sm:py-12 lg:px-12">
                 <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
@@ -740,122 +597,6 @@ const LandingPage = () => {
                     </button>
                   </div>
                 </div>
-              </div>
-            </Reveal>
-          </div>
-        </section>
-
-        <section id="contact" className="scroll-mt-28 py-12 sm:py-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
-            <Reveal>
-              <div className={`grid gap-8 rounded-[2rem] border p-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start ${isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white'}`}>
-                <div className="space-y-6">
-                  <SectionHeading
-                    eyebrow="Contact & Support"
-                    title="Get help, request a demo, or connect with the service team"
-                    description="Use the details below to reach the team behind the platform or to schedule a guided walkthrough."
-                  />
-
-                  <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                    {[
-                      ['Email', 'support@platform.com'],
-                      ['Phone', '+251 000 000 000'],
-                      ['Hours', 'Mon-Fri, 8:00 - 17:00'],
-                    ].map(([label, value]) => (
-                      <div key={label} className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-slate-800 bg-slate-950/80' : 'border-slate-200 bg-slate-50'}`}>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">{label}</p>
-                        <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-200">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <form onSubmit={handleContactSubmit} className={`rounded-[1.5rem] border p-5 shadow-sm ${isDark ? 'border-slate-800 bg-slate-950/70' : 'border-slate-200 bg-slate-50/80'}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">Send a message</h3>
-                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Use the contact form to send a message directly to the team.</p>
-                    </div>
-                    <div className="hidden rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300 sm:inline-flex">
-                      Contact form
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Full name</span>
-                      <input
-                        type="text"
-                        name="name"
-                        value={contactForm.name}
-                        onChange={handleContactChange}
-                        className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500/30 ${isDark ? 'border-slate-700 bg-slate-900 text-white placeholder-slate-500' : 'border-slate-200 bg-white text-slate-900 placeholder-slate-400'}`}
-                        placeholder="Your full name"
-                      />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Email address</span>
-                      <input
-                        type="email"
-                        name="email"
-                        value={contactForm.email}
-                        onChange={handleContactChange}
-                        className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500/30 ${isDark ? 'border-slate-700 bg-slate-900 text-white placeholder-slate-500' : 'border-slate-200 bg-white text-slate-900 placeholder-slate-400'}`}
-                        placeholder="name@example.com"
-                      />
-                    </label>
-
-                    <label className="space-y-2 sm:col-span-2">
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Subject</span>
-                      <input
-                        type="text"
-                        name="subject"
-                        value={contactForm.subject}
-                        onChange={handleContactChange}
-                        className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500/30 ${isDark ? 'border-slate-700 bg-slate-900 text-white placeholder-slate-500' : 'border-slate-200 bg-white text-slate-900 placeholder-slate-400'}`}
-                        placeholder="What do you need help with?"
-                      />
-                    </label>
-
-                    <label className="space-y-2 sm:col-span-2">
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Message</span>
-                      <textarea
-                        name="message"
-                        value={contactForm.message}
-                        onChange={handleContactChange}
-                        rows={5}
-                        className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500/30 ${isDark ? 'border-slate-700 bg-slate-900 text-white placeholder-slate-500' : 'border-slate-200 bg-white text-slate-900 placeholder-slate-400'}`}
-                        placeholder="Write your message here..."
-                      />
-                    </label>
-                  </div>
-
-                  {contactError && (
-                    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
-                      {contactError}
-                    </div>
-                  )}
-
-                  {contactSuccess && (
-                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200">
-                      {contactSuccess}
-                    </div>
-                  )}
-
-                  <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs leading-6 text-slate-500 dark:text-slate-400">
-                      Messages are stored in the contact inbox and reviewed by the support team.
-                    </p>
-                    <button
-                      type="submit"
-                      disabled={contactSending}
-                      className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {contactSending ? 'Sending...' : 'Send Message'}
-                    </button>
-                  </div>
-                </form>
               </div>
             </Reveal>
           </div>

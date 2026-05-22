@@ -4,7 +4,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import apiService from '../../services/api';
 
-const SubmitComplaint = ({ setSubmitSuccess }) => {
+const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
   const { isDark } = useTheme();
   const { language, t } = useLanguage();
   const { user } = useAuth();
@@ -137,7 +137,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     if (!complaintForm.description.trim()) errors.description = t('required');
     if (!complaintForm.category) errors.category = t('required');
     if (complaintForm.description.length > 500) {
-      errors.description = language === 'am' ? 'መግለጫው ከ500 ቁምፊዎች በታች መሆን አለበት' : 'Description must be under 500 characters';
+      errors.description = 'Description must be under 500 characters';
     }
 
     setFormErrors(errors);
@@ -236,14 +236,14 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
   const categorySearch = useMemo(() => buildSearchMatcher(
     categorySearchText,
     categoryRegexEnabled,
-    language === 'am' ? 'ትክክለኛ የሬገክስ አብራሪ ያስገቡ።' : 'Enter a valid regex pattern.'
-  ), [buildSearchMatcher, categorySearchText, categoryRegexEnabled, language]);
+    'Enter a valid regex pattern.'
+  ), [buildSearchMatcher, categorySearchText, categoryRegexEnabled]);
 
   const ccOfficeSearch = useMemo(() => buildSearchMatcher(
     ccSearchText,
     ccRegexEnabled,
-    language === 'am' ? 'ትክክለኛ የሬገክስ አብራሪ ያስገቡ።' : 'Enter a valid regex pattern.'
-  ), [buildSearchMatcher, ccSearchText, ccRegexEnabled, language]);
+    'Enter a valid regex pattern.'
+  ), [buildSearchMatcher, ccSearchText, ccRegexEnabled]);
 
   const toSearchableText = useCallback((category) => (
     [
@@ -358,12 +358,10 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
       setSelectedResolverIds(nextSelected);
       setFormErrors((prev) => ({
         ...prev,
-        resolver_ids: language === 'am'
-          ? 'የተመረጡ ሪዞልቨሮች ከእርስዎ ምድብ ጋር አይዛመዱም።'
-          : 'Some selected resolvers do not match your complaint scope and were removed.',
+        resolver_ids: 'Some selected resolvers do not match your complaint scope and were removed.',
       }));
     }
-  }, [complaintScopedResolvers, language, selectedResolverIds]);
+  }, [complaintScopedResolvers, selectedResolverIds]);
 
   useEffect(() => {
     const officerIds = Array.from(new Set(selectedResolverRoutes.map((resolver) => String(resolver.officer))));
@@ -440,9 +438,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     });
 
     if (validFiles.length !== selectedFiles.length) {
-      const message = language === 'am'
-        ? 'አንዳንድ ፋይሎች ተቀባይነት አላገኙም። ከ5MB በታች ያሉ ምስሎች፣ PDF እና ሰነዶች ብቻ ይፈቀዳሉ።'
-        : 'Some files were rejected. Only images, PDFs, and documents under 5MB are allowed.';
+      const message = 'Some files were rejected. Only images, PDFs, and documents under 5MB are allowed.';
       alert(message);
     }
 
@@ -502,9 +498,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
     e.preventDefault();
     const errors = validateForm();
     if (selectedResolverIds.length > 0 && selectedResolverRoutes.length === 0) {
-      errors.resolver_ids = language === 'am'
-        ? 'እባክዎ ከምድብዎ ጋር የሚዛመዱ CategoryResolver ይምረጡ።'
-        : 'Please select CategoryResolver routes that match your complaint scope.';
+      errors.resolver_ids = 'Please select CategoryResolver routes that match your complaint scope.';
     }
     if (Object.keys(errors).length > 0) {
       if (errors.category) {
@@ -573,15 +567,18 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
       if (response) {
         clearForm();
         setSubmitSuccess(true);
+        
+        // Call the onComplaintSubmitted callback to trigger refresh in MyComplaints
+        if (onComplaintSubmitted) {
+          onComplaintSubmitted();
+        }
 
         // Hide success message after 5 seconds
         setTimeout(() => setSubmitSuccess(false), 5000);
       }
     } catch (error) {
       console.error('Failed to submit complaint:', error);
-      const message = language === 'am'
-        ? 'ቅሬታ ማስገባት አልተሳካም። እባክዎ እንደገና ይሞክሩ።'
-        : 'Failed to submit complaint. Please try again.';
+      const message = 'Failed to submit complaint. Please try again.';
       alert(message);
     } finally {
       setLoading(false);
@@ -616,7 +613,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
           <form onSubmit={submitComplaint} className="space-y-6">
             <div className="flex items-center justify-between">
               <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                {language === 'am' ? `ደረጃ ${currentStep} / ${totalSteps}` : `Step ${currentStep} of ${totalSteps}`}
+                Step {currentStep} of {totalSteps}
               </p>
               <div className="flex items-center gap-2">
                 {[1, 2, 3, 4].map((step) => (
@@ -631,23 +628,23 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
             {currentStep === 1 && (
               <div className="space-y-6">
                 <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {language === 'am' ? '1. ምድብ እና ተዛማጅ መረጃ' : '1. Select Related  Category'}
+                  1. Select Related Category
                 </h4>
                 <div>
                   <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    {language === 'am' ? 'ምድብ' : 'Category'}
+                    Category
                   </label>
                   <div className="space-y-3">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                       <div className="flex-1">
                         <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
-                          {language === 'am' ? 'ምድብ ፈልግ' : 'Search category'}
+                          Search category
                         </label>
                         <input
                           type="text"
                           value={categorySearchText}
                           onChange={(e) => setCategorySearchText(e.target.value)}
-                          placeholder={language === 'am' ? 'ስም ወይም መግለጫ' : 'Name or description'}
+                          placeholder="Name or description"
                           className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-800 placeholder-gray-400'}`}
                         />
                       </div>
@@ -657,7 +654,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                           checked={categoryRegexEnabled}
                           onChange={(e) => setCategoryRegexEnabled(e.target.checked)}
                         />
-                        {language === 'am' ? 'ሬገክስ ይጠቀሙ' : 'Use regex'}
+                        Use regex
                       </label>
                     </div>
 
@@ -703,7 +700,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                   )}
                   {!categorySearch.error && filteredCategories.length === 0 && (
                     <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {language === 'am' ? 'ምድቦች አልተገኙም። ፍለጋውን ያስተካክሉ።' : 'No categories match. Adjust the search.'}
+                      No categories match. Adjust the search.
                     </p>
                   )}
                   {formErrors.category && <p className="text-red-500 text-sm mt-1 flex items-center"><span className="mr-1">⚠️</span>{formErrors.category}</p>}
@@ -714,9 +711,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {language === 'am'
-                            ? 'ካምፓስ፣ ኮሌጅ እና ዲፓርትመንት  ይምረጡ።'
-                            : 'Filter by campus, college, and department, then choose specific  Offices .'}
+                          Filter by campus, college, and department, then choose specific Offices.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -725,14 +720,14 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                           onClick={selectAllResolverRoutes}
                           className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
                         >
-                          {language === 'am' ? 'ሁሉንም ይምረጡ' : 'Select all'}
+                          Select all
                         </button>
                         <button
                           type="button"
                           onClick={clearResolverRouteSelections}
                           className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                         >
-                          {language === 'am' ? 'አጽዳ' : 'Clear'}
+                          Clear
                         </button>
                       </div>
                     </div>
@@ -740,14 +735,14 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
                       <div>
                         <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
-                          {language === 'am' ? 'ካምፓስ' : 'Campus'}
+                          Campus
                         </label>
                         <select
                           value={resolverFilters.campus}
                           onChange={(e) => setResolverFilters((prev) => ({ ...prev, campus: e.target.value, college: '', department: '' }))}
                           className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                         >
-                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                          <option value="">All</option>
                           {resolverCampusOptions.map((campus) => (
                             <option key={campus} value={campus}>{campus}</option>
                           ))}
@@ -755,14 +750,14 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                       </div>
                       <div>
                         <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
-                          {language === 'am' ? 'ኮሌጅ' : 'College'}
+                          College
                         </label>
                         <select
                           value={resolverFilters.college}
                           onChange={(e) => setResolverFilters((prev) => ({ ...prev, college: e.target.value, department: '' }))}
                           className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                         >
-                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                          <option value="">All</option>
                           {resolverCollegeOptions.map((college) => (
                             <option key={college} value={college}>{college}</option>
                           ))}
@@ -770,14 +765,14 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                       </div>
                       <div>
                         <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
-                          {language === 'am' ? 'ዲፓርትመንት' : 'Department'}
+                          Department
                         </label>
                         <select
                           value={resolverFilters.department}
                           onChange={(e) => setResolverFilters((prev) => ({ ...prev, department: e.target.value }))}
                           className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                         >
-                          <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                          <option value="">All</option>
                           {resolverDepartmentOptions.map((department) => (
                             <option key={department} value={department}>{department}</option>
                           ))}
@@ -787,11 +782,11 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
 
                     <div className="mt-4">
                       <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-2`}>
-                        {language === 'am' ? 'የሚገኙ የCategoryResolver ምርጫዎች' : 'Available CategoryResolver routes'}
+                        Available CategoryResolver routes
                       </label>
                       {availableResolverRoutes.length === 0 ? (
                         <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {language === 'am' ? 'ይህን ማጣሪያ የሚያሟሉ ሪዞልቨር መንገዶች የሉም።' : 'No CategoryResolver routes match the selected scope filters.'}
+                          No CategoryResolver routes match the selected scope filters.
                         </div>
                       ) : (
                         <div className="flex gap-2">
@@ -800,7 +795,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                             onChange={(e) => setResolverSelectionValue(e.target.value)}
                             className={`flex-1 rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                           >
-                            <option value="">{language === 'am' ? 'CategoryResolver ይምረጡ' : 'Select CategoryResolver route'}</option>
+                            <option value="">Select CategoryResolver route</option>
                             {availableResolverRoutes.map((resolver) => (
                               <option key={resolver.id} value={resolver.id}>
                                 {`${resolver.officer_name} | ${resolver.scope_label || 'General'}${resolver.campus_name ? ` | ${resolver.campus_name}` : ''}${resolver.college_name ? ` | ${resolver.college_name}` : ''}${resolver.department_name ? ` | ${resolver.department_name}` : ''}`}
@@ -813,7 +808,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                             disabled={!resolverSelectionValue}
                             className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {language === 'am' ? 'ጨምር' : 'Add'}
+                            Add
                           </button>
                         </div>
                       )}
@@ -831,7 +826,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                                   onClick={() => removeResolverRouteSelection(resolver.id)}
                                   className="text-xs text-red-500 hover:text-red-600"
                                 >
-                                  {language === 'am' ? 'አስወግድ' : 'Remove'}
+                                  Remove
                                 </button>
                               </div>
                               <p className={`mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -846,9 +841,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                       )}
 
                       <p className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {language === 'am'
-                          ? `የተመረጡ የCategoryResolver መንገዶች: ${selectedResolverRoutes.length}`
-                          : `Selected CategoryResolver routes: ${selectedResolverRoutes.length}`}
+                        Selected CategoryResolver routes: {selectedResolverRoutes.length}
                       </p>
                     </div>
                   </div>
@@ -861,23 +854,19 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                     onChange={(e) => setComplaintForm({ ...complaintForm, isAnonymous: e.target.checked })}
                   />
                   <span>
-                    {language === 'am'
-                      ? 'ቅሬታዬን በማንነት ሳይገለጽ እንዲታይ እፈልጋለሁ (ለኦፊሰሮች ብቻ ማንነት ይደበቃል)'
-                      : 'Submit as anonymous to officers (your identity is hidden from officers but preserved for audit/admin).'}
+                    Submit as anonymous to officers (your identity is hidden from officers but preserved for audit/admin).
                   </span>
                 </label>
 
                 <div>
                   <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    {language === 'am' ? 'CC ሪዞልቨር ይምረጡ' : 'Select CC CategoryResolvers'}
+                    Select CC CategoryResolvers
                   </label>
                   {selectedCategory && selectedCategoryResolvers.length > 0 ? (
                     <div className={`border rounded-lg p-3 ${isDark ? 'border-gray-600 bg-gray-800' : 'border-gray-300 bg-white'}`}>
                       <div className="flex items-center justify-between gap-2 mb-3">
                         <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {language === 'am'
-                            ? 'ካምፓስ፣ ኮሌጅ እና ዲፓርትመንት በመምረጥ CC ሪዞልቨሮችን ያጣሩ'
-                            : 'Filter CC recipients by campus, college, and department'}
+                          Filter CC recipients by campus, college, and department
                         </p>
                         <div className="flex items-center gap-2">
                           <button
@@ -885,53 +874,53 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                             onClick={selectAllCcOfficers}
                             className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
                           >
-                            {language === 'am' ? 'ሁሉንም ይምረጡ' : 'Select all'}
+                            Select all
                           </button>
                           <button
                             type="button"
                             onClick={clearCcOfficerSelections}
                             className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                           >
-                            {language === 'am' ? 'አጽዳ' : 'Clear'}
+                            Clear
                           </button>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                         <div>
-                          <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>{language === 'am' ? 'ካምፓስ' : 'Campus'}</label>
+                          <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>Campus</label>
                           <select
                             value={ccFilters.campus}
                             onChange={(e) => setCcFilters((prev) => ({ ...prev, campus: e.target.value, college: '', department: '' }))}
                             className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                           >
-                            <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                            <option value="">All</option>
                             {ccCampusOptions.map((campus) => (
                               <option key={campus} value={campus}>{campus}</option>
                             ))}
                           </select>
                         </div>
                         <div>
-                          <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>{language === 'am' ? 'ኮሌጅ' : 'College'}</label>
+                          <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>College</label>
                           <select
                             value={ccFilters.college}
                             onChange={(e) => setCcFilters((prev) => ({ ...prev, college: e.target.value, department: '' }))}
                             className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                           >
-                            <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                            <option value="">All</option>
                             {ccCollegeOptions.map((college) => (
                               <option key={college} value={college}>{college}</option>
                             ))}
                           </select>
                         </div>
                         <div>
-                          <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>{language === 'am' ? 'ዲፓርትመንት' : 'Department'}</label>
+                          <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>Department</label>
                           <select
                             value={ccFilters.department}
                             onChange={(e) => setCcFilters((prev) => ({ ...prev, department: e.target.value }))}
                             className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'}`}
                           >
-                            <option value="">{language === 'am' ? 'ሁሉም' : 'All'}</option>
+                            <option value="">All</option>
                             {ccDepartmentOptions.map((department) => (
                               <option key={department} value={department}>{department}</option>
                             ))}
@@ -942,13 +931,13 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end mb-3">
                         <div className="md:col-span-2">
                           <label className={`block text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
-                            {language === 'am' ? 'CC ፈልግ' : 'Search CC recipient'}
+                            Search CC recipient
                           </label>
                           <input
                             type="text"
                             value={ccSearchText}
                             onChange={(e) => setCcSearchText(e.target.value)}
-                            placeholder={language === 'am' ? 'ስም፣ ካምፓስ፣ ኮሌጅ፣ ዲፓርትመንት' : 'Name, campus, college, department'}
+                            placeholder="Name, campus, college, department"
                             className={`w-full rounded-lg border px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-800 placeholder-gray-400'}`}
                           />
                         </div>
@@ -958,7 +947,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                             checked={ccRegexEnabled}
                             onChange={(e) => setCcRegexEnabled(e.target.checked)}
                           />
-                          {language === 'am' ? 'ሬገክስ ይጠቀሙ' : 'Use regex'}
+                          Use regex
                         </label>
                       </div>
 
@@ -971,7 +960,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                       <div className="max-h-52 overflow-y-auto space-y-2">
                         {availableCcOfficers.length === 0 ? (
                           <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {language === 'am' ? 'የሚገኙ CC ሪዞልቨሮች የሉም።' : 'No CC recipients match the selected filters.'}
+                            No CC recipients match the selected filters.
                           </div>
                         ) : (
                           availableCcOfficers.filter((resolver) => ccOfficeSearch.matcher(toSearchableText(resolver))).map((resolver) => (
@@ -1005,9 +994,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                       </div>
 
                       <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        {language === 'am'
-                          ? `የተመረጡ CC ሪዞልቨሮች: ${selectedCcOfficers.length}`
-                          : `Selected CC recipients: ${selectedCcOfficers.length}`}
+                        Selected CC recipients: {selectedCcOfficers.length}
                       </p>
 
                       {selectedCcOfficers.length > 0 && (
@@ -1018,7 +1005,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                               type="button"
                               onClick={() => removeCcOfficerSelection(resolver.id)}
                               className={`rounded-full px-3 py-1 flex items-center gap-2 ${isDark ? 'bg-gray-700' : 'bg-blue-100 text-blue-700'}`}
-                              title={language === 'am' ? 'አስወግድ' : 'Remove'}
+                              title="Remove"
                             >
                               <span>{resolver.officer_name}</span>
                               <span className="text-[10px]">✕</span>
@@ -1029,7 +1016,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                     </div>
                   ) : (
                     <div className={`w-full border rounded-lg px-4 py-3 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-white border-gray-300 text-gray-600'}`}>
-                      {language === 'am' ? 'ቅድሚያ ምድብ ይምረጡ' : 'Select a category first'}
+                      Select a category first
                     </div>
                   )}
                 </div>
@@ -1039,7 +1026,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
             {currentStep === 2 && (
               <div className="space-y-6">
                 <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {language === 'am' ? '2. የቅሬታ ዝርዝሮች' : '2. Complaint Details'}
+                  2. Complaint Details
                 </h4>
                 <div>
                   <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
@@ -1079,11 +1066,11 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
             {currentStep === 3 && (
               <div className="space-y-6">
                 <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {language === 'am' ? '3. ማስረጃ ፋይሎች' : '3. Evidence Attachments'}
+                  3. Evidence Attachments
                 </h4>
                 <div>
                   <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    {language === 'am' ? 'ፋይሎች አያይዝ (አማራጭ)' : 'Attach Files (Optional)'}
+                    Attach Files (Optional)
                   </label>
                   <div className={`border-2 border-dashed rounded-lg p-6 text-center ${isDark ? 'border-gray-600 bg-gray-750' : 'border-gray-300 bg-gray-50'}`}>
                     <input
@@ -1097,16 +1084,10 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                     <label htmlFor="file-upload" className="cursor-pointer">
                       <div className="text-4xl mb-2">📎</div>
                       <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {language === 'am'
-                          ? 'ፋይሎችን ለመጫን ይጫኑ ወይም እዚህ ይጎትቱ'
-                          : 'Click to upload files or drag and drop'
-                        }
+                        Click to upload files or drag and drop
                       </p>
                       <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
-                        {language === 'am'
-                          ? 'ከ5MB በታች ያሉ ምስሎች፣ PDF፣ ሰነዶች (ከ5 ፋይሎች በታች)'
-                          : 'Images, PDFs, Documents under 5MB (Max 5 files)'
-                        }
+                        Images, PDFs, Documents under 5MB (Max 5 files)
                       </p>
                     </label>
                   </div>
@@ -1144,21 +1125,21 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
             {currentStep === 4 && (
               <div className="space-y-6">
                 <h4 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {language === 'am' ? '4. ክለሳ እና ማስገባት' : '4. Review & Submit'}
+                  4. Review & Submit
                 </h4>
                 <div className={`rounded-lg border p-4 ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
                   <div className="space-y-3 text-sm">
                     <p><span className="font-semibold">{t('title')}:</span> {complaintForm.title || '-'}</p>
                     <p><span className="font-semibold">{t('description')}:</span> {complaintForm.description || '-'}</p>
                     <p>
-                      <span className="font-semibold">{language === 'am' ? 'ምድብ' : 'Category'}:</span>{' '}
+                      <span className="font-semibold">Category:</span>{' '}
                       {categories.find((item) => String(item.value) === String(complaintForm.category))?.label || '-'}
                     </p>
-                    <p><span className="font-semibold">{language === 'am' ? 'ማንነት ሁኔታ' : 'Identity'}:</span> {complaintForm.isAnonymous ? (language === 'am' ? 'ስውር' : 'Anonymous') : (language === 'am' ? 'ተገልጿል' : 'Visible')}</p>
-                    <p><span className="font-semibold">{language === 'am' ? 'CC ሪዞልቨሮች' : 'CC CategoryResolvers'}:</span> {ccOfficerIds.length}</p>
+                    <p><span className="font-semibold">Identity:</span> {complaintForm.isAnonymous ? 'Anonymous' : 'Visible'}</p>
+                    <p><span className="font-semibold">CC CategoryResolvers:</span> {ccOfficerIds.length}</p>
                     {selectedCcOfficers.length > 0 && (
                       <div>
-                        <p className="font-semibold mb-1">{language === 'am' ? 'የተመረጡ ሪዞልቨሮች ዝርዝር' : 'Selected CC recipient list'}:</p>
+                        <p className="font-semibold mb-1">Selected CC recipient list:</p>
                         <ul className="list-disc list-inside space-y-1">
                           {selectedCcOfficers.map((resolver) => (
                             <li key={resolver.id}>{resolver.officer_name}</li>
@@ -1166,7 +1147,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                         </ul>
                       </div>
                     )}
-                    <p><span className="font-semibold">{language === 'am' ? 'ፋይሎች' : 'Attachments'}:</span> {files.length}</p>
+                    <p><span className="font-semibold">Attachments:</span> {files.length}</p>
                   </div>
                 </div>
               </div>
@@ -1188,7 +1169,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                     onClick={goToPreviousStep}
                     className={`px-6 py-3 rounded-lg font-medium transition-colors ${isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'}`}
                   >
-                    {language === 'am' ? 'ወደ ኋላ' : 'Back'}
+                    Back
                   </button>
                 )}
 
@@ -1198,7 +1179,7 @@ const SubmitComplaint = ({ setSubmitSuccess }) => {
                     onClick={goToNextStep}
                     className="px-8 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
                   >
-                    {language === 'am' ? 'ቀጣይ' : 'Next'}
+                    Next
                   </button>
                 ) : (
                   <button

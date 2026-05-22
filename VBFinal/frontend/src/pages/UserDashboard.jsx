@@ -107,13 +107,29 @@ const UserDashboard = () => {
 
   const menuItems = getUserNavItems(t);
 
+  // Handle tab change and update both state and URL
+  const handleTabChange = useCallback((tabId) => {
+    setActiveTab(tabId);
+    navigate(`?tab=${tabId}`, { replace: true });
+    setSubmitSuccess(false); // Reset success message when changing tabs
+  }, [navigate]);
+
+  // Read tab from URL on initial load and URL changes
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
     if (tab && menuItems.some((item) => item.id === tab)) {
-      setActiveTab(tab);
+      if (activeTab !== tab) {
+        setActiveTab(tab);
+        setSubmitSuccess(false);
+      }
+    } else if (!tab) {
+      // If no tab in URL, set default
+      if (activeTab !== 'submit') {
+        setActiveTab('submit');
+      }
     }
-  }, [location.search, menuItems]);
+  }, [location.search, menuItems, activeTab]);
 
   if (loading) {
     return (
@@ -150,7 +166,7 @@ const UserDashboard = () => {
               setSidebarOpen(false);
               return;
             }
-            setActiveTab(id);
+            handleTabChange(id);
             setSidebarOpen(false);
           }}
           onLogout={() => {
@@ -158,7 +174,7 @@ const UserDashboard = () => {
             navigate('/login');
           }}
           onProfileClick={() => {
-            setActiveTab('profile');
+            handleTabChange('profile');
             setSidebarOpen(false);
           }}
           onHideSidebar={() => setIsDesktopSidebarCollapsed((prev) => !prev)}

@@ -188,17 +188,7 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false, sh
 
         {/* Right: Theme Toggle and User Menu */}
         <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
-          {showLanguageToggle && (
-            <button
-              type="button"
-              onClick={toggleLanguage}
-              className={`hidden sm:inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-all duration-200 ${languageButtonClasses}`}
-              title={language === 'am' ? 'Switch to English' : 'ቋንቋ ወደ አማርኛ ለውጥ'}
-            >
-              <span className="text-xs uppercase tracking-wide">{language === 'am' ? 'EN' : 'AM'}</span>
-              <span className="hidden md:inline">{language === 'am' ? 'English' : 'አማርኛ'}</span>
-            </button>
-          )}
+         
 
           {shouldShowNotifications && (
             <div className="relative">

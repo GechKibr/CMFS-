@@ -54,34 +54,6 @@ export const openRealtimeSocket = (path, handlers = {}) => {
     return null;
   }
 
-  // Ping the server HTTP(s) origin before opening a raw WebSocket to avoid
-  // browser-level "WebSocket is closed before the connection is established"
-  // errors when the backend is unreachable. If the ping fails, call onError
-  // and return null so callers fall back to polling.
-  const base = resolveWebSocketBase();
-  let origin;
-  try {
-    const parsed = new URL(base);
-    parsed.protocol = parsed.protocol === 'wss:' ? 'https:' : parsed.protocol === 'ws:' ? 'http:' : parsed.protocol;
-    parsed.pathname = '/';
-    origin = parsed.toString().replace(/\/+$/, '');
-  } catch {
-    origin = null;
-  }
-
-  const pingServer = async (timeout = 1500) => {
-    if (!origin) return false;
-    try {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeout);
-      const resp = await fetch(origin, { method: 'HEAD', signal: controller.signal, cache: 'no-store' });
-      clearTimeout(id);
-      return resp.ok || resp.type === 'opaque' || resp.status === 0;
-    } catch {
-      return false;
-    }
-  };
-
   const openSocket = () => {
     try {
       const socket = new WebSocket(buildRealtimeUrl(path));
@@ -108,21 +80,8 @@ export const openRealtimeSocket = (path, handlers = {}) => {
     }
   };
 
-  // Try a quick ping; if it fails, skip opening the WebSocket to avoid noisy
-  // browser errors. Callers already implement polling fallback.
   try {
-    // fire-and-forget ping but await result so we avoid creating the socket when
-    // backend is unreachable.
-    return (async () => {
-      const ok = await pingServer(1200);
-      if (!ok) {
-        if (handlers.onError) {
-          try { handlers.onError(new Error('Realtime server unreachable')); } catch { }
-        }
-        return null;
-      }
-      return openSocket();
-    })();
+    return openSocket();
   } catch (err) {
     if (handlers.onError) {
       try { handlers.onError(err); } catch { }

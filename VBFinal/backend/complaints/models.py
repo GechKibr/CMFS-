@@ -99,6 +99,25 @@ class Category(models.Model):
         resolvers.sort(key=lambda resolver: (resolver.escalation_level, -resolver.scope_rank(), resolver.created_at, str(resolver.resolver_id)))
         return resolvers[0]
 
+    def matches_officer(self, officer, complaint: "Complaint" = None):
+        """Return True if the given `officer` is eligible for this category.
+
+        If a `complaint` is provided, only consider resolvers that match the
+        complaint's scope. The check looks for active `CategoryResolver`
+        entries for this category and an active `ResolverOfficer` membership
+        linking the resolver to the officer.
+        """
+        if not officer or not getattr(officer, "is_active", False):
+            return False
+
+        resolvers_qs = self.resolvers.filter(active=True)
+        for resolver in resolvers_qs.select_related("department"):
+            if complaint is not None and not resolver.matches_complaint_scope(complaint):
+                continue
+            if resolver.officers.filter(officer_id=getattr(officer, "id", None), active=True, officer__is_active=True).exists():
+                return True
+        return False
+
 
 class CategoryResolver(models.Model):
     resolver_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

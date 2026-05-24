@@ -20,6 +20,25 @@ const getFileIcon = (contentType = '', filename = '') => {
   return 'FILE';
 };
 
+const getResolverFieldValue = (resolver, field) => resolver?.[field] ?? '';
+
+const buildUniqueOptions = (items, valueField, labelField, fallbackPrefix) => {
+  const options = new Map();
+
+  items.forEach((item) => {
+    const value = getResolverFieldValue(item, valueField);
+    if (value === '' || value === null || value === undefined) return;
+
+    const key = String(value);
+    if (!options.has(key)) {
+      const label = String(getResolverFieldValue(item, labelField) || `${fallbackPrefix} ${key}`);
+      options.set(key, { value: key, label });
+    }
+  });
+
+  return Array.from(options.values()).sort((a, b) => a.label.localeCompare(b.label));
+};
+
 const OfficerComplaintDetail = () => {
   const navigate = useNavigate();
   const { complaintId } = useParams();
@@ -30,11 +49,11 @@ const OfficerComplaintDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [newStatus, setNewStatus] = useState('pending');
-  const [officers, setOfficers] = useState([]);
-  const [reassignOfficerId, setReassignOfficerId] = useState('');
-  const [reassignReason, setReassignReason] = useState('');
-  const [showReassign, setShowReassign] = useState(false);
-  const [loadingOfficers, setLoadingOfficers] = useState(false);
+  const [showOtherResolvers, setShowOtherResolvers] = useState(false);
+  const [otherResolvers, setOtherResolvers] = useState([]);
+  const [categoryResolvers, setCategoryResolvers] = useState([]);
+  const [resolverFilters, setResolverFilters] = useState({ campus: '', college: '', department: '' });
+  const [loadingResolvers, setLoadingResolvers] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
 
@@ -58,6 +77,28 @@ const OfficerComplaintDetail = () => {
     loadComplaint();
   }, [loadComplaint]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCategoryResolvers = async () => {
+      try {
+        const resolversData = await apiService.getAllCategoryResolvers();
+        if (cancelled) return;
+
+        setCategoryResolvers(resolversData?.results || resolversData || []);
+      } catch {
+        if (!cancelled) {
+          setCategoryResolvers([]);
+        }
+      }
+    };
+
+    loadCategoryResolvers();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const attachments = useMemo(() => {
     if (!complaint) return [];
     const items = Array.isArray(complaint.attachments) ? complaint.attachments : [];
@@ -71,7 +112,24 @@ const OfficerComplaintDetail = () => {
     })).filter((file) => Boolean(file.url));
   }, [complaint]);
 
+  const complaintCategoryId = complaint?.category?.category_id || complaint?.category?.id || '';
   const currentResolver = complaint?.current_resolver?.scope_label || complaint?.current_resolver?.category_name || 'Unassigned';
+  const resolverPoolForCategory = useMemo(() => {
+    if (!complaintCategoryId) return [];
+    return categoryResolvers.filter((resolver) => String(getResolverFieldValue(resolver, 'category')) === String(complaintCategoryId));
+  }, [categoryResolvers, complaintCategoryId]);
+  const campusOptions = useMemo(() => buildUniqueOptions(resolverPoolForCategory, 'campus', 'campus_name', 'Campus'), [resolverPoolForCategory]);
+  const collegeOptions = useMemo(() => {
+    const campusScopedResolvers = resolverPoolForCategory.filter((resolver) => !resolverFilters.campus || String(getResolverFieldValue(resolver, 'campus')) === String(resolverFilters.campus));
+    return buildUniqueOptions(campusScopedResolvers, 'college', 'college_name', 'College');
+  }, [resolverPoolForCategory, resolverFilters.campus]);
+  const departmentOptions = useMemo(() => {
+    const collegeScopedResolvers = resolverPoolForCategory.filter((resolver) => (
+      (!resolverFilters.campus || String(getResolverFieldValue(resolver, 'campus')) === String(resolverFilters.campus)) &&
+      (!resolverFilters.college || String(getResolverFieldValue(resolver, 'college')) === String(resolverFilters.college))
+    ));
+    return buildUniqueOptions(collegeScopedResolvers, 'department', 'department_name', 'Department');
+  }, [resolverPoolForCategory, resolverFilters.campus, resolverFilters.college]);
   const claimedByLabel = complaint?.claimed_by
     ? `${complaint.claimed_by.first_name || ''} ${complaint.claimed_by.last_name || ''}`.trim() || complaint.claimed_by.email
     : 'Not claimed';
@@ -87,62 +145,45 @@ const OfficerComplaintDetail = () => {
     }
   };
 
-  const loadOfficers = async () => {
-    if (!complaintId) return;
-    setLoadingOfficers(true);
+  const openOtherResolvers = async () => {
+    if (!complaint) return;
+    setShowOtherResolvers(true);
+    setLoadingResolvers(true);
     try {
-      const usersData = await apiService.getComplaintEligibleOfficers(complaintId);
-      const availableOfficers = Array.isArray(usersData?.results)
-        ? usersData.results
-        : Array.isArray(usersData)
-          ? usersData
-          : [];
-
-      setOfficers(availableOfficers);
-
-      const currentAssignee = availableOfficers.find((officer) => officer.is_current_assignee);
-      if (currentAssignee) {
-        setReassignOfficerId(String(currentAssignee.id));
-      } else if (availableOfficers.length > 0) {
-        setReassignOfficerId(String(availableOfficers[0].id));
-      } else {
-        setReassignOfficerId('');
-      }
+      const params = {
+        exclude_category: null,
+        category: complaint?.category?.category_id || complaint?.category?.id || null,
+        complaint: complaint.complaint_id,
+        campus: resolverFilters.campus || null,
+        college: resolverFilters.college || null,
+        department: resolverFilters.department || null,
+      };
+      const resp = await apiService.getOtherCategoryResolvers(params);
+      const items = (resp?.results) || resp || [];
+      setOtherResolvers(items);
     } catch {
-      setOfficers([]);
-      setReassignOfficerId('');
-      window.alert('Unable to load officers available for this complaint.');
+      setOtherResolvers([]);
+      window.alert('Failed to load other resolvers');
     } finally {
-      setLoadingOfficers(false);
+      setLoadingResolvers(false);
     }
   };
 
-  const handleToggleReassign = async () => {
-    if (!showReassign) {
-      await loadOfficers();
-    }
-    setShowReassign((prev) => !prev);
-  };
+  const handleResolverFilterChange = (key, value) => {
+    setResolverFilters((prev) => {
+      const next = { ...prev, [key]: value };
 
-  const handleReassign = async () => {
-    if (!complaint || !reassignOfficerId) {
-      window.alert('Please select an officer');
-      return;
-    }
+      if (key === 'campus') {
+        next.college = '';
+        next.department = '';
+      }
 
-    try {
-      await apiService.reassignComplaint(complaint.complaint_id, {
-        officer_id: Number(reassignOfficerId),
-        reason: reassignReason || 'Reassigned by officer',
-      });
-      setShowReassign(false);
-      setReassignOfficerId('');
-      setReassignReason('');
-      await loadComplaint();
-      window.alert('Complaint reassigned successfully');
-    } catch (err) {
-      window.alert(err.message || 'Failed to reassign complaint');
-    }
+      if (key === 'college') {
+        next.department = '';
+      }
+
+      return next;
+    });
   };
 
   const handleOpenAttachment = async (file) => {
@@ -240,6 +281,15 @@ const OfficerComplaintDetail = () => {
                   <div className="mt-1 font-medium text-gray-800">{claimedByLabel}</div>
                 </div>
                 <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">Reassign Options</div>
+                  <div className="mt-1 text-sm text-gray-800">
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      <button type="button" onClick={openOtherResolvers} className="px-3 py-1 rounded bg-blue-600 text-white text-sm">Reassign</button>
+                      <button type="button" onClick={openOtherResolvers} className="px-3 py-1 rounded bg-gray-200 text-sm">Browse other resolvers</button>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
                   <div className="text-xs uppercase tracking-wide text-gray-500">Category</div>
                   <div className="mt-1 font-medium text-gray-800">{complaint.category?.name || complaint.category?.office_name || 'Uncategorized'}</div>
                 </div>
@@ -280,43 +330,159 @@ const OfficerComplaintDetail = () => {
                 <button onClick={handleUpdateStatus} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">
                   Update Status
                 </button>
-                <button onClick={handleToggleReassign} className="px-4 py-2 rounded bg-yellow-600 text-white hover:bg-yellow-700">
-                  {showReassign ? 'Cancel Reassign' : 'Reassign'}
+                <button onClick={openOtherResolvers} className="px-4 py-2 rounded bg-yellow-600 text-white hover:bg-yellow-700">
+                  Reassign
                 </button>
               </div>
 
-              {showReassign && (
-                <div className="grid md:grid-cols-2 gap-3 pt-2">
-                  <select
-                    value={reassignOfficerId}
-                    onChange={(e) => setReassignOfficerId(e.target.value)}
-                    disabled={loadingOfficers || officers.length === 0}
-                    className="px-3 py-2 border border-gray-300 rounded"
-                  >
-                    <option value="">{loadingOfficers ? 'Loading officers...' : 'Select officer'}</option>
-                    {officers.map((officer) => (
-                      <option key={officer.id} value={officer.id}>
-                        {(officer.full_name || '').trim() || ((officer.first_name || '') + ' ' + (officer.last_name || '')).trim() || officer.email}
-                        {officer.is_current_assignee ? ' (Current)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    value={reassignReason}
-                    onChange={(e) => setReassignReason(e.target.value)}
-                    placeholder="Reason (optional)"
-                    className="px-3 py-2 border border-gray-300 rounded"
-                  />
-                  <button onClick={handleReassign} className="md:col-span-2 px-4 py-2 rounded bg-orange-600 text-white hover:bg-orange-700">
-                    Confirm Reassign
-                  </button>
-                  {!loadingOfficers && officers.length === 0 && (
-                    <p className="md:col-span-2 text-sm text-red-600">
-                      No eligible officers found for this complaint category.
-                    </p>
-                  )}
-                </div>
+              {showOtherResolvers && (
+                <>
+                  <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setShowOtherResolvers(false)} />
+                  <aside className={`fixed right-0 top-16 bottom-0 z-50 w-full max-w-xl ${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} shadow-2xl border-l ${isDark ? 'border-gray-700' : 'border-gray-200'} flex flex-col`}>
+                    <div className={`px-5 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
+                      <div>
+                        <h4 className="font-semibold text-lg">Reassign Complaint</h4>
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Update scope, then select the officer and resolver.</p>
+                      </div>
+                      <button type="button" onClick={() => setShowOtherResolvers(false)} className={`px-3 py-1 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                        Close
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+                      <section className={`rounded-lg border p-4 ${isDark ? 'border-gray-700 bg-gray-900/30' : 'border-gray-200 bg-gray-50'}`}>
+                        <div className="grid grid-cols-1 gap-3">
+                          <div>
+                            <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Campus</label>
+                            <select
+                              name="campus"
+                              value={resolverFilters.campus}
+                              onChange={(e) => handleResolverFilterChange('campus', e.target.value)}
+                              className={`w-full px-3 py-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                            >
+                              <option value="">Select campus</option>
+                              {campusOptions.map((campus) => (
+                                <option key={campus.value} value={campus.value}>
+                                  {campus.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>College</label>
+                            <select
+                              name="college"
+                              value={resolverFilters.college}
+                              onChange={(e) => handleResolverFilterChange('college', e.target.value)}
+                              className={`w-full px-3 py-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                            >
+                              <option value="">Select college</option>
+                              {collegeOptions.map((college) => (
+                                <option key={college.value} value={college.value}>
+                                  {college.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Department</label>
+                            <select
+                              name="department"
+                              value={resolverFilters.department}
+                              onChange={(e) => handleResolverFilterChange('department', e.target.value)}
+                              className={`w-full px-3 py-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                            >
+                              <option value="">Select department</option>
+                              {departmentOptions.map((department) => (
+                                <option key={department.value} value={department.value}>
+                                  {department.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section className={`rounded-lg border p-4 ${isDark ? 'border-gray-700 bg-gray-900/30' : 'border-gray-200 bg-gray-50'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h5 className="font-semibold">Resolver Matches</h5>
+                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{loadingResolvers ? 'Loading resolvers...' : `${otherResolvers.length} resolver(s) found`}</p>
+                          </div>
+                          <button type="button" onClick={openOtherResolvers} className="px-3 py-1 rounded bg-blue-600 text-white text-sm">
+                            Refresh
+                          </button>
+                        </div>
+
+                        <div className="space-y-2 max-h-[42vh] overflow-auto pr-1">
+                          {loadingResolvers ? (
+                            <div className="text-sm text-gray-600">Loading resolvers...</div>
+                          ) : otherResolvers.length === 0 ? (
+                            <div className="text-sm text-gray-600">No resolvers found.</div>
+                          ) : otherResolvers.map((r) => (
+                            <div key={r.resolver_id} className={`p-3 rounded border ${isDark ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-white'}`}>
+                              <div className="flex justify-between items-start gap-3">
+                                <div>
+                                  <div className="font-medium">{r.category_name || r.scope_label}</div>
+                                  <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {r.scope_label || 'University'}{r.campus_name ? ` · ${r.campus_name}` : ''}{r.college_name ? ` · ${r.college_name}` : ''}{r.department_name ? ` · ${r.department_name}` : ''}
+                                  </div>
+                                </div>
+                                <div className="text-sm whitespace-nowrap">{r.officers_count} officers</div>
+                              </div>
+                              {r.officers && r.officers.length > 0 && (
+                                <div className="mt-3 grid grid-cols-1 gap-2">
+                                  {r.officers.map((off) => (
+                                    <div key={off.id} className="flex items-center justify-between gap-2">
+                                      <div className="text-sm">{`${off.first_name || ''} ${off.last_name || ''}`.trim() || off.email}</div>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          try {
+                                            await apiService.updateComplaint(complaint.complaint_id, {
+                                              category: resolverFilters.category || complaint.category?.category_id || complaint.category?.id || null,
+                                              campus: resolverFilters.campus || null,
+                                              college: resolverFilters.college || null,
+                                              department: resolverFilters.department || null,
+                                            });
+
+                                            await apiService.reassignComplaint(complaint.complaint_id, {
+                                              officer_id: Number(off.id),
+                                              resolver_id: r.resolver_id,
+                                              reason: 'Reassigned by officer',
+                                            });
+
+                                            setShowOtherResolvers(false);
+                                            await loadComplaint();
+                                            window.alert('Complaint reassigned successfully');
+                                          } catch (err) {
+                                            window.alert(err.message || 'Failed to reassign complaint');
+                                          }
+                                        }}
+                                        className="px-2 py-1 rounded bg-green-600 text-white text-sm"
+                                      >
+                                        Select
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+
+                      <div className="flex items-center justify-end gap-3">
+                        <button type="button" onClick={() => setShowOtherResolvers(false)} className={`px-4 py-2 rounded ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'}`}>
+                          Cancel
+                        </button>
+                        <button type="button" onClick={openOtherResolvers} className="px-4 py-2 rounded bg-blue-600 text-white">
+                          Reassign
+                        </button>
+                      </div>
+                    </div>
+                  </aside>
+                </>
               )}
             </section>
 

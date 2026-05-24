@@ -28,6 +28,8 @@ const getStatusBadge = (status) => {
   return badges[status] || 'bg-gray-100 text-gray-800';
 };
 
+const getSelectedValue = (value) => (value === null || value === undefined ? '' : String(value));
+
 const AdminComplaintDetail = () => {
   const navigate = useNavigate();
   const { complaintId } = useParams();
@@ -46,28 +48,48 @@ const AdminComplaintDetail = () => {
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [reassignOfficerId, setReassignOfficerId] = useState('');
   const [categoryResolvers, setCategoryResolvers] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [, setSelectedCategory] = useState('');
+  const [campuses, setCampuses] = useState([]);
+  const [colleges, setColleges] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [reassignScope, setReassignScope] = useState({
+    category: '',
+    campus: '',
+    college: '',
+    department: '',
+  });
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
 
   const loadBaseData = useCallback(async () => {
-    const [complaintData, categoriesData, officersData] = await Promise.all([
+    const [complaintData, categoriesData, officersData, campusesData, collegesData, departmentsData] = await Promise.all([
       apiService.getComplaint(complaintId),
       apiService.getAllCategories(),
       apiService.getAllUsers(),
+      apiService.getCampuses(),
+      apiService.getColleges(),
+      apiService.getDepartments(),
     ]);
 
     setComplaint(complaintData);
     setCategories(categoriesData.results || categoriesData || []);
+    setCampuses(campusesData.results || campusesData || []);
+    setColleges(collegesData.results || collegesData || []);
+    setDepartments(departmentsData.results || departmentsData || []);
 
     const allUsers = officersData.results || officersData || [];
     const officerUsers = allUsers.filter((user) => user.role === 'officer' || user.is_staff);
     setOfficers(officerUsers);
 
-    if (complaintData?.category?.category_id) {
-      setSelectedCategory(complaintData.category.category_id);
-    }
+    const complaintCategory = complaintData?.category?.category_id || complaintData?.category?.id || '';
+    setSelectedCategory(getSelectedValue(complaintCategory));
+    setReassignScope({
+      category: getSelectedValue(complaintCategory),
+      campus: getSelectedValue(complaintData?.campus),
+      college: getSelectedValue(complaintData?.college),
+      department: getSelectedValue(complaintData?.department),
+    });
   }, [complaintId]);
 
   const loadResponses = useCallback(async () => {
@@ -165,8 +187,16 @@ const AdminComplaintDetail = () => {
 
       setCategoryResolvers(resolversData.results || resolversData || []);
 
-      if (complaint?.category?.category_id) {
-        setSelectedCategory(complaint.category.category_id);
+      if (complaint?.category?.category_id || complaint?.category?.id) {
+        const complaintCategory = complaint.category.category_id || complaint.category.id;
+        setSelectedCategory(getSelectedValue(complaintCategory));
+        setReassignScope((prev) => ({
+          ...prev,
+          category: getSelectedValue(complaintCategory),
+          campus: getSelectedValue(complaint?.campus),
+          college: getSelectedValue(complaint?.college),
+          department: getSelectedValue(complaint?.department),
+        }));
       }
     } catch (error) {
       console.error('Failed to load reassignment data:', error);
@@ -174,12 +204,12 @@ const AdminComplaintDetail = () => {
   };
 
   const recommendedOfficers = useMemo(() => {
-    if (!selectedCategory) return [];
+    if (!reassignScope.category) return [];
 
     const categoryOfficers = categoryResolvers
       .filter(
         (resolver) =>
-          String(resolver.category) === String(selectedCategory) &&
+          String(resolver.category) === String(reassignScope.category) &&
           resolver.active
       )
       .map((resolver) => resolver.officer);
@@ -187,10 +217,44 @@ const AdminComplaintDetail = () => {
     const categoryOfficerIds = [...new Set(categoryOfficers.map((id) => String(id)))];
 
     return officers.filter((officer) => categoryOfficerIds.includes(String(officer.id)));
-  }, [officers, categoryResolvers, selectedCategory]);
+  }, [officers, categoryResolvers, reassignScope.category]);
+
+  const filteredColleges = useMemo(() => {
+    if (!reassignScope.campus) return colleges;
+    return colleges.filter((college) => String(college.campus_id || college.campus || college.campus_code || '') === String(reassignScope.campus));
+  }, [colleges, reassignScope.campus]);
+
+  const filteredDepartments = useMemo(() => {
+    if (!reassignScope.college) return departments;
+    return departments.filter((department) => String(department.department_college || department.college || department.college_id || '') === String(reassignScope.college));
+  }, [departments, reassignScope.college]);
+
+  const handleReassignScopeChange = (key, value) => {
+    setReassignScope((prev) => {
+      const next = { ...prev, [key]: value };
+
+      if (key === 'category') {
+        next.campus = '';
+        next.college = '';
+        next.department = '';
+        setSelectedCategory(value);
+      }
+
+      if (key === 'campus') {
+        next.college = '';
+        next.department = '';
+      }
+
+      if (key === 'college') {
+        next.department = '';
+      }
+
+      return next;
+    });
+  };
 
   const handleReassign = async () => {
-    if (!selectedCategory) {
+    if (!reassignScope.category) {
       window.alert('Please assign a category before reassigning');
       return;
     }
@@ -201,16 +265,18 @@ const AdminComplaintDetail = () => {
     }
 
     try {
+      await apiService.updateComplaint(complaint.complaint_id, {
+        category: reassignScope.category || null,
+        campus: reassignScope.campus || null,
+        college: reassignScope.college || null,
+        department: reassignScope.department || null,
+      });
+
       await apiService.reassignComplaint(complaint.complaint_id, {
         officer_id: reassignOfficerId,
       });
 
-      const updatedOfficer = officers.find((off) => String(off.id) === String(reassignOfficerId));
-      setComplaint((prev) => ({
-        ...prev,
-        assigned_to: updatedOfficer,
-        assigned_officer: updatedOfficer,
-      }));
+      await loadPageData();
 
       window.alert('Complaint reassigned successfully');
       setShowReassignModal(false);
@@ -408,15 +474,15 @@ const AdminComplaintDetail = () => {
                     </div>
                     <button
                       onClick={() => {
-                        if (!complaint.category?.category_id) {
+                        if (!complaint.category?.category_id && !complaint.category?.id) {
                           window.alert('Update category first, then reassign.');
                           return;
                         }
-                        setSelectedCategory(complaint.category.category_id);
+                        setSelectedCategory(getSelectedValue(complaint.category?.category_id || complaint.category?.id));
                         setShowReassignModal(true);
                         loadReassignmentData();
                       }}
-                      disabled={!complaint.category?.category_id}
+                      disabled={!complaint.category?.category_id && !complaint.category?.id}
                       className="text-xs px-3 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
                       title="Reassign using current category"
                     >
@@ -540,10 +606,78 @@ const AdminComplaintDetail = () => {
 
             <div className="mb-4">
               <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                Category Scope
+                Complaint Scope
               </label>
-              <div className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-800'}`}>
-                {complaint.category?.name || 'No category assigned'}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Category</label>
+                  <select
+                    value={reassignScope.category}
+                    onChange={(e) => handleReassignScopeChange('category', e.target.value)}
+                    className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value="">Select category</option>
+                    {categories.map((category) => (
+                      <option key={category.category_id} value={category.category_id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Campus</label>
+                  <select
+                    value={reassignScope.campus}
+                    onChange={(e) => handleReassignScopeChange('campus', e.target.value)}
+                    className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value="">Select campus</option>
+                    {campuses.map((campus) => {
+                      const value = campus.campus_id || campus.id || campus.name;
+                      return (
+                        <option key={value} value={value}>
+                          {campus.campus_name || campus.name || value}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>College</label>
+                  <select
+                    value={reassignScope.college}
+                    onChange={(e) => handleReassignScopeChange('college', e.target.value)}
+                    className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value="">Select college</option>
+                    {filteredColleges.map((college) => {
+                      const value = college.college_id || college.id || college.name;
+                      return (
+                        <option key={value} value={value}>
+                          {college.college_name || college.name || value}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Department</label>
+                  <select
+                    value={reassignScope.department}
+                    onChange={(e) => handleReassignScopeChange('department', e.target.value)}
+                    className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value="">Select department</option>
+                    {filteredDepartments.map((department) => {
+                      const value = department.department_id || department.id || department.department_name;
+                      return (
+                        <option key={value} value={value}>
+                          {department.department_name || department.name || value}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -555,9 +689,9 @@ const AdminComplaintDetail = () => {
                 value={reassignOfficerId}
                 onChange={(e) => setReassignOfficerId(e.target.value)}
                 className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                disabled={!selectedCategory}
+                disabled={!reassignScope.category}
               >
-                <option value="">{selectedCategory ? 'Select an officer...' : 'Assign category first'}</option>
+                <option value="">{reassignScope.category ? 'Select an officer...' : 'Assign category first'}</option>
                 {recommendedOfficers.map((officer) => {
                   return (
                     <option key={officer.id} value={officer.id}>
@@ -566,7 +700,7 @@ const AdminComplaintDetail = () => {
                   );
                 })}
               </select>
-              {selectedCategory && recommendedOfficers.length === 0 && (
+              {reassignScope.category && recommendedOfficers.length === 0 && (
                 <p className={`text-xs mt-1 ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
                   No active resolvers found for this category.
                 </p>

@@ -179,7 +179,7 @@ const InstitutionManagement = () => {
   const [departments, setDepartments] = useState([]);
   const [deptLoading, setDeptLoading] = useState(false);
   const [deptEditing, setDeptEditing] = useState(null);
-  const [deptForm, setDeptForm] = useState({ department_name: '', department_college: '' });
+  const [deptForm, setDeptForm] = useState({ department_name: '', department_code: '', department_college: '', description: '', is_active: true });
 
   const load = async (tab) => {
     if (tab === 'departments') {
@@ -234,7 +234,7 @@ const InstitutionManagement = () => {
           onAdd={() => {
             if (activeTab === 'departments') {
               setDeptEditing(null);
-              setDeptForm({ department_name: '', department_code: '', department_college: '', head: '', description: '', is_active: true });
+              setDeptForm({ department_name: '', department_code: '', department_college: '', description: '', is_active: true });
             }
             setTabMode('add');
           }}
@@ -268,7 +268,6 @@ const InstitutionManagement = () => {
                 { key: 'department_name', label: 'Department Name', required: true, placeholder: 'e.g. Computer Science' },
                 { key: 'department_code', label: 'Code', placeholder: 'e.g. CS' },
                 { key: 'department_college', label: 'College', required: true, type: 'select', options: colleges, displayKey: 'college_name' },
-                { key: 'head', label: 'Department Head', placeholder: 'e.g. Dr. Tigist Alemu' },
                 { key: 'description', label: 'Description', placeholder: 'Brief description...' },
                 { key: 'is_active', label: 'Active', type: 'checkbox' },
               ]}
@@ -284,17 +283,16 @@ const InstitutionManagement = () => {
                 { key: 'department_name', label: 'Name' },
                 { key: 'department_code', label: 'Code' },
                 { key: 'college_name', label: 'College', render: d => d.college_name || '—' },
-                { key: 'head', label: 'Head' },
                 { key: 'is_active', label: 'Active', render: d => d.is_active ? '✅' : '❌' },
               ]}
               onAdd={() => {
                 setDeptEditing(null);
-                setDeptForm({ department_name: '', department_code: '', department_college: '', head: '', description: '', is_active: true });
+                setDeptForm({ department_name: '', department_code: '', department_college: '', description: '', is_active: true });
                 setTabMode('add');
               }}
               onEdit={i => {
                 setDeptEditing(i);
-                setDeptForm({ department_name: i.department_name, department_code: i.department_code, department_college: i.department_college, head: i.head, description: i.description, is_active: i.is_active });
+                setDeptForm({ department_name: i.department_name, department_code: i.department_code, department_college: i.department_college, description: i.description, is_active: i.is_active });
                 setTabMode('edit');
               }}
               onDelete={id => handleDelete(id, apiService.deleteDepartment.bind(apiService), 'departments')}

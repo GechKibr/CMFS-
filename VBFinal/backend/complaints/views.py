@@ -57,7 +57,7 @@ class IsAdminRole(permissions.BasePermission):
 
 class AuthenticatedReadAdminWriteMixin:
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'by_language', 'officers']:
+        if self.action in ['list', 'retrieve', 'by_language', 'officers', 'other']:
             return [permissions.IsAuthenticated()]
         return [IsAdminRole()]
 
@@ -241,6 +241,50 @@ class CategoryResolverViewSet(AuthenticatedReadAdminWriteMixin, viewsets.ModelVi
             queryset = queryset.filter(department_id=department_id)
 
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='other')
+    def other(self, request):
+        """List resolvers excluding a given category, optionally filtered by complaint scope.
+
+        Query params:
+        - `exclude_category`: category id to exclude
+        - `complaint`: complaint id to filter resolvers that match the complaint scope
+        - `campus`, `college`, `department`: same filters as `get_queryset`
+        """
+        exclude_category = request.query_params.get('exclude_category')
+        complaint_id = request.query_params.get('complaint')
+
+        if complaint_id:
+            try:
+                complaint = Complaint.objects.get(pk=complaint_id)
+            except Complaint.DoesNotExist:
+                return DRFResponse({'error': 'Complaint not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            if not accessible_complaints_for(request.user).filter(pk=complaint.pk).exists():
+                return DRFResponse({'error': 'You do not have permission to view resolvers for this complaint.'}, status=status.HTTP_403_FORBIDDEN)
+
+        qs = self.get_queryset()
+        if exclude_category:
+            qs = qs.exclude(category_id=exclude_category)
+
+        campus = request.query_params.get('campus')
+        college = request.query_params.get('college')
+        department_id = request.query_params.get('department')
+        if campus is not None and campus != '':
+            qs = qs.filter(campus=campus)
+        if college is not None and college != '':
+            qs = qs.filter(college=college)
+        if department_id is not None and department_id != '':
+            qs = qs.filter(department_id=department_id)
+
+        if complaint_id:
+            # Filter resolvers that match the complaint's scope.
+            qs = [r for r in qs if r.matches_complaint_scope(complaint)]
+            serializer = CategoryResolverSerializer(qs, many=True)
+            return DRFResponse({'count': len(qs), 'results': serializer.data}, status=status.HTTP_200_OK)
+
+        serializer = CategoryResolverSerializer(qs, many=True)
+        return DRFResponse({'count': qs.count(), 'results': serializer.data}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='bulk-create')
     def bulk_create(self, request):
@@ -528,12 +572,18 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         resolver = None
         if resolver_id:
             resolver = get_object_or_404(CategoryResolver, resolver_id=resolver_id, active=True)
-            if resolver.category_id != getattr(complaint.category, 'id', None) and resolver.category_id != getattr(complaint.category, 'category_id', None):
-                return DRFResponse({'error': 'Selected resolver does not belong to this complaint category.'}, status=status.HTTP_400_BAD_REQUEST)
+            # Allow selecting a resolver that belongs to a different category, but ensure
+            # that the resolver actually matches the complaint scope and that the
+            # selected officer is a member of that resolver. If the resolver's
+            # category differs, we'll update the complaint.category to the resolver's
+            # category so that model validation remains consistent.
             if not resolver.officers.filter(officer=officer, active=True, officer__is_active=True).exists():
                 return DRFResponse({'error': 'Selected officer is not a member of the chosen resolver.'}, status=status.HTTP_400_BAD_REQUEST)
             if not resolver.matches_complaint_scope(complaint):
                 return DRFResponse({'error': 'Selected resolver does not match the complainant\'s campus/college/department.'}, status=status.HTTP_400_BAD_REQUEST)
+            if complaint.category_id != resolver.category_id:
+                # switch complaint category to match resolver's category
+                complaint.category = resolver.category
         else:
             for candidate in CategoryResolver.objects.filter(
                 category=complaint.category,
@@ -555,7 +605,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             resolver=resolver,
             reason='manual',
         )
-        complaint.assigned_officer = officer
+        complaint.claimed_by = officer
         complaint.current_resolver = resolver
         complaint.set_escalation_deadline(
             resolver.escalation_time,
@@ -573,8 +623,25 @@ class ComplaintViewSet(viewsets.ModelViewSet):
 
         officers_qs = User.objects.filter(role='officer', is_active=True).select_related('officer_profile')
 
-        if complaint.category_id:
-            officers = [officer for officer in officers_qs if complaint.category.matches_officer(officer)]
+        include_other = (request.query_params.get('include_other_categories') or '').lower() == 'true'
+
+        if complaint.category_id and not include_other:
+            officers = [officer for officer in officers_qs if complaint.category.matches_officer(officer, complaint)]
+        elif complaint.category_id and include_other:
+            # Include officers who are members of any active resolver that matches the complaint scope
+            resolver_scope_q = (
+                (models.Q(resolver__campus__isnull=True) | models.Q(resolver__campus=complaint.campus))
+                & (models.Q(resolver__college__isnull=True) | models.Q(resolver__college=complaint.college))
+                & (models.Q(resolver__department__isnull=True) | models.Q(resolver__department=complaint.department_id))
+            )
+
+            officer_ids = ResolverOfficer.objects.filter(
+                resolver__active=True,
+                active=True,
+                officer__is_active=True,
+            ).filter(resolver_scope_q).values_list('officer_id', flat=True).distinct()
+
+            officers = list(officers_qs.filter(id__in=officer_ids).order_by('first_name', 'last_name', 'email'))
         else:
             officers = list(officers_qs)
 
@@ -599,7 +666,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             return DRFResponse({'error': 'You do not have permission to reassign this complaint.'}, status=status.HTTP_403_FORBIDDEN)
         new_officer_id = request.data.get('officer_id')
         resolver_id = request.data.get('resolver_id')
-        reason = request.data.get('reason', 'manual reassignment')
+        reason_note = (request.data.get('reason') or '').strip()
         if not new_officer_id:
             return DRFResponse({'error': 'officer_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -608,12 +675,15 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         resolver = None
         if resolver_id:
             resolver = get_object_or_404(CategoryResolver, resolver_id=resolver_id, active=True)
-            if resolver.category_id != getattr(complaint.category, 'id', None) and resolver.category_id != getattr(complaint.category, 'category_id', None):
-                return DRFResponse({'error': 'Selected resolver does not belong to this complaint category.'}, status=status.HTTP_400_BAD_REQUEST)
+            # Same relaxed behavior as in `assign`: allow resolver from another
+            # category as long as it matches the complaint scope and the officer
+            # is a member. Update the complaint.category accordingly.
             if not resolver.officers.filter(officer=officer, active=True, officer__is_active=True).exists():
                 return DRFResponse({'error': 'Selected officer is not a member of the chosen resolver.'}, status=status.HTTP_400_BAD_REQUEST)
             if not resolver.matches_complaint_scope(complaint):
                 return DRFResponse({'error': 'Selected resolver does not match the complainant\'s campus/college/department.'}, status=status.HTTP_400_BAD_REQUEST)
+            if complaint.category_id != resolver.category_id:
+                complaint.category = resolver.category
         else:
             for candidate in CategoryResolver.objects.filter(
                 category=complaint.category,
@@ -636,10 +706,11 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             complaint=complaint,
             officer=officer,
             resolver=resolver,
-            reason=reason,
+            reason=Assignment.REASON_MANUAL,
+            note=reason_note,
         )
 
-        complaint.assigned_officer = officer
+        complaint.claimed_by = officer
         complaint.current_resolver = resolver
         complaint.save()
 

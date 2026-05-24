@@ -574,6 +574,27 @@ class ComplaintSerializer(serializers.ModelSerializer):
             return 0
         return obj.current_resolver.officers.filter(active=True, officer__is_active=True).count()
 
+    def update(self, instance, validated_data):
+        scope_fields = {'category', 'campus', 'college', 'department'}
+        scope_changed = any(field in validated_data for field in scope_fields)
+
+        next_category = validated_data.get('category', instance.category)
+        next_campus = validated_data.get('campus', instance.campus)
+        next_college = validated_data.get('college', instance.college)
+        next_department = validated_data.get('department', instance.department)
+
+        if scope_changed and instance.current_resolver_id:
+            matches_category = not next_category or instance.current_resolver.category_id == getattr(next_category, 'category_id', None)
+            matches_campus = not next_campus or instance.current_resolver.campus == next_campus
+            matches_college = not next_college or instance.current_resolver.college == next_college
+            matches_department = not next_department or instance.current_resolver.department_id == getattr(next_department, 'id', None)
+
+            if not (matches_category and matches_campus and matches_college and matches_department):
+                instance.current_resolver = None
+                instance.claimed_by = None
+
+        return super().update(instance, validated_data)
+
 
 class CommentSerializer(serializers.ModelSerializer):
     author = ComplaintUserSerializer(read_only=True)

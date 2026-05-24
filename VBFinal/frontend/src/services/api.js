@@ -395,8 +395,23 @@ class ApiService {
     });
   }
 
-  async getComplaintEligibleOfficers(id) {
-    return this.request(`/complaints/${id}/eligible-officers/`);
+  async getComplaintEligibleOfficers(id, { includeOther = false } = {}) {
+    const query = includeOther ? '?include_other_categories=true' : '';
+    return this.request(`/complaints/${id}/eligible-officers/${query}`);
+  }
+
+  async getOtherCategoryResolvers({ exclude_category = null, category = null, complaint = null, campus = null, college = null, department = null } = {}) {
+    const params = new URLSearchParams();
+    if (exclude_category) params.append('exclude_category', exclude_category);
+    if (category) params.append('category', category);
+    if (complaint) params.append('complaint', complaint);
+    if (campus) params.append('campus', campus);
+    if (college) params.append('college', college);
+    if (department) params.append('department', department);
+
+    const query = params.toString();
+    const endpoint = query ? `/resolver-assignments/other/?${query}` : '/resolver-assignments/other/';
+    return this.request(endpoint);
   }
 
   async changeComplaintStatus(id, statusValue) {

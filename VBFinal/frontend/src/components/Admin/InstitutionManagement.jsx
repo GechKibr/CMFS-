@@ -74,9 +74,7 @@ const BackButton = ({ isDark, onClick, label = 'Back' }) => (
 const SubTabLanding = ({ isDark, title, onView, onAdd }) => (
   <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow p-6`}>
     <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{title}</h3>
-    <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-      Choose what you want to do in this sub-tab.
-    </p>
+
     <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
       <button
         type="button"

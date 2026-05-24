@@ -28,6 +28,7 @@ const AdminCreateUser = () => {
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [campuses, setCampuses] = useState([]);
   const [colleges, setColleges] = useState([]);
+  const [collegeOptions, setCollegeOptions] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
@@ -59,6 +60,7 @@ const AdminCreateUser = () => {
 
       setCampuses(campusesData.results ?? campusesData ?? []);
       setColleges(collegesData.results ?? collegesData ?? []);
+      setCollegeOptions(collegesData.results ?? collegesData ?? []);
       setDepartments(departmentsData.results ?? departmentsData ?? []);
     } catch (requestError) {
       console.error('Failed to load user creation dependencies:', requestError);
@@ -72,6 +74,32 @@ const AdminCreateUser = () => {
     loadFormData();
   }, [loadFormData]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCampusColleges = async () => {
+      try {
+        const response = formData.user_campus
+          ? await apiService.getColleges(formData.user_campus)
+          : await apiService.getColleges();
+
+        if (cancelled) return;
+        setCollegeOptions(response.results ?? response ?? []);
+      } catch (requestError) {
+        if (!cancelled) {
+          console.error('Failed to load campus colleges:', requestError);
+          setCollegeOptions([]);
+        }
+      }
+    };
+
+    loadCampusColleges();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.user_campus]);
+
   const handleSidebarToggle = () => {
     if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
       setIsDesktopSidebarCollapsed((prev) => !prev);
@@ -79,12 +107,6 @@ const AdminCreateUser = () => {
     }
     setSidebarOpen((prev) => !prev);
   };
-
-  const filteredColleges = useMemo(() => (
-    formData.user_campus
-      ? colleges.filter((college) => String(college.college_campus) === String(formData.user_campus))
-      : colleges
-  ), [colleges, formData.user_campus]);
 
   const filteredDepartments = useMemo(() => (
     formData.college
@@ -104,6 +126,25 @@ const AdminCreateUser = () => {
     setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
+
+  const handleCampusChange = (e) => {
+    const campusId = e.target.value || '';
+    setFormData((prev) => ({
+      ...prev,
+      user_campus: campusId,
+      college: '',
+      department: '',
+    }));
+  };
+
+  const handleCollegeChange = (e) => {
+    const collegeId = e.target.value || '';
+    setFormData((prev) => ({
+      ...prev,
+      college: collegeId,
+      department: '',
     }));
   };
 
@@ -254,7 +295,7 @@ const AdminCreateUser = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Campus</label>
-                  <select name="user_campus" value={formData.user_campus} onChange={handleChange}
+                  <select name="user_campus" value={formData.user_campus} onChange={handleCampusChange}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}>
                     <option value="">Select Campus</option>
                     {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.campus_name}</option>)}
@@ -262,10 +303,10 @@ const AdminCreateUser = () => {
                 </div>
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>College</label>
-                  <select name="college" value={formData.college} onChange={handleChange}
+                  <select name="college" value={formData.college} onChange={handleCollegeChange}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}>
                     <option value="">Select College</option>
-                    {filteredColleges.map((college) => <option key={college.id} value={college.id}>{college.college_name}</option>)}
+                    {collegeOptions.map((college) => <option key={college.id} value={college.id}>{college.college_name}</option>)}
                   </select>
                 </div>
                 <div>

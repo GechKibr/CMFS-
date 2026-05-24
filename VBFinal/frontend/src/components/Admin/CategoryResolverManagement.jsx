@@ -23,6 +23,46 @@ const getUserLabel = (user) => {
   return getLabel(fullName, user?.full_name, user?.email, `User ${user?.id ?? ''}`);
 };
 const getResolverId = (resolver) => resolver?.resolver_id || resolver?.id || '';
+const DEFAULT_ESCALATION_DAYS = '0';
+const DEFAULT_ESCALATION_TIME = '02:00:00';
+
+const durationToFormValues = (duration) => {
+  if (!duration) {
+    return { days: DEFAULT_ESCALATION_DAYS, time: DEFAULT_ESCALATION_TIME };
+  }
+
+  const text = String(duration).trim();
+  const match = text.match(/^(?:(\d+)\s+)?(\d{1,2}):(\d{2}):(\d{2})$/);
+
+  if (!match) {
+    return { days: DEFAULT_ESCALATION_DAYS, time: text || DEFAULT_ESCALATION_TIME };
+  }
+
+  const days = Number(match[1] || 0);
+  const totalHours = Number(match[2] || 0) + (days * 24);
+  const derivedDays = Math.floor(totalHours / 24);
+  const derivedHours = totalHours % 24;
+
+  return {
+    days: String(derivedDays),
+    time: `${String(derivedHours).padStart(2, '0')}:${match[3]}:${match[4]}`,
+  };
+};
+
+const timeValueToDuration = (days, timeValue) => {
+  if (!timeValue) return '';
+
+  const value = String(timeValue).trim();
+  const parts = value.split(':');
+  const dayCount = Number(days || 0);
+
+  if (parts.length === 2) {
+    const duration = `${parts[0]}:${parts[1]}:00`;
+    return dayCount > 0 ? `${dayCount} ${duration}` : duration;
+  }
+
+  return dayCount > 0 ? `${dayCount} ${value}` : value;
+};
 
 const CategoryResolverManagement = () => {
   const { isDark } = useTheme();
@@ -31,6 +71,7 @@ const CategoryResolverManagement = () => {
   const [categories, setCategories] = useState([]);
   const [campuses, setCampuses] = useState([]);
   const [colleges, setColleges] = useState([]);
+  const [collegeOptions, setCollegeOptions] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [users, setUsers] = useState([]);
   const [editingResolver, setEditingResolver] = useState(null);
@@ -56,7 +97,8 @@ const CategoryResolverManagement = () => {
     department: '',
     officer: '',
     officer_ids: [],
-    escalation_time: '2 00:00:00',
+    escalation_days: DEFAULT_ESCALATION_DAYS,
+    escalation_time: DEFAULT_ESCALATION_TIME,
     active: true,
   });
 
@@ -67,7 +109,8 @@ const CategoryResolverManagement = () => {
     department: '',
     officer: '',
     officer_ids: [],
-    escalation_time: '2 00:00:00',
+    escalation_days: DEFAULT_ESCALATION_DAYS,
+    escalation_time: DEFAULT_ESCALATION_TIME,
     active: true,
   });
 
@@ -93,6 +136,7 @@ const CategoryResolverManagement = () => {
       setCategoryResolvers(resolversData?.results || resolversData || []);
       setCampuses(campusesData?.results || campusesData || []);
       setColleges(collegesData?.results || collegesData || []);
+      setCollegeOptions(collegesData?.results || collegesData || []);
       setDepartments(departmentsData?.results || departmentsData || []);
       setUsers(usersData?.results || usersData || []);
       setCategories(categoriesData?.results || categoriesData || []);
@@ -104,6 +148,28 @@ const CategoryResolverManagement = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCollegeOptions = async () => {
+      try {
+        const response = formData.campus ? await apiService.getColleges(formData.campus) : await apiService.getColleges();
+        if (cancelled) return;
+        setCollegeOptions(response?.results || response || []);
+      } catch {
+        if (!cancelled) {
+          setCollegeOptions([]);
+        }
+      }
+    };
+
+    loadCollegeOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.campus]);
 
   // College (academic unit) is independent choice data; keep full list.
   const filteredColleges = colleges;
@@ -202,7 +268,7 @@ const CategoryResolverManagement = () => {
         campus: formData.campus || null,
         college: formData.college || null,
         department: formData.department || null,
-        escalation_time: formData.escalation_time,
+        escalation_time: timeValueToDuration(formData.escalation_days, formData.escalation_time),
         active: formData.active,
       };
 
@@ -250,7 +316,7 @@ const CategoryResolverManagement = () => {
       department: resolver.department || '',
       officer: resolver.officer || '',
       officer_ids: existingOfficerIds,
-      escalation_time: resolver.escalation_time || '2 00:00:00',
+      ...durationToFormValues(resolver.escalation_time),
       active: resolver.active ?? true,
     });
     setPageMode('edit');
@@ -381,7 +447,7 @@ const CategoryResolverManagement = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">College</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Officer</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Escalation Time</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service Escalation Time</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
@@ -543,7 +609,7 @@ const CategoryResolverManagement = () => {
                 className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
               >
                 <option value="">General / All Colleges</option>
-                {filteredColleges.map((college) => (
+                {collegeOptions.map((college) => (
                   <option key={college.id} value={college.id}>
                     {getCollegeLabel(college)}
                   </option>
@@ -602,17 +668,28 @@ const CategoryResolverManagement = () => {
 
           <div>
             <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Escalation Time</label>
-            <input
-              type="text"
-              value={formData.escalation_time}
-              onChange={(e) => handleFormChange('escalation_time', e.target.value)}
-              className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-              placeholder="e.g. 2 00:00:00"
-              required
-            />
-            <p className={`mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              Use Django duration format: D HH:MM:SS (example: 2 00:00:00 for 2 days)
-            </p>
+            <div className="mt-1 grid grid-cols-[6rem_minmax(0,1fr)] gap-2">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={formData.escalation_days}
+                onChange={(e) => handleFormChange('escalation_days', e.target.value)}
+                className={`block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                aria-label="Escalation days"
+                placeholder="Days"
+                required
+              />
+              <input
+                type="time"
+                step="1"
+                value={formData.escalation_time}
+                onChange={(e) => handleFormChange('escalation_time', e.target.value)}
+                className={`mt-1 block w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                required
+              />
+            </div>
+
           </div>
 
           <div>
@@ -652,7 +729,7 @@ const CategoryResolverManagement = () => {
       {pageMode === 'home' && (
         <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow p-6`}>
           <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Category Resolver Assignments</h3>
-          <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Choose whether to view assignments or create a new one.</p>
+
           <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button onClick={openViewPage} className="px-4 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700">View Assignments</button>
             <button onClick={openCreatePage} className={`px-4 py-3 rounded-lg border font-medium ${isDark ? 'border-gray-600 text-gray-100 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>Add Assignment</button>

@@ -4,15 +4,6 @@ import { useTheme } from '../../contexts/ThemeContext';
 import apiService from '../../services/api';
 import { openRealtimeSocket } from '../../services/realtime';
 
-const formatTime = (value) => {
-  if (!value) return '';
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return value;
-  }
-};
-
 const formatMessageTime = (value) => {
   if (!value) return '';
   try {
@@ -75,7 +66,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
         ...comment,
         entry_type: normalizeEntryType(comment.comment_type || comment.entry_type || 'comment'),
       }));
-      
+
       const filteredComments = normalizedComments.filter((c) => {
         const msg = (c.message || '').toString().trim();
         return msg.length > 0;
@@ -247,7 +238,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
         setDraftTitle('Officer Response');
       }
       await loadThread();
-      
+
       // Focus back on input after sending
       setTimeout(() => {
         messageInputRef.current?.focus();
@@ -352,7 +343,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
       </div>
 
       {/* Messages Area */}
-      <div 
+      <div
         ref={listRef}
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-[400px] max-h-[500px]"
@@ -378,7 +369,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
                 ? 'bg-gray-700 text-gray-100'
                 : 'bg-gray-100 text-gray-800';
             const bubbleRounded = isResponse ? 'rounded-l-2xl rounded-br-2xl' : 'rounded-r-2xl rounded-bl-2xl';
-            
+
             return (
               <div key={`${item.kind}-${item.id}`} className={`flex ${bubbleAlign} ${isLastMessage ? 'mb-2' : ''}`}>
                 <div className={`max-w-[70%] ${bubbleAlign === 'justify-end' ? 'items-end' : 'items-start'} flex flex-col`}>
@@ -390,19 +381,19 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
                         {item.author?.first_name || item.author?.username || 'User'}
                       </p>
                     )}
-                    
+
                     {/* Message content */}
                     <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
                       {item.message}
                     </p>
-                    
+
                     {/* Response title */}
                     {isResponse && item.title && (
                       <p className={`text-xs mt-1 font-medium opacity-80 ${isResponse && isDark ? 'text-blue-200' : isResponse ? 'text-blue-100' : ''}`}>
                         📌 {item.title}
                       </p>
                     )}
-                    
+
                     {/* Time stamp */}
                     <div className={`flex items-center gap-2 mt-1 ${isResponse ? 'justify-end' : 'justify-start'}`}>
                       <p className={`text-[10px] opacity-70 ${isResponse ? 'text-blue-100' : isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -426,16 +417,15 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
                       )}
                     </div>
                   </div>
-                  
+
                   {/* Avatar/Indicator for messages */}
                   <div className={`flex items-center gap-1 mt-1 ${bubbleAlign === 'justify-end' ? 'flex-row-reverse' : 'flex-row'}`}>
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      isResponse 
-                        ? 'bg-blue-500 text-white' 
-                        : isDark 
-                          ? 'bg-gray-600 text-gray-300' 
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isResponse
+                        ? 'bg-blue-500 text-white'
+                        : isDark
+                          ? 'bg-gray-600 text-gray-300'
                           : 'bg-gray-300 text-gray-700'
-                    }`}>
+                      }`}>
                       {isResponse ? 'O' : 'U'}
                     </div>
                     <p className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -453,9 +443,8 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
       {showScrollButton && (
         <button
           onClick={scrollToBottom}
-          className={`absolute bottom-24 right-6 p-2 rounded-full shadow-lg transition-all ${
-            isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-white hover:bg-gray-50 text-gray-700'
-          } border ${isDark ? 'border-gray-600' : 'border-gray-200'}`}
+          className={`absolute bottom-24 right-6 p-2 rounded-full shadow-lg transition-all ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-white hover:bg-gray-50 text-gray-700'
+            } border ${isDark ? 'border-gray-600' : 'border-gray-200'}`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
@@ -476,11 +465,10 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
             <input
               value={draftTitle}
               onChange={(e) => setDraftTitle(e.target.value)}
-              className={`w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
-                isDark 
-                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500' 
+              className={`w-full rounded-lg border px-3 py-2 text-sm transition-colors ${isDark
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
                   : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-400'
-              } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
               placeholder="Response title (optional)"
             />
           </div>
@@ -494,18 +482,17 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
             onKeyPress={handleKeyPress}
             rows={3}
             disabled={canComment && responses.length === 0}
-            className={`flex-1 rounded-xl border px-3 py-2 text-sm outline-none resize-none transition-colors ${
-              isDark 
-                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500' 
+            className={`flex-1 rounded-xl border px-3 py-2 text-sm outline-none resize-none transition-colors ${isDark
+                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-400'
-            } focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed`}
+              } focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed`}
             placeholder={
               canRespond
                 ? 'Write your response... (Press Enter to send, Shift+Enter for new line)'
                 : 'Write your reply... (Press Enter to send, Shift+Enter for new line)'
             }
           />
-          
+
           <button
             onClick={submitMessage}
             disabled={sending || !draftMessage.trim() || (canComment && responses.length === 0)}
@@ -526,7 +513,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
             )}
           </button>
         </div>
-        
+
         <div className={`mt-2 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'} flex justify-between`}>
           <span>Press <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>Enter</kbd> to send, <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>Shift+Enter</kbd> for new line</span>
           <span>{draftMessage.length} characters</span>

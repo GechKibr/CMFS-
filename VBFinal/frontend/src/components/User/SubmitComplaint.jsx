@@ -6,7 +6,7 @@ import apiService from '../../services/api';
 
 const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
   const { isDark } = useTheme();
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
@@ -567,7 +567,7 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
       if (response) {
         clearForm();
         setSubmitSuccess(true);
-        
+
         // Call the onComplaintSubmitted callback to trigger refresh in MyComplaints
         if (onComplaintSubmitted) {
           onComplaintSubmitted();

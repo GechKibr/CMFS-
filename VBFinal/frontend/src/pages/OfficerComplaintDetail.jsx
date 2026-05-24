@@ -71,12 +71,6 @@ const OfficerComplaintDetail = () => {
     })).filter((file) => Boolean(file.url));
   }, [complaint]);
 
-  const timelineHighlights = useMemo(() => {
-    if (!complaint) return [];
-    const entries = Array.isArray(complaint.timeline_entries) ? complaint.timeline_entries : [];
-    return entries.slice(-4).reverse();
-  }, [complaint]);
-
   const currentResolver = complaint?.current_resolver?.scope_label || complaint?.current_resolver?.category_name || 'Unassigned';
   const claimedByLabel = complaint?.claimed_by
     ? `${complaint.claimed_by.first_name || ''} ${complaint.claimed_by.last_name || ''}`.trim() || complaint.claimed_by.email

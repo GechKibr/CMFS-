@@ -2,13 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useLanguage } from '../../contexts/LanguageContext';
 import apiService from '../../services/api';
 
-const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false, showLanguageToggle = false }) => {
+const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false }) => {
   const { isDark, toggleTheme } = useTheme();
   const { user, logout, getUserRole } = useAuth();
-  const { language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
   // const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -138,9 +136,6 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false, sh
   const iconButtonClasses = isDark
     ? 'text-slate-300 hover:bg-blue-500/15 hover:text-blue-200'
     : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700';
-  const languageButtonClasses = isDark
-    ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50';
   // const activeLinkClasses = isDark
   //   ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
   //   : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm';
@@ -188,7 +183,7 @@ const DashboardNavbar = ({ onSidebarToggle, showOfficerNotifications = false, sh
 
         {/* Right: Theme Toggle and User Menu */}
         <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
-         
+
 
           {shouldShowNotifications && (
             <div className="relative">

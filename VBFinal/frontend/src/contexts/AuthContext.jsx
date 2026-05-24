@@ -22,8 +22,15 @@ export const AuthProvider = ({ children }) => {
     const token = authService.getToken();
 
     if (currentUser && token) {
-      setUser(currentUser);
       apiService.setToken(token);
+
+      try {
+        const profile = await apiService.getCurrentUserProfile();
+        setUser(profile);
+        authService.setAuthData({ user: profile });
+      } catch {
+        setUser(currentUser);
+      }
 
       // Verify token in background, don't block UI
       authService.verifyToken().then(isValid => {
@@ -48,8 +55,16 @@ export const AuthProvider = ({ children }) => {
   const login = async (identifier, password) => {
     try {
       const response = await authService.login(identifier, password);
-      setUser(response.user);
       apiService.setToken(response.access);
+
+      try {
+        const profile = await apiService.getCurrentUserProfile();
+        setUser(profile);
+        authService.setAuthData({ user: profile, access: response.access, refresh: response.refresh });
+      } catch {
+        setUser(response.user);
+      }
+
       return response;
     } catch (error) {
       throw error;

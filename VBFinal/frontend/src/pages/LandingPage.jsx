@@ -4,6 +4,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import PublicNavbar from '../components/UI/PublicNavbar';
 import PublicFooter from '../components/UI/PublicFooter';
 
+// Microsoft OAuth Configuration
+const MICROSOFT_CLIENT_ID = '717df1e7-c444-4623-99e6-7dcebc53d49b';
+const MICROSOFT_REDIRECT_URI = `${window.location.origin}/auth/microsoft/callback`;
+const MICROSOFT_AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
+const MICROSOFT_SCOPE = 'openid email profile User.Read';
+
 const featureCards = [
   {
     slug: 'complaints',
@@ -56,6 +62,7 @@ const featureCards = [
   },
 ];
 
+// Workflow steps - 4 steps
 const workflowSteps = [
   {
     title: 'Submit Request',
@@ -66,17 +73,6 @@ const workflowSteps = [
       </svg>
     ),
     color: 'blue',
-  },
-  {
-    title: 'System Assigns',
-    description: 'Routes to the right department',
-    icon: (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 7.5h15M4.5 12h15M4.5 16.5h10" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17.5 15.5l2 2 3-3" />
-      </svg>
-    ),
-    color: 'purple',
   },
   {
     title: 'Staff Handles',
@@ -209,23 +205,24 @@ const renderFeaturePreview = (slug, isDark) => {
     );
   }
 
+  // Helpdesk preview with IMAGE
   return (
     <div className={`rounded-2xl border p-3 ${surface}`}>
-      <div className="flex items-center justify-between text-[11px] font-semibold uppercase text-rose-600 dark:text-rose-300">
-        <span>Chat</span>
-        <span>Live</span>
+      <div className="flex items-center justify-between text-[11px] font-semibold uppercase text-rose-600 dark:text-rose-300 mb-2">
+        <span>Live Support</span>
+        <span>24/7</span>
       </div>
-      <div className="mt-3 space-y-2">
-        <div className="ml-auto max-w-[82%] rounded-2xl rounded-tr-sm bg-gradient-to-r from-rose-500 to-pink-500 px-3 py-2 text-xs font-medium text-white">
-          Thank you, we are checking now.
-        </div>
-        <div className={`max-w-[82%] rounded-2xl rounded-tl-sm px-3 py-2 text-xs font-medium ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-          I need assistance.
-        </div>
-        <div className={`flex items-center gap-1 rounded-2xl rounded-tl-sm px-3 py-2 text-xs ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-          <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
-          Typing...
-        </div>
+      <img 
+        src="/helpdesk.jpg" 
+        alt="Helpdesk Support" 
+        className="w-full h-32 object-cover rounded-xl"
+        onError={(e) => {
+          e.target.onerror = null;
+          e.target.src = "https://via.placeholder.com/300x150?text=Helpdesk+Support";
+        }}
+      />
+      <div className="mt-2 text-center">
+        <p className="text-xs text-green-600 dark:text-green-400 font-semibold">● Live Agents Available</p>
       </div>
     </div>
   );
@@ -239,10 +236,27 @@ const LandingPage = () => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // Microsoft login redirect
+  // Microsoft login redirect function
   const handleMicrosoftLogin = () => {
-    const API_BASE = import.meta.env.VITE_API_URL || '/api';
-    window.location.href = `${API_BASE}/accounts/microsoft/login/`;
+    // Generate random state for security
+    const state = Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('oauth_state', state);
+    
+    // Build the Microsoft login URL
+    const params = new URLSearchParams({
+      client_id: MICROSOFT_CLIENT_ID,
+      response_type: 'code',
+      redirect_uri: MICROSOFT_REDIRECT_URI,
+      scope: MICROSOFT_SCOPE,
+      response_mode: 'query',
+      state: state,
+      prompt: 'select_account'
+    });
+    
+    const loginUrl = `${MICROSOFT_AUTH_URL}?${params.toString()}`;
+    
+    // Redirect to Microsoft login page
+    window.location.href = loginUrl;
   };
 
   return (
@@ -257,7 +271,7 @@ const LandingPage = () => {
           <div className="absolute left-[-10rem] bottom-32 h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl animate-pulse delay-2000" />
         </div>
 
-        {/* HERO SECTION - Main Campus Image Only */}
+        {/* HERO SECTION - Main Campus Image */}
         <section className="relative min-h-screen flex items-center">
           {/* Background Image - Main Campus */}
           <div className="absolute inset-0 z-0">
@@ -270,7 +284,6 @@ const LandingPage = () => {
                 e.target.src = "/uog.png";
               }}
             />
-            {/* Lighter gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-r from-slate-900/50 via-slate-900/30 to-transparent"></div>
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent"></div>
             <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-slate-950 to-transparent"></div>
@@ -374,7 +387,7 @@ const LandingPage = () => {
           </div>
         </section>
 
-        {/* Campus Showcase Section - Images Only (No Descriptions) */}
+        {/* Campus Showcase Section - Images Only */}
         <section className="py-24 bg-gradient-to-br from-slate-100 to-blue-50 dark:from-slate-800 dark:to-slate-900">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <Reveal>
@@ -443,7 +456,7 @@ const LandingPage = () => {
 
             <div className="relative mt-16">
               <div className="absolute left-8 right-8 top-10 hidden h-px bg-gradient-to-r from-blue-200 via-indigo-300 to-cyan-200 lg:block dark:from-slate-700 dark:via-slate-600 dark:to-slate-700" />
-              <div className="grid gap-6 lg:grid-cols-5">
+              <div className="grid gap-6 lg:grid-cols-4">
                 {workflowSteps.map((step, index) => (
                   <Reveal key={step.title} delay={index * 100}>
                     <div className={`text-center p-6 rounded-2xl border transition-all hover:-translate-y-2 hover:shadow-xl ${isDark ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-white'}`}>

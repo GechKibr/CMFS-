@@ -52,20 +52,34 @@ const PublicNavbar = () => {
     setMobileMenuOpen(false);
   };
 
+  // NEUTRAL HEADER CLASSES - No blue borders
   const headerClasses = isDark
-    ? 'bg-slate-950/90 border-slate-700/80'
-    : 'bg-white/90 border-blue-100';
+    ? 'bg-slate-950/90 border-slate-800'
+    : 'bg-white/90 border-gray-200';
+  
+  // NEUTRAL ICON BUTTONS - No blue hover
   const iconButtonClasses = isDark
-    ? 'text-slate-300 hover:bg-blue-500/15 hover:text-blue-200'
-    : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700';
+    ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+    : 'text-slate-600 hover:bg-gray-100 hover:text-slate-900';
   
-  // Navigation links now use the SAME gradient as Sign In button
-  const navLinkClasses = `px-5 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg`;
+  // NEUTRAL NAVIGATION LINKS - No gradient, just clean gray
+  const navLinkClasses = `px-5 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 
+    ${isDark 
+      ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' 
+      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`;
   
+  // NEUTRAL USER MENU - No blue
   const userMenuTriggerClasses = isDark
-    ? 'hover:bg-blue-500/15'
-    : 'hover:bg-blue-50';
-  const dividerClasses = isDark ? 'bg-slate-600' : 'bg-blue-100';
+    ? 'hover:bg-slate-800'
+    : 'hover:bg-gray-100';
+  
+  // NEUTRAL DIVIDER
+  const dividerClasses = isDark ? 'bg-slate-700' : 'bg-gray-300';
+  
+  // NEUTRAL AVATAR BACKGROUND
+  const avatarClasses = isDark
+    ? 'bg-slate-700 text-slate-200'
+    : 'bg-gray-200 text-gray-700';
 
   return (
     <header className={`${headerClasses} backdrop-blur-md shadow-md border-b fixed top-0 left-0 right-0 z-50`}>
@@ -84,20 +98,21 @@ const PublicNavbar = () => {
 
           <div className="flex items-center cursor-pointer hover:opacity-80 transition-opacity duration-200" onClick={() => navigate('/')}>
             <div className="flex items-center space-x-3.5">
-              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-lg shadow-md">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {/* NEUTRAL LOGO ICON - No gradient */}
+              <div className={`p-2.5 rounded-lg shadow-md ${isDark ? 'bg-slate-800' : 'bg-gray-200'}`}>
+                <svg className={`w-6 h-6 ${isDark ? 'text-slate-200' : 'text-gray-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <div>
                 <h1 className={`text-xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>CMTS</h1>
-                <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Service System</p>
+                <p className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>Service System</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Navigation Items - RIGHT SIDE with gradient color same as Sign In */}
+        {/* Navigation Items - RIGHT SIDE - Neutral colors */}
         {showPublicLinks && (
           <div className="hidden lg:flex items-center space-x-1 ml-auto">
             {navItems.map((item) => (
@@ -149,26 +164,26 @@ const PublicNavbar = () => {
 
           <div className={`hidden sm:block h-8 ${dividerClasses}`} style={{ width: '1px' }}></div>
 
-          {/* User Menu or Sign In Button */}
+          {/* User Menu or Sign In Button - NEUTRAL Sign In button */}
           {user ? (
             <div className="relative">
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
                 className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${userMenuTriggerClasses}`}
               >
-                <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm">
+                <div className={`w-9 h-9 ${avatarClasses} rounded-full flex items-center justify-center text-sm font-bold shadow-sm`}>
                   {getUserInitials()}
                 </div>
                 <div className="hidden sm:flex flex-col items-start">
                   <span className={`text-sm font-semibold ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                     {user?.first_name || 'User'}
                   </span>
-                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
                     {user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Member'}
                   </span>
                 </div>
                 <svg
-                  className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'} transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}
+                  className={`w-5 h-5 ${isDark ? 'text-gray-500' : 'text-gray-500'} transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -219,7 +234,10 @@ const PublicNavbar = () => {
             location.pathname !== '/login' && (
               <button
                 onClick={() => navigate('/login')}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg"
+                className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-md hover:shadow-lg 
+                  ${isDark 
+                    ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' 
+                    : 'bg-gray-800 text-white hover:bg-gray-900'}`}
               >
                 Sign In
               </button>
@@ -228,16 +246,19 @@ const PublicNavbar = () => {
         </div>
       </nav>
 
-      {/* Mobile Menu - also with gradient colors */}
+      {/* Mobile Menu - Neutral colors */}
       {showPublicLinks && (
-        <div className={`lg:hidden absolute top-full left-0 right-0 px-6 sm:px-8 pb-4 border-t shadow-md ${isDark ? 'border-slate-700 bg-slate-950/95' : 'border-blue-100 bg-white/95'} ${mobileMenuOpen ? 'block' : 'hidden'}`}>
+        <div className={`lg:hidden absolute top-full left-0 right-0 px-6 sm:px-8 pb-4 border-t shadow-md ${isDark ? 'border-slate-800 bg-slate-950/95' : 'border-gray-200 bg-white/95'} ${mobileMenuOpen ? 'block' : 'hidden'}`}>
           <div className="flex flex-col space-y-2">
             {navItems.map((item) => (
               <a
                 key={item.name}
                 href={item.path}
                 onClick={(e) => { handleNavClick(e, item.path); setMobileMenuOpen(false); }}
-                className="px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md hover:from-blue-700 hover:to-indigo-700 text-center"
+                className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 text-center
+                  ${isDark 
+                    ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
               >
                 {item.name}
               </a>

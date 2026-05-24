@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 
 import jwt
 import requests
+from django.contrib.auth import get_user_model
 from django.http import JsonResponse
 
 
@@ -18,11 +19,11 @@ from rest_framework.response import Response
 from .microsoft_auth_service import (
     generate_jwt_pair_for_user,
     normalize_microsoft_profile,
-    upsert_microsoft_user,
 )
 
 
 logger = logging.getLogger(__name__)
+User = get_user_model()
 
 
 class MicrosoftTokenValidationError(Exception):
@@ -184,6 +185,46 @@ def _build_auth_payload(user, profile, is_new):
     }
 
 
+def _link_existing_microsoft_user(profile, microsoft_id=None, first_name='', last_name=''):
+    user = None
+
+    if microsoft_id:
+        user = User.objects.filter(microsoft_id=microsoft_id).first()
+
+    if not user:
+        user = User.objects.filter(email__iexact=profile['email']).first()
+
+    if not user:
+        return None
+
+    update_fields = []
+
+    if microsoft_id and not user.microsoft_id:
+        user.microsoft_id = microsoft_id
+        update_fields.append('microsoft_id')
+
+    if user.auth_provider == User.AUTH_LOCAL:
+        user.auth_provider = User.AUTH_MICROSOFT
+        update_fields.append('auth_provider')
+
+    if not user.is_email_verified:
+        user.is_email_verified = True
+        update_fields.append('is_email_verified')
+
+    if first_name and not user.first_name:
+        user.first_name = first_name
+        update_fields.append('first_name')
+
+    if last_name and not user.last_name:
+        user.last_name = last_name
+        update_fields.append('last_name')
+
+    if update_fields:
+        user.save(update_fields=update_fields)
+
+    return user
+
+
 def _handle_mobile_microsoft_auth(request):
     access_token = (request.data.get('access_token') or '').strip()
     id_token = (request.data.get('id_token') or '').strip()
@@ -232,10 +273,28 @@ def _handle_mobile_microsoft_auth(request):
         if user_info is None and claims:
             user_info = _user_info_from_claims(claims)
 
-        user, is_new = upsert_microsoft_user(user_info)
-        payload = _build_auth_payload(user, profile, is_new)
+        user = _link_existing_microsoft_user(
+            profile,
+            microsoft_id=profile.get('microsoft_id'),
+            first_name=profile.get('first_name', ''),
+            last_name=profile.get('last_name', ''),
+        )
 
-        return Response(payload, status=status.HTTP_200_OK)
+        if user:
+            payload = _build_auth_payload(user, profile, False)
+            return Response(payload, status=status.HTTP_200_OK)
+
+        return Response(
+            {
+                'user_exists': False,
+                'is_new': True,
+                'requires_registration': True,
+                'next_step': 'register',
+                'email': profile['email'].lower(),
+                'profile': profile,
+            },
+            status=status.HTTP_200_OK,
+        )
     except MicrosoftTokenValidationError as exc:
         return Response({'error': str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
 

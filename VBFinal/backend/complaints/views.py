@@ -66,24 +66,37 @@ def accessible_complaints_for(user):
     if not user or not user.is_authenticated:
         return Complaint.objects.none()
     if user.is_admin():
-        return Complaint.objects.all()
+        return (
+            Complaint.objects.all()
+            .select_related('category', 'current_resolver', 'claimed_by', 'submitted_by')
+            .prefetch_related('attachments', 'timeline_entries', 'cc_list')
+        )
     if user.is_officer():
         resolver_scope_q = (
             (models.Q(category__resolvers__campus__isnull=True) | models.Q(category__resolvers__campus=models.F('campus')))
             & (models.Q(category__resolvers__college__isnull=True) | models.Q(category__resolvers__college=models.F('college')))
             & (models.Q(category__resolvers__department__isnull=True) | models.Q(category__resolvers__department=models.F('department')))
         )
-        return Complaint.objects.filter(
-            models.Q(submitted_by=user)
-            | models.Q(claimed_by=user)
-            | models.Q(cc_list__email=user.email)
-            | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
-            | (
-                models.Q(category__resolvers__officers__officer=user, category__resolvers__active=True, category__resolvers__officers__active=True)
-                & resolver_scope_q
+        return (
+            Complaint.objects.filter(
+                models.Q(submitted_by=user)
+                | models.Q(claimed_by=user)
+                | models.Q(cc_list__email=user.email)
+                | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
+                | (
+                    models.Q(category__resolvers__officers__officer=user, category__resolvers__active=True, category__resolvers__officers__active=True)
+                    & resolver_scope_q
+                )
             )
-        ).distinct().select_related('category', 'current_resolver', 'claimed_by')
-    return Complaint.objects.filter(submitted_by=user)
+            .distinct()
+            .select_related('category', 'current_resolver', 'claimed_by', 'submitted_by')
+            .prefetch_related('attachments', 'timeline_entries', 'cc_list')
+        )
+    return (
+        Complaint.objects.filter(submitted_by=user)
+        .select_related('category', 'current_resolver', 'claimed_by', 'submitted_by')
+        .prefetch_related('attachments', 'timeline_entries', 'cc_list')
+    )
 
 
 def can_manage_complaint(user, complaint):
@@ -517,7 +530,12 @@ class ComplaintViewSet(viewsets.ModelViewSet):
                 )
             )
 
-        complaints_qs = complaints_qs.distinct().select_related('category', 'current_resolver', 'claimed_by').order_by('-created_at')
+        complaints_qs = (
+            complaints_qs.distinct()
+            .select_related('category', 'current_resolver', 'claimed_by', 'submitted_by')
+            .prefetch_related('attachments', 'timeline_entries', 'cc_list')
+            .order_by('-created_at')
+        )
 
         serializer = ComplaintSerializer(complaints_qs, many=True, context={'request': request})
         return DRFResponse({'count': complaints_qs.count(), 'results': serializer.data}, status=status.HTTP_200_OK)
@@ -846,7 +864,14 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='cc')
     def cc_complaints(self, request):
         user_email = request.user.email
-        cc_complaints = Complaint.objects.filter(cc_list__email=user_email).distinct().order_by('-created_at')
+        cc_complaints = (
+            Complaint.objects
+            .filter(cc_list__email=user_email)
+            .distinct()
+            .select_related('category', 'current_resolver', 'claimed_by', 'submitted_by')
+            .prefetch_related('attachments', 'timeline_entries', 'cc_list')
+            .order_by('-created_at')
+        )
         serializer = ComplaintSerializer(cc_complaints, many=True, context={'request': request})
         return DRFResponse(serializer.data, status=status.HTTP_200_OK)
 
@@ -1153,15 +1178,21 @@ class AssignmentViewSet(viewsets.ModelViewSet):
 
         # Return complaints routed to this officer either through an active assignment row
         # or through the current resolver membership queue.
-        complaints_qs = Complaint.objects.filter(
-            models.Q(assignments__officer=user, assignments__ended_at__isnull=True)
-            | models.Q(claimed_by=user)
-            | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
-            | (
-                models.Q(category__resolvers__officers__officer=user, category__resolvers__active=True, category__resolvers__officers__active=True)
-                & resolver_scope_q
+        complaints_qs = (
+            Complaint.objects.filter(
+                models.Q(assignments__officer=user, assignments__ended_at__isnull=True)
+                | models.Q(claimed_by=user)
+                | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
+                | (
+                    models.Q(category__resolvers__officers__officer=user, category__resolvers__active=True, category__resolvers__officers__active=True)
+                    & resolver_scope_q
+                )
             )
-        ).distinct().select_related('category', 'current_resolver', 'claimed_by').order_by('-created_at')
+            .distinct()
+            .select_related('category', 'current_resolver', 'claimed_by', 'submitted_by')
+            .prefetch_related('attachments', 'timeline_entries', 'cc_list')
+            .order_by('-created_at')
+        )
 
         serializer = ComplaintSerializer(complaints_qs, many=True, context={'request': request})
         return DRFResponse({'count': complaints_qs.count(), 'results': serializer.data}, status=status.HTTP_200_OK)

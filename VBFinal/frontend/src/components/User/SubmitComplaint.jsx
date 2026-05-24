@@ -109,16 +109,24 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
 
     try {
       const resolverData = await apiService.getAllCategoryResolvers();
-      const normalizedResolvers = (resolverData?.results || resolverData || []).map((resolver) => ({
-        ...resolver,
-        id: resolver.resolver_id || resolver.id,
-        officer_name: resolver.category_name || resolver.scope_label || 'Resolver route',
-        scope_label: resolver.scope_label || resolver.category_name || 'Resolver route',
-        campus_name: resolver.campus_name || '',
-        college_name: resolver.college_name || '',
-        department_name: resolver.department_name || '',
-        officer: resolver.officer || null,
-      }));
+      const normalizedResolvers = (resolverData?.results || resolverData || []).map((resolver) => {
+        // Extract first officer from officers array if available
+        const firstOfficer = resolver.officers && resolver.officers.length > 0 ? resolver.officers[0] : null;
+        const officerId = firstOfficer?.id || resolver.officer_id || null;
+        const officerName = firstOfficer ? `${firstOfficer.first_name} ${firstOfficer.last_name}`.trim() || firstOfficer.email : (resolver.officer_name || '');
+        
+        return {
+          ...resolver,
+          id: resolver.resolver_id || resolver.id,
+          officer_id: officerId,
+          officer_name: officerName || resolver.scope_label || 'Resolver route',
+          scope_label: resolver.scope_label || resolver.category_name || 'Resolver route',
+          campus_name: resolver.campus_name || '',
+          college_name: resolver.college_name || '',
+          department_name: resolver.department_name || '',
+          officers: resolver.officers || [],
+        };
+      });
       setCategoryResolvers(normalizedResolvers);
     } catch (error) {
       console.warn('Failed to load category resolvers:', error);
@@ -364,7 +372,7 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
   }, [complaintScopedResolvers, selectedResolverIds]);
 
   useEffect(() => {
-    const officerIds = Array.from(new Set(selectedResolverRoutes.map((resolver) => String(resolver.officer))));
+    const officerIds = Array.from(new Set(selectedResolverRoutes.map((resolver) => String(resolver.officer_id || resolver.officer)).filter(Boolean)));
     setResolverOfficerIds(officerIds);
   }, [selectedResolverRoutes]);
 
@@ -532,9 +540,12 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
       // CC CategoryResolver officers as JSON
       if (ccOfficerIds.length > 0) {
         const ccOfficerNumbers = ccOfficerIds
-          .map((id) => selectedCategoryResolvers.find((resolver) => String(resolver.id) === String(id)))
-          .filter(Boolean)
-          .map((resolver) => resolver.officer)
+          .map((id) => {
+            const resolver = selectedCategoryResolvers.find((resolver) => String(resolver.id) === String(id));
+            if (!resolver) return null;
+            // Get officer ID from the resolver
+            return resolver.officer_id || (resolver.officers && resolver.officers[0]?.id);
+          })
           .filter(Boolean)
           .map(Number);
 

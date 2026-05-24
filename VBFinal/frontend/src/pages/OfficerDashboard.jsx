@@ -94,7 +94,7 @@ const OfficerDashboard = () => {
     }
   }, []);
 
-  const fetchCCComplaints = async () => {
+  const fetchCCComplaints = useCallback(async () => {
     try {
       const data = await apiService.getCCComplaints();
       setCcComplaints(Array.isArray(data) ? data : data.results || []);
@@ -102,7 +102,7 @@ const OfficerDashboard = () => {
       console.error('Error fetching CC complaints:', error);
       setCcComplaints([]);
     }
-  };
+  }, []);
 
   const fetchOfficers = async () => {
     try {
@@ -136,7 +136,7 @@ const OfficerDashboard = () => {
     if (activeTab === 'dashboard') {
       fetchTemplates();
     }
-  }, [activeTab, user?.id, fetchComplaints]);
+  }, [activeTab, user?.id, fetchComplaints, fetchCCComplaints]);
 
 
   const handleReassign = async () => {

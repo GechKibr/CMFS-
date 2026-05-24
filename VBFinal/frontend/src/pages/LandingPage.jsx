@@ -639,7 +639,7 @@ const LandingPage = () => {
 
       <PublicFooter />
 
-      <style jsx>{`
+      <style>{`
         @keyframes float-card-slow {
           0% { transform: translateY(0px); }
           50% { transform: translateY(-15px); }

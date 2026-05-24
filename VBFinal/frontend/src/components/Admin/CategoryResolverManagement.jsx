@@ -303,16 +303,24 @@ const CategoryResolverManagement = () => {
   const handleEdit = (resolver) => {
     setEditingResolver(resolver);
     // Try to read existing officer membership from resolver.officer_ids or resolver.officers
-    const existingOfficerIds = (resolver.officer_ids && Array.isArray(resolver.officer_ids) && resolver.officer_ids.length)
-      ? resolver.officer_ids.map((id) => String(id))
-      : (resolver.officer ? [String(resolver.officer)] : []);
+    let existingOfficerIds = [];
+    
+    if (resolver.officer_ids && Array.isArray(resolver.officer_ids) && resolver.officer_ids.length) {
+      existingOfficerIds = resolver.officer_ids.map((id) => String(id));
+    } else if (resolver.officers && Array.isArray(resolver.officers) && resolver.officers.length) {
+      existingOfficerIds = resolver.officers.map((officer) => String(officer.id));
+    } else if (resolver.officer_id) {
+      existingOfficerIds = [String(resolver.officer_id)];
+    } else if (resolver.officer) {
+      existingOfficerIds = [String(resolver.officer)];
+    }
 
     setFormData({
       category: resolver.category || '',
       campus: resolver.campus || '',
       college: resolver.college || '',
       department: resolver.department || '',
-      officer: resolver.officer || '',
+      officer: resolver.officer_id || resolver.officer || '',
       officer_ids: existingOfficerIds,
       ...durationToFormValues(resolver.escalation_time),
       active: resolver.active ?? true,

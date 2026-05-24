@@ -213,7 +213,14 @@ const AdminComplaintDetail = () => {
           String(resolver.category) === String(reassignScope.category) &&
           resolver.active
       )
-      .map((resolver) => resolver.officer);
+      .map((resolver) => {
+        // Extract officer ID from resolver - could be officer_id field or from officers array
+        if (resolver.officer_id) return resolver.officer_id;
+        if (resolver.officers && Array.isArray(resolver.officers) && resolver.officers.length > 0) {
+          return resolver.officers[0].id;
+        }
+        return resolver.officer; // fallback for legacy data
+      });
 
     const categoryOfficerIds = [...new Set(categoryOfficers.map((id) => String(id)))];
 

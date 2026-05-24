@@ -171,8 +171,6 @@ const CategoryResolverManagement = () => {
     };
   }, [formData.campus]);
 
-  // College (academic unit) is independent choice data; keep full list.
-  const filteredColleges = colleges;
   const filteredDepartments = departments.filter((department) => !formData.college || String(department.department_college ?? '') === String(formData.college));
   const officerOptions = users.filter((user) => user.role === 'officer' || user.is_staff);
 

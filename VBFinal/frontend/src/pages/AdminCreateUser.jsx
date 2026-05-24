@@ -27,7 +27,6 @@ const AdminCreateUser = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [campuses, setCampuses] = useState([]);
-  const [colleges, setColleges] = useState([]);
   const [collegeOptions, setCollegeOptions] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [error, setError] = useState('');
@@ -59,7 +58,6 @@ const AdminCreateUser = () => {
       ]);
 
       setCampuses(campusesData.results ?? campusesData ?? []);
-      setColleges(collegesData.results ?? collegesData ?? []);
       setCollegeOptions(collegesData.results ?? collegesData ?? []);
       setDepartments(departmentsData.results ?? departmentsData ?? []);
     } catch (requestError) {

@@ -232,9 +232,6 @@ const LandingPage = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
 
-  const scrollToSection = (id) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   // Microsoft login redirect function
   const handleMicrosoftLogin = () => {

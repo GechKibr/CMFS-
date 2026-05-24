@@ -1,9 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { HELPDESK_KINDS } from '../types/helpdeskTypes';
 
 const CreateSessionModal = ({ users = [], onClose, onSubmit, submitting = false, mode = 'modal' }) => {
   const [title, setTitle] = useState('');
-  const [kind, setKind] = useState('video_call');
+  const [kind] = useState('video_conference');
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [participantSearch, setParticipantSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -101,23 +100,6 @@ const CreateSessionModal = ({ users = [], onClose, onSubmit, submitting = false,
           />
         </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Session type</label>
-          <select
-            value={kind}
-            onChange={(e) => {
-              setKind(e.target.value);
-              setSelectedUsers([]);
-            }}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-cyan-500 focus:outline-none"
-          >
-            {HELPDESK_KINDS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </div>
 
         <div>
           <p className="mb-2 text-sm font-medium text-slate-700">Participants</p>
@@ -160,7 +142,7 @@ const CreateSessionModal = ({ users = [], onClose, onSubmit, submitting = false,
             {!filteredUsers.length && <p className="text-sm text-slate-500">No available users to invite.</p>}
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            Calls require 1 participant. Conferences support multiple participants.
+            Select one or more participants for the video conference.
           </p>
         </div>
 

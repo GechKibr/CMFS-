@@ -15,6 +15,7 @@ const ADMIN_MENU_ITEMS = [
   { id: 'feedback-templates', name: 'Feedback Templates', icon: '📋' },
   // { id: 'contact', name: 'Contact', icon: '✉️' },
   { id: 'system', name: 'System', icon: '⚙️' },
+  { id: 'helpdesk', name: 'Helpdesk', icon: '🎧' },
 ];
 
 const getStatusBadge = (status) => {
@@ -321,6 +322,11 @@ const AdminComplaintDetail = () => {
           items={ADMIN_MENU_ITEMS}
           activeItem="complaints"
           onItemClick={(id) => {
+            if (id === 'helpdesk') {
+              navigate('/helpdesk');
+              setSidebarOpen(false);
+              return;
+            }
             navigate(`/admin?tab=${id}`, { replace: true });
             setSidebarOpen(false);
           }}

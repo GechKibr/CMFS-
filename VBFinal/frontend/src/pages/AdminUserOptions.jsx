@@ -15,6 +15,7 @@ const ADMIN_MENU_ITEMS = [
   { id: 'feedback-templates', name: 'Feedback Templates', icon: '📋' },
   // { id: 'contact', name: 'Contact', icon: '✉️' },
   { id: 'system', name: 'System', icon: '⚙️' },
+  { id: 'helpdesk', name: 'Helpdesk', icon: '🎧' },
 ];
 
 const getRoleLabel = (code) => {
@@ -103,7 +104,7 @@ const AdminUserOptions = () => {
     }
   };
 
-  
+
 
   const handleSidebarToggle = () => {
     if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
@@ -139,6 +140,11 @@ const AdminUserOptions = () => {
           items={ADMIN_MENU_ITEMS}
           activeItem="users"
           onItemClick={(id) => {
+            if (id === 'helpdesk') {
+              navigate('/helpdesk');
+              setSidebarOpen(false);
+              return;
+            }
             navigate(`/admin?tab=${id}`, { replace: true });
             setSidebarOpen(false);
           }}
@@ -209,7 +215,7 @@ const AdminUserOptions = () => {
                 >
                   Edit Details
                 </button>
-                
+
                 <button
                   type="button"
                   onClick={handleToggleUserStatus}

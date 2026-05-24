@@ -8,7 +8,7 @@ export const CategoryManagement = () => {
   const [categories, setCategories] = useState([]);
   const [filteredCategories, setFilteredCategories] = useState([]);
   const [parentOptions, setParentOptions] = useState([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [editingCategory, setEditingCategory] = useState(null);
   const [pageMode, setPageMode] = useState('home');
@@ -188,7 +188,7 @@ export const CategoryManagement = () => {
   const renderLanding = () => (
     <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow p-6`}>
       <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Office Management</h3>
-      <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Choose to view offices or add a new office.</p>
+
       <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button onClick={openViewPage} className="px-4 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700">View Offices</button>
         <button onClick={openCreatePage} className={`px-4 py-3 rounded-lg border font-medium ${isDark ? 'border-gray-600 text-gray-100 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>Add Office</button>
@@ -320,7 +320,7 @@ export const CategoryManagement = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Office Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                
+
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>

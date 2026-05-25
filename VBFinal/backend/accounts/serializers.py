@@ -355,7 +355,11 @@ class UserProfileMixin:
                 if campus_id_value is not serializers.empty:
                     student_profile.campus_id = campus_id_value or None
 
+                # Always save department if it's provided or if college is provided
                 if profile_data['department'] is not serializers.empty:
+                    student_profile.department = department
+                elif profile_data['college'] is not serializers.empty and department is not None:
+                    # If college is provided but department is not, use the validated department
                     student_profile.department = department
 
                 if profile_data['student_type'] is not serializers.empty:
@@ -489,15 +493,19 @@ class UserReadWriteBaseSerializer(UserProfileMixin, serializers.ModelSerializer)
             data['student_type'] = student_profile.student_type
             data['year_of_study'] = student_profile.year_of_study
             data['department'] = student_profile.department_id
-            data['college'] = student_profile.department.department_college if student_profile.department_id else None
+            data['college'] = student_profile.department.department_college if student_profile.department else None
+            # Include full student profile for frontend
+            data['student_profile'] = StudentSerializer(student_profile).data
 
         officer_profile = getattr(instance, 'officer_profile', None)
         if officer_profile is not None:
             data['employee_id'] = officer_profile.employee_id
             data['department'] = officer_profile.department_id
             data['college'] = officer_profile.college or (
-                officer_profile.department.department_college if officer_profile.department_id else None
+                officer_profile.department.department_college if officer_profile.department else None
             )
+            # Include full officer profile for frontend
+            data['officer_profile'] = OfficerSerializer(officer_profile).data
 
         return data
 

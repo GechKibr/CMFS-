@@ -5,7 +5,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import Department, Officer, User
 from complaints.views import accessible_complaints_for
-from complaints.models import Category, CategoryResolver, Complaint, ResolverOfficer
+from complaints.models import Category, CategoryResolver, Complaint, ResolverOfficer, Response
 
 
 class ComplaintStatusWorkflowTests(TestCase):
@@ -216,3 +216,72 @@ class CategoryResolverAPITests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		returned_ids = {item['id'] for item in response.data}
 		self.assertIn(self.officer.id, returned_ids)
+
+
+class ComplaintResponseRoleVariantTests(TestCase):
+	def setUp(self):
+		self.officer = User.objects.create_user(
+			email='variant-officer@example.com',
+			password='12345678',
+			first_name='Variant',
+			last_name='Officer',
+			role=User.ROLE_OFFICER,
+		)
+		Officer.objects.create(user=self.officer, employee_id='EMP-010')
+		User.objects.filter(pk=self.officer.pk).update(role='main_officer')
+		self.officer.refresh_from_db()
+
+		self.user = User.objects.create_user(
+			email='variant-user@example.com',
+			password='12345678',
+			first_name='Variant',
+			last_name='User',
+			role=User.ROLE_USER,
+		)
+		self.category = Category.objects.create(
+			name='Response Routing',
+			description='Response routing test category',
+		)
+		self.resolver = CategoryResolver.objects.create(
+			category=self.category,
+			escalation_time=timedelta(hours=1),
+		)
+		ResolverOfficer.objects.create(resolver=self.resolver, officer=self.officer)
+		self.complaint = Complaint.objects.create(
+			submitted_by=self.user,
+			category=self.category,
+			title='Response access test',
+			description='Complaint used to verify officer-like role access',
+			current_resolver=self.resolver,
+		)
+
+	def test_legacy_officer_role_can_create_response(self):
+		client = APIClient()
+		client.force_authenticate(user=self.officer)
+
+		response = client.post('/api/responses/', {
+			'complaint': str(self.complaint.complaint_id),
+			'title': 'Main officer response',
+			'message': 'This should be accepted for legacy officer-like roles.',
+			'response_type': 'update',
+			'is_public': True,
+		}, format='json')
+
+		self.assertEqual(response.status_code, 201)
+		self.assertEqual(Response.objects.filter(complaint=self.complaint).count(), 1)
+
+	def test_active_assignment_allows_response_creation(self):
+		self.complaint._record_assignment(self.resolver, self.officer, 'initial')
+		client = APIClient()
+		client.force_authenticate(user=self.officer)
+
+		response = client.post('/api/responses/', {
+			'complaint': str(self.complaint.complaint_id),
+			'title': 'Assigned officer response',
+			'message': 'This should be accepted for active assignments.',
+			'response_type': 'update',
+			'is_public': True,
+		}, format='json')
+
+		self.assertEqual(response.status_code, 201)
+		self.assertEqual(Response.objects.filter(complaint=self.complaint).count(), 1)

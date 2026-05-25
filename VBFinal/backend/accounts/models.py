@@ -198,6 +198,13 @@ class Department(models.Model):
 
     def __str__(self):
         return self.department_name or ''
+
+
+def _role_is_officer_like(role):
+    value = str(role or '').strip().lower()
+    return bool(value) and 'officer' in value
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_USER = 'user'  # Student
     ROLE_OFFICER = 'officer'  # Resolver
@@ -324,7 +331,8 @@ class User(AbstractBaseUser, PermissionsMixin):
             raise ValidationError("Users with a student profile must have the student role.")
 
         if officer_profile_exists and self.role != self.ROLE_OFFICER:
-            raise ValidationError("Users with an officer profile must have the officer role.")
+            if not _role_is_officer_like(self.role):
+                raise ValidationError("Users with an officer profile must have the officer role.")
 
     def save(self, *args, **kwargs):
         if self.email:
@@ -357,19 +365,21 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     @property
     def role_level(self):
+        if _role_is_officer_like(self.role):
+            return self.ROLE_LEVEL[self.ROLE_OFFICER]
         return self.ROLE_LEVEL.get(self.role, 0)
 
     def is_complainter(self):
         return self.role == self.ROLE_USER
 
     def is_resolver(self):
-        return self.role == self.ROLE_OFFICER
+        return _role_is_officer_like(self.role)
 
     def is_admin(self):
         return self.role == self.ROLE_ADMIN
 
     def is_officer(self):
-        return self.role == self.ROLE_OFFICER
+        return _role_is_officer_like(self.role)
 
     @property
     def is_anonymous(self):
@@ -386,13 +396,13 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.role == self.ROLE_USER
 
     def can_be_assigned_complaints(self):
-        return self.role == self.ROLE_OFFICER
+        return _role_is_officer_like(self.role)
 
     def can_assign_complaints(self):
-        return self.role in [self.ROLE_OFFICER, self.ROLE_ADMIN]
+        return _role_is_officer_like(self.role) or self.role == self.ROLE_ADMIN
     
     def can_escalate_complaints(self):
-        return self.role in [self.ROLE_OFFICER, self.ROLE_ADMIN]
+        return _role_is_officer_like(self.role) or self.role == self.ROLE_ADMIN
     
     def can_view_all_complaints(self):
         return self.role == self.ROLE_ADMIN

@@ -81,6 +81,7 @@ def accessible_complaints_for(user):
             Complaint.objects.filter(
                 models.Q(submitted_by=user)
                 | models.Q(claimed_by=user)
+                | models.Q(assignments__officer=user, assignments__ended_at__isnull=True)
                 | models.Q(cc_list__email=user.email)
                 | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
                 | (
@@ -108,6 +109,13 @@ def can_manage_complaint(user, complaint):
         and complaint.current_resolver_id
         and complaint.current_resolver.officers.filter(officer=user, active=True, officer__is_active=True).exists()
     )
+    is_active_assignee = bool(
+        user
+        and user.is_authenticated
+        and user.is_officer()
+        and complaint
+        and complaint.assignments.filter(officer=user, ended_at__isnull=True).exists()
+    )
 
     return bool(
         user
@@ -115,6 +123,7 @@ def can_manage_complaint(user, complaint):
         and (
             user.is_admin()
             or (user.is_officer() and complaint.claimed_by_id == user.id)
+            or is_active_assignee
             or is_category_resolver
         )
     )
@@ -514,6 +523,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
 
             complaints_qs = Complaint.objects.filter(
                 models.Q(claimed_by=user)
+                | models.Q(assignments__officer=user, assignments__ended_at__isnull=True)
                 | models.Q(
                     current_resolver__officers__officer=user,
                     current_resolver__officers__active=True,

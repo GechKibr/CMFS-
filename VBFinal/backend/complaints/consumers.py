@@ -27,6 +27,8 @@ def _user_can_access_complaint(user, complaint):
         return True
     if complaint.claimed_by_id == user.id:
         return True
+    if complaint.assignments.filter(officer_id=user.id, ended_at__isnull=True).exists():
+        return True
     if complaint.current_resolver_id and complaint.current_resolver.officers.filter(
         officer_id=user.id,
         active=True,
@@ -69,6 +71,7 @@ def _get_complaint_for_user(user, complaint_id):
         return queryset.filter(
             Q(submitted_by=user)
             | Q(claimed_by=user)
+            | Q(assignments__officer=user, assignments__ended_at__isnull=True)
             | Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
             | (
                 Q(

@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import apiService from '../../services/api';
 import { openRealtimeSocket } from '../../services/realtime';
+import { normalizeRole } from '../../utils/roles';
 
 const formatMessageTime = (value) => {
   if (!value) return '';
@@ -34,6 +35,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const complaintId = complaint?.complaint_id;
+  const effectiveRole = normalizeRole(role);
   const [responses, setResponses] = useState([]);
   const [comments, setComments] = useState([]);
   const [draftMessage, setDraftMessage] = useState('');
@@ -199,42 +201,41 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
   const submitMessage = async () => {
     const message = draftMessage.trim();
     if (!message) return;
-    if (role === 'user' && responses.length === 0) {
+    if (effectiveRole === 'user' && responses.length === 0) {
       setError('You can comment after an officer responds to your complaint.');
       return;
     }
 
     setSending(true);
     try {
-      const sent = sendOverSocket({
-        type: 'chat.message',
-        kind: role === 'user' ? 'comment' : 'response',
-        complaint_id: complaintId,
-        title: role === 'user' ? undefined : (draftTitle || 'Officer Response'),
-        message,
-        response_type: 'update',
-      });
+      if (effectiveRole === 'user') {
+        const sent = sendOverSocket({
+          type: 'chat.message',
+          kind: 'comment',
+          complaint_id: complaintId,
+          message,
+          response_type: 'update',
+        });
 
-      if (!sent) {
-        if (role === 'user') {
+        if (!sent) {
           await apiService.createComment({
             complaint: complaintId,
             message,
             comment_type: 'comment',
           });
-        } else {
-          await apiService.createResponse({
-            complaint: complaintId,
-            title: draftTitle || 'Officer Response',
-            message,
-            response_type: 'update',
-            is_public: true,
-          });
         }
+      } else {
+        await apiService.createResponse({
+          complaint: complaintId,
+          title: draftTitle || 'Officer Response',
+          message,
+          response_type: 'update',
+          is_public: true,
+        });
       }
 
       setDraftMessage('');
-      if (role !== 'user') {
+      if (effectiveRole !== 'user') {
         setDraftTitle('Officer Response');
       }
       await loadThread();
@@ -304,8 +305,8 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
     }
   };
 
-  const canComment = role === 'user';
-  const canRespond = role === 'officer' || role === 'admin';
+  const canComment = effectiveRole === 'user';
+  const canRespond = effectiveRole === 'officer' || effectiveRole === 'admin';
 
   if (loading) {
     return (
@@ -421,10 +422,10 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
                   {/* Avatar/Indicator for messages */}
                   <div className={`flex items-center gap-1 mt-1 ${bubbleAlign === 'justify-end' ? 'flex-row-reverse' : 'flex-row'}`}>
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isResponse
-                        ? 'bg-blue-500 text-white'
-                        : isDark
-                          ? 'bg-gray-600 text-gray-300'
-                          : 'bg-gray-300 text-gray-700'
+                      ? 'bg-blue-500 text-white'
+                      : isDark
+                        ? 'bg-gray-600 text-gray-300'
+                        : 'bg-gray-300 text-gray-700'
                       }`}>
                       {isResponse ? 'O' : 'U'}
                     </div>
@@ -466,8 +467,8 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
               value={draftTitle}
               onChange={(e) => setDraftTitle(e.target.value)}
               className={`w-full rounded-lg border px-3 py-2 text-sm transition-colors ${isDark
-                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
-                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-400'
+                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
+                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-400'
                 } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
               placeholder="Response title (optional)"
             />
@@ -483,8 +484,8 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
             rows={3}
             disabled={canComment && responses.length === 0}
             className={`flex-1 rounded-xl border px-3 py-2 text-sm outline-none resize-none transition-colors ${isDark
-                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
-                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-400'
+              ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500'
+              : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-400'
               } focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed`}
             placeholder={
               canRespond

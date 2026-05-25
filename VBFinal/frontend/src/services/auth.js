@@ -1,3 +1,5 @@
+import { normalizeRole } from '../utils/roles';
+
 const normalizeApiBase = (rawBase) => {
   const trimmed = (rawBase || '/api').trim().replace(/\/+$/, '');
   if (trimmed === '/api' || trimmed.endsWith('/api')) {
@@ -178,7 +180,7 @@ class AuthService {
 
   getUserRole() {
     const user = this.getCurrentUser();
-    return user?.role || null;
+    return normalizeRole(user?.role || null);
   }
 
   getRoleBasedRoute() {

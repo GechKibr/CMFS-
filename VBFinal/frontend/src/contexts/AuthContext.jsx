@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import authService from '../services/auth';
 import apiService from '../services/api';
+import { normalizeRole } from '../utils/roles';
 
 const AuthContext = createContext();
 
@@ -102,7 +103,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const getUserRole = () => {
-    return user?.role || authService.getUserRole();
+    return normalizeRole(user?.role || authService.getUserRole());
   };
 
   const isSuperAdmin = () => false;

@@ -64,12 +64,12 @@ const UserProfile = ({ user: propUser }) => {
     last_name: user?.last_name || '',
     username: user?.username || '',
     gmail_account: user?.gmail_account || '',
-    campus_id: user?.campus_id || studentProfile.campus_id || '',
-    user_campus: user?.user_campus || studentProfile.campus_id || null,
-    college: user?.college || studentProfile.department_detail?.department_college || null,
-    department: user?.department || studentProfile.department || null,
-    student_type: resolveStudentTypeCode(user?.student_type || studentProfile.student_type || ''),
-    year_of_study: user?.year_of_study || studentProfile.year_of_study || '',
+    campus_id: user?.campus_id || studentProfile?.campus_id || '',
+    user_campus: user?.user_campus || user?.campus_id || studentProfile?.campus_id || null,
+    college: user?.college || studentProfile?.department?.department_college || null,
+    department: user?.department || studentProfile?.department?.id || null,
+    student_type: resolveStudentTypeCode(user?.student_type || studentProfile?.student_type || ''),
+    year_of_study: user?.year_of_study || studentProfile?.year_of_study || '',
     phone: user?.phone || ''
   });
 
@@ -79,15 +79,15 @@ const UserProfile = ({ user: propUser }) => {
       last_name: user?.last_name || '',
       username: user?.username || '',
       gmail_account: user?.gmail_account || '',
-      campus_id: user?.campus_id || studentProfile.campus_id || '',
-      user_campus: user?.user_campus || studentProfile.campus_id || null,
-      college: user?.college || studentProfile.department_detail?.department_college || null,
-      department: user?.department || studentProfile.department || null,
-      student_type: resolveStudentTypeCode(user?.student_type || studentProfile.student_type || ''),
-      year_of_study: user?.year_of_study || studentProfile.year_of_study || '',
+      campus_id: user?.campus_id || studentProfile?.campus_id || '',
+      user_campus: user?.user_campus || user?.campus_id || studentProfile?.campus_id || null,
+      college: user?.college || studentProfile?.department?.department_college || null,
+      department: user?.department || studentProfile?.department?.id || null,
+      student_type: resolveStudentTypeCode(user?.student_type || studentProfile?.student_type || ''),
+      year_of_study: user?.year_of_study || studentProfile?.year_of_study || '',
       phone: user?.phone || ''
     });
-  }, [resolveStudentTypeCode, user?.id, user?.first_name, user?.last_name, user?.username, user?.gmail_account, user?.campus_id, user?.user_campus, user?.college, user?.department, user?.student_type, user?.year_of_study, user?.phone, studentProfile.campus_id, studentProfile.student_type, studentProfile.year_of_study, studentProfile.department, studentProfile.department_detail?.department_college]);
+  }, [resolveStudentTypeCode, user?.id, user?.first_name, user?.last_name, user?.username, user?.gmail_account, user?.campus_id, user?.user_campus, user?.college, user?.department, user?.student_type, user?.year_of_study, user?.phone, studentProfile?.campus_id, studentProfile?.student_type, studentProfile?.year_of_study, studentProfile?.department, studentProfile?.department?.department_college]);
 
   useEffect(() => {
     if (!studentTypes.length) {
@@ -115,14 +115,14 @@ const UserProfile = ({ user: propUser }) => {
         setCampuses(campusList);
         setStudentTypes(studentTypeList.filter(item => item && item.is_active !== false).sort((a, b) => (a.type_name || '').localeCompare(b.type_name || '')));
 
-        const campusCode = user?.user_campus || studentProfile.campus_id;
+        const campusCode = user?.user_campus || user?.campus_id || studentProfile?.campus_id;
         if (campusCode) {
           const collegesData = await apiService.getColleges(campusCode);
           const collegesList = Array.isArray(collegesData) ? collegesData : collegesData.results || [];
           setColleges(collegesList);
         }
 
-        const collegeCode = user?.college || studentProfile.department_detail?.department_college;
+        const collegeCode = user?.college || studentProfile?.department?.department_college;
         if (collegeCode) {
           const departmentsData = await apiService.getDepartments(collegeCode);
           const departmentsList = Array.isArray(departmentsData) ? departmentsData : departmentsData.results || [];
@@ -136,7 +136,7 @@ const UserProfile = ({ user: propUser }) => {
     };
 
     fetchData();
-  }, [user?.user_campus, user?.college, studentProfile.campus_id, studentProfile.department_detail?.department_college]);
+  }, [user?.user_campus, user?.campus_id, user?.college, studentProfile?.campus_id, studentProfile?.department?.department_college]);
 
   useEffect(() => {
     let cancelled = false;
@@ -238,10 +238,11 @@ const UserProfile = ({ user: propUser }) => {
         phone: formData.phone
       };
 
-      await apiService.updateUser(user.id, updateData);
+      // Use updateCurrentUser to call /api/accounts/me/ endpoint
+      const updatedUserData = await apiService.updateCurrentUser(updateData);
 
-      const updatedUser = { ...user, ...updateData };
-      setAuth(updatedUser);
+      // Update auth context with the full response from backend
+      setAuth(updatedUserData);
 
       setIsEditing(false);
       alert('Profile updated successfully!');
@@ -259,12 +260,12 @@ const UserProfile = ({ user: propUser }) => {
       last_name: user?.last_name || '',
       username: user?.username || '',
       gmail_account: user?.gmail_account || '',
-      campus_id: user?.campus_id || '',
-      user_campus: user?.user_campus || null,
-      college: user?.college || null,
-      department: user?.department || null,
-      student_type: resolveStudentTypeCode(user?.student_type || studentProfile.student_type || ''),
-      year_of_study: user?.year_of_study || '',
+      campus_id: user?.campus_id || studentProfile?.campus_id || '',
+      user_campus: user?.user_campus || user?.campus_id || studentProfile?.campus_id || null,
+      college: user?.college || studentProfile?.department?.department_college || null,
+      department: user?.department || studentProfile?.department?.id || null,
+      student_type: resolveStudentTypeCode(user?.student_type || studentProfile?.student_type || ''),
+      year_of_study: user?.year_of_study || studentProfile?.year_of_study || '',
       phone: user?.phone || ''
     });
     setIsEditing(false);
@@ -315,7 +316,7 @@ const UserProfile = ({ user: propUser }) => {
 
     try {
       setLoading(true);
-      await apiService.updateUser(user.id, {
+      await apiService.updateCurrentUser({
         password: passwordData.password,
         confirm_password: passwordData.confirm_password
       });
@@ -335,24 +336,29 @@ const UserProfile = ({ user: propUser }) => {
   const getCampusName = (campusId) => {
     if (!campusId) return 'Not specified';
     const campus = campuses.find(c => String(c.id) === String(campusId));
-    return campus?.campus_name || 'Unknown Campus';
+    return campus?.campus_name || campusId;
   };
 
   const getCollegeName = (collegeId) => {
     if (!collegeId) return 'Not specified';
+    // Try to find in colleges list first
     const college = colleges.find(c => String(c.id) === String(collegeId));
-    return college?.college_name || 'Unknown College';
+    if (college) return college?.college_name;
+    // If not found, check if it's a college code and find by code
+    const collegeByCode = colleges.find(c => String(c.code) === String(collegeId));
+    return collegeByCode?.college_name || collegeId;
   };
 
   const getDepartmentName = (deptId) => {
     if (!deptId) return 'Not specified';
     const dept = departments.find(d => d.id === deptId);
-    return dept?.department_name || 'Unknown Department';
+    return dept?.department_name || deptId;
   }
 
-  const resolvedCampus = formData.user_campus || user?.user_campus || studentProfile.campus_id || '';
-  const resolvedCollege = formData.college || user?.college || studentProfile.department_detail?.department_college || '';
-  const resolvedDepartment = formData.department || user?.department || studentProfile.department || '';
+  // Resolve values from formData first (when editing), then from user object, then from student_profile
+  const resolvedCampus = formData.user_campus || user?.user_campus || user?.campus_id || studentProfile?.campus_id || '';
+  const resolvedCollege = formData.college || user?.college || studentProfile?.department?.department_college || '';
+  const resolvedDepartment = formData.department || user?.department || studentProfile?.department?.id || '';
 
   useEffect(() => {
     let cancelled = false;
@@ -360,11 +366,11 @@ const UserProfile = ({ user: propUser }) => {
     const hasProfileDetails = Boolean(
       user?.campus_id ||
       user?.user_campus ||
-      studentProfile.campus_id ||
+      studentProfile?.campus_id ||
       user?.college ||
-      studentProfile.department_detail?.department_college ||
+      studentProfile?.department?.department_college ||
       user?.department ||
-      studentProfile.department
+      studentProfile?.department
     );
 
     if (!user || hasProfileDetails) {

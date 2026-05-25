@@ -463,6 +463,10 @@ class ApiService {
     });
   }
 
+  async getEscalationDetails() {
+    return this.request('/complaints/escalation-details/');
+  }
+
   async createResponse(data) {
     return this.request('/responses/', {
       method: 'POST',

@@ -1,9 +1,12 @@
 from datetime import timedelta
 
+from django.utils import timezone
+
 from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import Department, Officer, User
+from complaints.escalation_service import EscalationService
 from complaints.views import accessible_complaints_for
 from complaints.models import Category, CategoryResolver, Complaint, ResolverOfficer, Response
 
@@ -189,9 +192,9 @@ class CategoryResolverAPITests(TestCase):
 		client.force_authenticate(user=self.user)
 
 		response = client.get('/api/resolver-assignments/', {
-			'category': str(self.category.id),
+			'category': str(self.category.category_id),
 			'campus': 'maraki',
-			'college': 'humanities',
+			'college': 'business_economics',
 		})
 
 		self.assertEqual(response.status_code, 200)
@@ -209,13 +212,64 @@ class CategoryResolverAPITests(TestCase):
 		url = f'/api/categories/{self.category.category_id}/officers/'
 		response = client.get(url, {
 			'campus': 'maraki',
-			'college': 'humanities',
+			'college': 'business_economics',
 			'department': str(self.department.id),
 		})
 
 		self.assertEqual(response.status_code, 200)
-		returned_ids = {item['id'] for item in response.data}
+		returned_ids = {int(item['id']) for item in response.data}
 		self.assertIn(self.officer.id, returned_ids)
+
+	def test_eligible_resolvers_includes_parent_category_matches(self):
+		admin = User.objects.create_user(
+			email='admin@example.com',
+			password='adminpass',
+			first_name='Admin',
+			last_name='User',
+			role=User.ROLE_ADMIN,
+		)
+
+		parent = Category.objects.create(name='Parent Category', description='Parent')
+		child = Category.objects.create(name='Child Category', description='Child', parent=parent)
+
+		dept = Department.objects.create(department_name='Facilities', department_college='business_economics')
+
+		parent_resolver = CategoryResolver.objects.create(
+			category=parent,
+			campus='maraki',
+			college='business_economics',
+			department=dept,
+			escalation_time=timedelta(hours=1),
+			active=True,
+		)
+
+		complaint = Complaint.objects.create(
+			submitted_by=self.user,
+			category=child,
+			campus='maraki',
+			college='business_economics',
+			department=dept,
+			title='Child complaint',
+			description='Testing parent resolver inclusion',
+		)
+
+		client = APIClient()
+		client.force_authenticate(user=admin)
+
+		url = f'/api/complaints/{complaint.complaint_id}/eligible-resolvers/'
+		response = client.get(url)
+
+		self.assertEqual(response.status_code, 200)
+		results = response.data.get('results', [])
+		returned_ids = {item['resolver_id'] for item in results}
+
+		self.assertIn(str(parent_resolver.resolver_id), returned_ids)
+		# Verify parent marker and parent category name present
+		for item in results:
+			if str(item['resolver_id']) == str(parent_resolver.resolver_id):
+				self.assertTrue(item.get('is_parent_category'))
+				self.assertEqual(item.get('parent_category_name'), parent.name)
+				break
 
 
 class ComplaintResponseRoleVariantTests(TestCase):
@@ -285,3 +339,109 @@ class ComplaintResponseRoleVariantTests(TestCase):
 
 		self.assertEqual(response.status_code, 201)
 		self.assertEqual(Response.objects.filter(complaint=self.complaint).count(), 1)
+
+
+class ComplaintEscalationDetailsTests(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(
+			email='escalation-user@example.com',
+			password='12345678',
+			first_name='Escalation',
+			last_name='User',
+			role=User.ROLE_USER,
+		)
+		self.officer = User.objects.create_user(
+			email='escalation-officer@example.com',
+			password='12345678',
+			first_name='Escalation',
+			last_name='Officer',
+			role=User.ROLE_OFFICER,
+		)
+		Officer.objects.create(user=self.officer, employee_id='EMP-200')
+		self.parent_category = Category.objects.create(
+			name='Parent Support',
+			description='Parent category for escalation',
+		)
+		self.child_category = Category.objects.create(
+			name='Child Support',
+			description='Child category for escalation',
+			parent=self.parent_category,
+		)
+		self.department = Department.objects.create(
+			department_name='Student Affairs',
+			department_college='business_economics',
+		)
+		self.parent_resolver = CategoryResolver.objects.create(
+			category=self.parent_category,
+			campus='maraki',
+			college='business_economics',
+			department=self.department,
+			escalation_time=timedelta(hours=1),
+			active=True,
+		)
+		self.child_resolver = CategoryResolver.objects.create(
+			category=self.child_category,
+			campus='maraki',
+			college='business_economics',
+			department=self.department,
+			escalation_time=timedelta(hours=1),
+			active=True,
+		)
+		ResolverOfficer.objects.create(resolver=self.child_resolver, officer=self.officer)
+		self.complaint = Complaint.objects.create(
+			submitted_by=self.user,
+			category=self.child_category,
+			campus='maraki',
+			college='business_economics',
+			department=self.department,
+			title='Escalation details complaint',
+			description='Complaint used to inspect escalation details',
+			status=Complaint.STATUS_PENDING,
+			current_resolver=self.child_resolver,
+			claimed_by=self.officer,
+		)
+		self.complaint.escalation_deadline = timezone.now() - timedelta(hours=1)
+		self.complaint.save(update_fields=['escalation_deadline'])
+
+	def test_escalation_details_include_parent_category_resolvers(self):
+		original_get_due = EscalationService._get_due_complaints
+		try:
+			EscalationService._get_due_complaints = staticmethod(lambda now=None: [self.complaint])
+			details = EscalationService.get_escalation_details()
+		finally:
+			EscalationService._get_due_complaints = original_get_due
+
+		pending = details.get('pending_complaints', [])
+		self.assertEqual(len(pending), 1)
+
+		complaint_detail = pending[0]
+		parent_resolvers = complaint_detail.get('parent_category_resolvers', [])
+		returned_ids = {item['resolver_id'] for item in parent_resolvers}
+
+		self.assertIn(str(self.parent_resolver.resolver_id), returned_ids)
+		self.assertTrue(complaint_detail['escalation_options']['can_escalate_parent_category'])
+		self.assertTrue(all(item['is_parent_category'] for item in parent_resolvers))
+
+	def test_escalation_details_endpoint_returns_parent_resolvers(self):
+		admin = User.objects.create_user(
+			email='escalation-admin@example.com',
+			password='12345678',
+			first_name='Escalation',
+			last_name='Admin',
+			role=User.ROLE_ADMIN,
+		)
+		client = APIClient()
+		client.force_authenticate(user=admin)
+
+		original_get_due = EscalationService._get_due_complaints
+		try:
+			EscalationService._get_due_complaints = staticmethod(lambda now=None: [self.complaint])
+			response = client.get('/api/complaints/escalation-details/')
+		finally:
+			EscalationService._get_due_complaints = original_get_due
+
+		self.assertEqual(response.status_code, 200)
+		pending = response.data.get('pending_complaints', [])
+		self.assertEqual(len(pending), 1)
+		self.assertIn('parent_category_resolvers', pending[0])
+

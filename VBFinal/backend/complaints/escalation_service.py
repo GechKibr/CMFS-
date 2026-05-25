@@ -13,6 +13,42 @@ class EscalationService:
     """Service for handling automatic escalation of complaints"""
 
     @staticmethod
+    def _matching_resolvers_for_category(category, complaint):
+        if not category:
+            return []
+
+        resolvers = [
+            resolver
+            for resolver in category.resolvers.filter(active=True).select_related('department')
+            if resolver.matches_complaint_scope(complaint)
+        ]
+        resolvers.sort(
+            key=lambda resolver: (
+                resolver.escalation_level,
+                -resolver.scope_rank(),
+                resolver.created_at,
+                str(resolver.resolver_id),
+            )
+        )
+        return resolvers
+
+    @staticmethod
+    def _parent_category_resolvers(complaint):
+        if not complaint.category_id or not complaint.category or not complaint.category.parent_id:
+            return []
+
+        parent = complaint.category.parent
+        resolvers = EscalationService._matching_resolvers_for_category(parent, complaint)
+        if not resolvers:
+            return []
+
+        return [{
+            'category_id': str(parent.category_id),
+            'category_name': parent.name,
+            'resolvers': resolvers,
+        }]
+
+    @staticmethod
     def _get_due_complaints(now=None):
         """
         Recalculate and persist escalation deadlines based on complaint creation time
@@ -22,13 +58,13 @@ class EscalationService:
         active_complaints = Complaint.objects.filter(
             Q(status='in_progress') | Q(status='pending'),
             current_resolver__isnull=False,
-            assigned_officer__isnull=False,
+            claimed_by__isnull=False,
         )
 
         due_complaints = []
         for complaint in active_complaints:
             previous_deadline = complaint.escalation_deadline
-            complaint.set_escalation_deadline()
+            complaint.refresh_workflow_deadlines(base_time=complaint.created_at)
             recalculated_deadline = complaint.escalation_deadline
 
             if previous_deadline != recalculated_deadline:
@@ -229,7 +265,7 @@ This complaint has reached the maximum resolver scope and requires administrativ
     def set_escalation_deadline(complaint):
         """Manually set escalation deadline for a complaint"""
         if complaint.current_resolver and not complaint.escalation_deadline:
-            complaint.set_escalation_deadline()
+            complaint.refresh_workflow_deadlines(base_time=complaint.created_at)
             complaint.save()
             return True
         return False
@@ -237,7 +273,7 @@ This complaint has reached the maximum resolver scope and requires administrativ
     @staticmethod
     def get_escalation_details():
         """Get detailed escalation information for all complaints"""
-        from .models import Assignment
+        from .models import Assignment, CategoryResolver
         now = timezone.now()
         
         pending_escalation = EscalationService._get_due_complaints(now)
@@ -265,33 +301,53 @@ This complaint has reached the maximum resolver scope and requires administrativ
                 ) if resolver.matches_complaint_scope(complaint) and resolver.scope_rank() < complaint.current_resolver.scope_rank()
             ]) if complaint.current_resolver else False
             
-            has_parent_category = bool(complaint.category and complaint.category.parent)
+            parent_category_resolvers = []
+            if complaint.category_id and complaint.category:
+                for parent_detail in EscalationService._parent_category_resolvers(complaint):
+                    parent_category_resolvers.extend([
+                        {
+                            'resolver_id': str(resolver.resolver_id),
+                            'category_id': str(resolver.category_id),
+                            'category_name': resolver.category.name if resolver.category else None,
+                            'scope_label': resolver.scope_label(),
+                            'scope_rank': resolver.scope_rank(),
+                            'escalation_level': resolver.escalation_level,
+                            'escalation_time': str(resolver.escalation_time),
+                            'resolution_time': str(resolver.resolution_time),
+                            'active': resolver.active,
+                            'is_parent_category': True,
+                            'parent_category_id': parent_detail['category_id'],
+                            'parent_category_name': parent_detail['category_name'],
+                        }
+                        for resolver in parent_detail['resolvers']
+                    ])
             
             complaint_detail = {
                 'complaint_id': str(complaint.complaint_id),
                 'title': complaint.title,
                 'category': complaint.category.office_name if complaint.category else 'N/A',
                 'current_resolver': str(complaint.current_resolver),
-                'assigned_officer': complaint.assigned_officer.get_full_name() if complaint.assigned_officer else 'N/A',
+                'assigned_officer': complaint.assigned_officer.full_name if complaint.assigned_officer else 'N/A',
                 'escalation_deadline': complaint.escalation_deadline.isoformat() if complaint.escalation_deadline else None,
                 'time_until_escalation_hours': round(hours_until, 2),
                 'escalation_options': {
                     'can_escalate_same_category': has_next_level,
-                    'can_escalate_parent_category': has_parent_category,
+                    'can_escalate_parent_category': bool(parent_category_resolvers),
                 },
+                'parent_category_resolvers': parent_category_resolvers,
                 'last_assignment': None
             }
             
             # Get last assignment info
             last_assignment = Assignment.objects.filter(
                 complaint=complaint
-            ).select_related('officer', 'resolver').order_by('-created_at').first()
+            ).select_related('officer', 'resolver').order_by('-assigned_at').first()
             
             if last_assignment:
                 complaint_detail['last_assignment'] = {
-                    'officer': last_assignment.officer.get_full_name(),
+                    'officer': last_assignment.officer.full_name,
                     'reason': last_assignment.reason,
-                    'created_at': last_assignment.created_at.isoformat()
+                    'created_at': last_assignment.assigned_at.isoformat()
                 }
             
             details['pending_complaints'].append(complaint_detail)

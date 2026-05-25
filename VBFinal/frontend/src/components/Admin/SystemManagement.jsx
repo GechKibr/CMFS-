@@ -63,6 +63,14 @@ const SystemManagement = () => {
       recent_complaints: 0
     }
   });
+  const [escalationDetails, setEscalationDetails] = useState({
+    escalation_summary: {
+      total_pending: 0,
+      overdue_count: 0,
+      warning_threshold_hours: 24,
+    },
+    pending_complaints: []
+  });
   // Backend maintenance configuration fields - aligned with MaintenanceConfiguration model
   const [maintenanceConfig, setMaintenanceConfig] = useState({
     is_enabled: false,
@@ -118,6 +126,17 @@ const SystemManagement = () => {
     }
   }, []);
 
+  const loadEscalationDetails = useCallback(async () => {
+    try {
+      const details = await apiService.getEscalationDetails();
+      if (details) {
+        setEscalationDetails(details);
+      }
+    } catch (error) {
+      console.error('Failed to load escalation details:', error);
+    }
+  }, []);
+
   const loadJwtConfig = useCallback(async () => {
     try {
       const response = await apiService.getJwtConfig();
@@ -154,10 +173,11 @@ const SystemManagement = () => {
     loadSystemStats();
     loadJwtConfig();
     loadMaintenanceConfig();
+    loadEscalationDetails();
 
     return () => {
     };
-  }, [loadJwtConfig, loadSystemStats, loadMaintenanceConfig]);
+  }, [loadJwtConfig, loadSystemStats, loadMaintenanceConfig, loadEscalationDetails]);
 
   useEffect(() => {
     setMaintenanceSchedules(parseStoredSchedules());
@@ -392,6 +412,73 @@ const SystemManagement = () => {
               {systemStats.django.total_users || 0} total
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
+        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
+          Escalation Queue
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+            <div className="text-2xl font-bold text-amber-500">{escalationDetails.escalation_summary.total_pending || 0}</div>
+            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending Escalations</div>
+          </div>
+          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+            <div className="text-2xl font-bold text-red-500">{escalationDetails.escalation_summary.overdue_count || 0}</div>
+            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Overdue</div>
+          </div>
+          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+            <div className="text-2xl font-bold text-blue-500">{escalationDetails.pending_complaints?.filter((item) => (item.parent_category_resolvers || []).length > 0).length || 0}</div>
+            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>With Parent Matches</div>
+          </div>
+        </div>
+
+        <div className="space-y-4 max-h-[28rem] overflow-y-auto pr-1">
+          {(escalationDetails.pending_complaints || []).map((complaint) => (
+            <div key={complaint.complaint_id} className={`p-4 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-700/30' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <div className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{complaint.title}</div>
+                  <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {complaint.category} · {complaint.assigned_officer}
+                  </div>
+                  <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
+                    Escalates in {complaint.time_until_escalation_hours} hours
+                  </div>
+                </div>
+                <div className={`text-xs px-2 py-1 rounded ${complaint.escalation_options?.can_escalate_parent_category ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                  Parent category match: {complaint.escalation_options?.can_escalate_parent_category ? 'Yes' : 'No'}
+                </div>
+              </div>
+
+              {(complaint.parent_category_resolvers || []).length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <div className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Parent category resolvers
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {complaint.parent_category_resolvers.map((resolver) => (
+                      <div key={resolver.resolver_id} className={`p-3 rounded-md ${isDark ? 'bg-gray-800' : 'bg-white border border-gray-200'}`}>
+                        <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {resolver.parent_category_name}
+                        </div>
+                        <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {resolver.scope_label}
+                        </div>
+                        <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
+                          Level {resolver.escalation_level} · Rank {resolver.scope_rank}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          {(escalationDetails.pending_complaints || []).length === 0 && (
+            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>No pending escalations found.</div>
+          )}
         </div>
       </div>
     </div>

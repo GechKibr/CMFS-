@@ -229,23 +229,95 @@ const AdminComplaintDetail = () => {
 
   const filteredColleges = useMemo(() => {
     if (!reassignScope.campus) return colleges;
-    return colleges.filter((college) => String(college.campus_id || college.campus || college.campus_code || '') === String(reassignScope.campus));
+    return colleges.filter((college) => {
+      const campusRef =
+        college.campus_id ??
+        college.campus ??
+        college.campus_code ??
+        (college.campus && (college.campus.campus_id ?? college.campus.id ?? college.campus.name)) ??
+        '';
+      return String(campusRef) === String(reassignScope.campus);
+    });
   }, [colleges, reassignScope.campus]);
 
   const filteredDepartments = useMemo(() => {
     if (!reassignScope.college) return departments;
-    return departments.filter((department) => String(department.department_college || department.college || department.college_id || '') === String(reassignScope.college));
+    return departments.filter((department) => {
+      const collegeRef =
+        department.department_college ??
+        department.college ??
+        department.college_id ??
+        (department.college && (department.college.college_id ?? department.college.id ?? department.college.name)) ??
+        '';
+      return String(collegeRef) === String(reassignScope.college);
+    });
   }, [departments, reassignScope.college]);
 
   const handleReassignScopeChange = (key, value) => {
     setReassignScope((prev) => {
-      const next = { ...prev, [key]: value };
+      const next = { ...prev, [key]: String(value) };
 
       if (key === 'category') {
+        // reset dependent scope
         next.campus = '';
         next.college = '';
         next.department = '';
-        setSelectedCategory(value);
+        setSelectedCategory(String(value));
+
+        // Try to prefill scope from active category resolver if available
+        const matchingResolver = categoryResolvers.find(
+          (resolver) => String(resolver.category) === String(value) && resolver.active
+        );
+
+        if (matchingResolver) {
+          // Resolver may contain campus/college/department as ids or nested objects
+          const resolverCampus =
+            matchingResolver.campus ?? matchingResolver.campus_id ?? matchingResolver.scope_campus ?? matchingResolver.campus_name ?? '';
+          const resolverCollege =
+            matchingResolver.college ?? matchingResolver.college_id ?? matchingResolver.scope_college ?? matchingResolver.college_name ?? '';
+          const resolverDepartment =
+            matchingResolver.department ?? matchingResolver.department_id ?? matchingResolver.scope_department ?? matchingResolver.department_name ?? '';
+
+          // Helper to map resolver-provided name/id to our select value (prefer numeric id when available)
+          const mapCampusToValue = (val) => {
+            if (!val && val !== 0) return '';
+            // numeric-like -> use as-is
+            if (!Number.isNaN(Number(val))) return String(Number(val));
+            // try matching by name
+            const match = campuses.find((c) => {
+              const names = [c.campus_name, c.name, c.display_name].filter(Boolean);
+              return names.some((n) => String(n).toLowerCase() === String(val).toLowerCase());
+            });
+            if (match) return String(match.campus_id ?? match.id ?? match.name ?? '');
+            return String(val);
+          };
+
+          const mapCollegeToValue = (val) => {
+            if (!val && val !== 0) return '';
+            if (!Number.isNaN(Number(val))) return String(Number(val));
+            const match = colleges.find((col) => {
+              const names = [col.college_name, col.name].filter(Boolean);
+              return names.some((n) => String(n).toLowerCase() === String(val).toLowerCase());
+            });
+            if (match) return String(match.college_id ?? match.id ?? match.name ?? '');
+            return String(val);
+          };
+
+          const mapDepartmentToValue = (val) => {
+            if (!val && val !== 0) return '';
+            if (!Number.isNaN(Number(val))) return String(Number(val));
+            const match = departments.find((d) => {
+              const names = [d.department_name, d.name].filter(Boolean);
+              return names.some((n) => String(n).toLowerCase() === String(val).toLowerCase());
+            });
+            if (match) return String(match.department_id ?? match.id ?? match.department_name ?? '');
+            return String(val);
+          };
+
+          if (resolverCampus) next.campus = mapCampusToValue(resolverCampus);
+          if (resolverCollege) next.college = mapCollegeToValue(resolverCollege);
+          if (resolverDepartment) next.department = mapDepartmentToValue(resolverDepartment);
+        }
       }
 
       if (key === 'campus') {
@@ -273,16 +345,102 @@ const AdminComplaintDetail = () => {
     }
 
     try {
-      await apiService.updateComplaint(complaint.complaint_id, {
-        category: reassignScope.category || null,
-        campus: reassignScope.campus || null,
-        college: reassignScope.college || null,
-        department: reassignScope.department || null,
-      });
+      // Normalize payload: convert numeric-like strings to numbers, empty -> null
+      const normalize = (v) => {
+        if (v === '' || v === null || v === undefined) return null;
+        // if already a number, return as-is
+        if (typeof v === 'number') return v;
+        // if numeric string, convert
+        if (!Number.isNaN(Number(v))) return Number(v);
+        return v;
+      };
 
-      await apiService.reassignComplaint(complaint.complaint_id, {
-        officer_id: reassignOfficerId,
-      });
+      const updatePayload = {
+        category: normalize(reassignScope.category),
+        campus: normalize(reassignScope.campus),
+        college: normalize(reassignScope.college),
+        department: normalize(reassignScope.department),
+      };
+
+      // Attempt to pick a matching resolver that includes the chosen officer and matches the scope.
+      let resolverIdToUse = null;
+
+      const mapCampusToValue = (val) => {
+        if (!val && val !== 0) return '';
+        if (!Number.isNaN(Number(val))) return String(Number(val));
+        const match = campuses.find((c) => {
+          const names = [c.campus_name, c.name, c.display_name].filter(Boolean);
+          return names.some((n) => String(n).toLowerCase() === String(val).toLowerCase()) || String(c.id) === String(val) || String(c.code) === String(val) || String(c.campus_id) === String(val);
+        });
+        if (match) return String(match.campus_id ?? match.id ?? match.code ?? match.name ?? '');
+        return String(val);
+      };
+
+      const mapCollegeToValue = (val) => {
+        if (!val && val !== 0) return '';
+        if (!Number.isNaN(Number(val))) return String(Number(val));
+        const match = colleges.find((col) => {
+          const names = [col.college_name, col.name].filter(Boolean);
+          return names.some((n) => String(n).toLowerCase() === String(val).toLowerCase()) || String(col.id) === String(val) || String(col.college_code) === String(val) || String(col.college_id) === String(val);
+        });
+        if (match) return String(match.college_id ?? match.id ?? match.college_code ?? match.name ?? '');
+        return String(val);
+      };
+
+      const mapDepartmentToValue = (val) => {
+        if (!val && val !== 0) return '';
+        if (!Number.isNaN(Number(val))) return String(Number(val));
+        const match = departments.find((d) => {
+          const names = [d.department_name, d.name].filter(Boolean);
+          return names.some((n) => String(n).toLowerCase() === String(val).toLowerCase()) || String(d.id) === String(val) || String(d.department_id) === String(val);
+        });
+        if (match) return String(match.department_id ?? match.id ?? match.department_name ?? '');
+        return String(val);
+      };
+
+      try {
+        // Find resolver that matches chosen category, scope and includes the selected officer
+        const officerStr = String(reassignOfficerId);
+        for (const resolver of (categoryResolvers || [])) {
+          if (!resolver || !resolver.active) continue;
+          if (!resolver.category || String(resolver.category) !== String(reassignScope.category)) continue;
+
+          const rCampus = resolver.campus ?? resolver.campus_id ?? resolver.campus_name ?? '';
+          const rCollege = resolver.college ?? resolver.college_id ?? resolver.college_name ?? '';
+          const rDepartment = resolver.department ?? resolver.department_id ?? resolver.department_name ?? resolver.department_id ?? '';
+
+          const rCampusVal = mapCampusToValue(rCampus);
+          const rCollegeVal = mapCollegeToValue(rCollege);
+          const rDepartmentVal = mapDepartmentToValue(rDepartment);
+
+          const campusMatch = !rCampusVal || String(rCampusVal) === String(reassignScope.campus);
+          const collegeMatch = !rCollegeVal || String(rCollegeVal) === String(reassignScope.college);
+          const deptMatch = !rDepartmentVal || String(rDepartmentVal) === String(reassignScope.department);
+
+          if (!(campusMatch && collegeMatch && deptMatch)) continue;
+
+          // Check officer membership
+          let officerMatch = false;
+          if (resolver.officer_id && String(resolver.officer_id) === officerStr) officerMatch = true;
+          if (resolver.officers && Array.isArray(resolver.officers)) {
+            officerMatch = resolver.officers.some((o) => String(o?.id || o?.officer || o) === officerStr) || officerMatch;
+          }
+
+          if (officerMatch) {
+            resolverIdToUse = resolver.resolver_id || resolver.id || resolver.resolverId || null;
+            break;
+          }
+        }
+      } catch (e) {
+        // ignore matching failures and fallback to no resolver id
+        console.warn('Resolver matching failed', e);
+      }
+
+      await apiService.updateComplaint(complaint.complaint_id, updatePayload);
+
+      const reassignBody = { officer_id: normalize(reassignOfficerId) };
+      if (resolverIdToUse) reassignBody.resolver_id = resolverIdToUse;
+      await apiService.reassignComplaint(complaint.complaint_id, reassignBody);
 
       await loadPageData();
 
@@ -428,7 +586,7 @@ const AdminComplaintDetail = () => {
               </div>
             </section>
 
-            {timelineHighlights.length > 0 && (
+            {/* {timelineHighlights.length > 0 && (
               <section className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg border p-6`}>
                 <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-3`}>Recent timeline</h3>
                 <div className="space-y-2">
@@ -443,7 +601,7 @@ const AdminComplaintDetail = () => {
                   ))}
                 </div>
               </section>
-            )}
+            )} */}
 
             <section className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg border p-6 space-y-4`}>
               <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Management</h3>

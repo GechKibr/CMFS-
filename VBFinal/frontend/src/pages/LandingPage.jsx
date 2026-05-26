@@ -5,10 +5,10 @@ import PublicNavbar from '../components/UI/PublicNavbar';
 import PublicFooter from '../components/UI/PublicFooter';
 
 // Microsoft OAuth Configuration
-const MICROSOFT_CLIENT_ID = '717df1e7-c444-4623-99e6-7dcebc53d49b';
-const MICROSOFT_REDIRECT_URI = `${window.location.origin}/auth/microsoft/callback`;
-const MICROSOFT_AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
-const MICROSOFT_SCOPE = 'openid email profile User.Read';
+// const MICROSOFT_CLIENT_ID = '717df1e7-c444-4623-99e6-7dcebc53d49b';
+// const MICROSOFT_REDIRECT_URI = `${window.location.origin}/auth/microsoft/callback`;
+// const MICROSOFT_AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
+// const MICROSOFT_SCOPE = 'openid email profile User.Read';
 
 // Animated Campus Images Array
 const campusImages = [

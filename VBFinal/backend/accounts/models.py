@@ -424,12 +424,19 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def user_campus(self):
         student_profile = getattr(self, 'student_profile', None)
-        if student_profile and student_profile.campus_id:
-            return student_profile.campus_id
+        if student_profile and student_profile.campus:
+            return student_profile.campus
 
         officer_profile = getattr(self, 'officer_profile', None)
         if officer_profile:
             return None
+        return None
+
+    @property
+    def campus_name(self):
+        student_profile = getattr(self, 'student_profile', None)
+        if student_profile and student_profile.campus:
+            return dict(CAMPUS_CHOICES).get(student_profile.campus, student_profile.campus)
         return None
 
     @property
@@ -446,6 +453,19 @@ class User(AbstractBaseUser, PermissionsMixin):
         return None
 
     @property
+    def college_name(self):
+        student_profile = getattr(self, 'student_profile', None)
+        if student_profile and student_profile.department_id:
+            return student_profile.department.get_department_college_display()
+
+        officer_profile = getattr(self, 'officer_profile', None)
+        if officer_profile:
+            return officer_profile.get_college_display() or (
+                officer_profile.department.get_department_college_display() if officer_profile.department_id else None
+            )
+        return None
+
+    @property
     def department(self):
         student_profile = getattr(self, 'student_profile', None)
         if student_profile:
@@ -453,6 +473,17 @@ class User(AbstractBaseUser, PermissionsMixin):
 
         officer_profile = getattr(self, 'officer_profile', None)
         return officer_profile.department_id if officer_profile else None
+
+    @property
+    def department_name(self):
+        student_profile = getattr(self, 'student_profile', None)
+        if student_profile and student_profile.department_id:
+            return student_profile.department.department_name
+
+        officer_profile = getattr(self, 'officer_profile', None)
+        if officer_profile and officer_profile.department_id:
+            return officer_profile.department.department_name
+        return None
 
     @property
     def employee_id(self):
@@ -521,6 +552,7 @@ class Student(models.Model):
         on_delete=models.CASCADE,
         related_name='student_profile'
     )
+    campus = models.CharField(max_length=20, choices=CAMPUS_CHOICES, null=True, blank=True, db_index=True)
     student_type = models.CharField(max_length=50, choices=STUDENT_TYPE_CHOICES, null=True, blank=True, db_index=True)
     campus_id = models.CharField(max_length=20, unique=True, null=True, blank=True, db_index=True)
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='students')

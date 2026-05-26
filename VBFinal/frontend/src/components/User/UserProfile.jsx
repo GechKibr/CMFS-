@@ -29,6 +29,11 @@ const UserProfile = ({ user: propUser }) => {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
 
+  // Delete account confirmation state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmUsername, setDeleteConfirmUsername] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+
   const resolveStudentTypeCode = useCallback((value, options = studentTypes) => {
     if (value === null || value === undefined || value === '') {
       return '';
@@ -64,8 +69,8 @@ const UserProfile = ({ user: propUser }) => {
     last_name: user?.last_name || '',
     username: user?.username || '',
     gmail_account: user?.gmail_account || '',
-    campus_id: user?.campus_id || studentProfile?.campus_id || '',
-    user_campus: user?.user_campus || user?.campus_id || studentProfile?.campus_id || null,
+    campus_id: studentProfile?.campus_id || '',
+    user_campus: user?.user_campus || studentProfile?.campus_id || '',
     college: user?.college || studentProfile?.department?.department_college || null,
     department: user?.department || studentProfile?.department?.id || null,
     student_type: resolveStudentTypeCode(user?.student_type || studentProfile?.student_type || ''),
@@ -79,15 +84,15 @@ const UserProfile = ({ user: propUser }) => {
       last_name: user?.last_name || '',
       username: user?.username || '',
       gmail_account: user?.gmail_account || '',
-      campus_id: user?.campus_id || studentProfile?.campus_id || '',
-      user_campus: user?.user_campus || user?.campus_id || studentProfile?.campus_id || null,
+      campus_id: studentProfile?.campus_id || '',
+      user_campus: user?.user_campus || studentProfile?.campus_id || '',
       college: user?.college || studentProfile?.department?.department_college || null,
       department: user?.department || studentProfile?.department?.id || null,
       student_type: resolveStudentTypeCode(user?.student_type || studentProfile?.student_type || ''),
       year_of_study: user?.year_of_study || studentProfile?.year_of_study || '',
       phone: user?.phone || ''
     });
-  }, [resolveStudentTypeCode, user?.id, user?.first_name, user?.last_name, user?.username, user?.gmail_account, user?.campus_id, user?.user_campus, user?.college, user?.department, user?.student_type, user?.year_of_study, user?.phone, studentProfile?.campus_id, studentProfile?.student_type, studentProfile?.year_of_study, studentProfile?.department, studentProfile?.department?.department_college]);
+  }, [resolveStudentTypeCode, user?.id, user?.first_name, user?.last_name, user?.username, user?.gmail_account, user?.college, user?.department, user?.student_type, user?.year_of_study, user?.phone, user?.user_campus, studentProfile?.campus_id, studentProfile?.student_type, studentProfile?.year_of_study, studentProfile?.department, studentProfile?.department?.department_college]);
 
   useEffect(() => {
     if (!studentTypes.length) {
@@ -111,16 +116,10 @@ const UserProfile = ({ user: propUser }) => {
         ]);
 
         const campusList = Array.isArray(campusesData) ? campusesData : campusesData.results || [];
-        const studentTypeList = Array.isArray(studentTypesData) ? studentTypesData : studentTypesData.results || [];
         setCampuses(campusList);
-        setStudentTypes(studentTypeList.filter(item => item && item.is_active !== false).sort((a, b) => (a.type_name || '').localeCompare(b.type_name || '')));
 
-        const campusCode = user?.user_campus || user?.campus_id || studentProfile?.campus_id;
-        if (campusCode) {
-          const collegesData = await apiService.getColleges(campusCode);
-          const collegesList = Array.isArray(collegesData) ? collegesData : collegesData.results || [];
-          setColleges(collegesList);
-        }
+        const studentTypeList = Array.isArray(studentTypesData) ? studentTypesData : studentTypesData.results || [];
+        setStudentTypes(studentTypeList.filter(item => item && item.is_active !== false).sort((a, b) => (a.type_name || '').localeCompare(b.type_name || '')));
 
         const collegeCode = user?.college || studentProfile?.department?.department_college;
         if (collegeCode) {
@@ -129,14 +128,42 @@ const UserProfile = ({ user: propUser }) => {
           setDepartments(departmentsList);
         }
       } catch (error) {
-        console.error('Failed to fetch campus/college/department/student type data:', error);
+        console.error('Failed to fetch student types and departments data:', error);
       } finally {
         setFetchingData(false);
       }
     };
 
     fetchData();
-  }, [user?.user_campus, user?.campus_id, user?.college, studentProfile?.campus_id, studentProfile?.department?.department_college]);
+  }, [user?.college, studentProfile?.department?.department_college]);
+
+  useEffect(() => {
+    if (!formData.user_campus) {
+      setColleges([]);
+      setDepartments([]);
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      college: '',
+      department: null
+    }));
+    setDepartments([]);
+
+    const loadColleges = async () => {
+      try {
+        const collegesData = await apiService.getColleges(formData.user_campus);
+        const collegeList = Array.isArray(collegesData) ? collegesData : collegesData.results || [];
+        setColleges(collegeList);
+      } catch (error) {
+        console.error('Failed to fetch colleges:', error);
+        setColleges([]);
+      }
+    };
+
+    loadColleges();
+  }, [formData.user_campus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -164,30 +191,14 @@ const UserProfile = ({ user: propUser }) => {
     }));
   };
 
-  const handleCampusChange = async (e) => {
-    const campusId = e.target.value || null;
+  const handleCampusChange = (e) => {
+    const campusId = e.target.value || '';
     setFormData(prev => ({
       ...prev,
-      campus_id: campusId || '',
       user_campus: campusId,
-      college: null,
+      college: '',
       department: null
     }));
-
-    // Fetch colleges for selected campus
-    if (campusId) {
-      try {
-        const collegesData = await apiService.getColleges(campusId);
-        const collegesList = Array.isArray(collegesData) ? collegesData : collegesData.results || [];
-        setColleges(collegesList);
-      } catch (error) {
-        console.error('Failed to fetch colleges:', error);
-        setColleges([]);
-      }
-    } else {
-      setColleges([]);
-    }
-    setDepartments([]);
   };
 
   const handleCollegeChange = async (e) => {
@@ -213,7 +224,7 @@ const UserProfile = ({ user: propUser }) => {
     }
   };
 
-  const handleDepartmentChange = (e) => {
+  const handleDepartmentChange = async (e) => {
     const departmentId = e.target.value ? parseInt(e.target.value) : null;
     setFormData(prev => ({
       ...prev,
@@ -229,8 +240,8 @@ const UserProfile = ({ user: propUser }) => {
         last_name: formData.last_name,
         username: formData.username,
         gmail_account: formData.gmail_account?.trim() ? formData.gmail_account.trim().toLowerCase() : null,
-        campus_id: formData.campus_id || formData.user_campus || null,
-        user_campus: formData.user_campus,
+        campus_id: formData.campus_id?.trim() || null,
+        user_campus: formData.user_campus || null,
         college: formData.college,
         department: formData.department,
         student_type: resolveStudentTypeCode(formData.student_type) || null,
@@ -260,8 +271,8 @@ const UserProfile = ({ user: propUser }) => {
       last_name: user?.last_name || '',
       username: user?.username || '',
       gmail_account: user?.gmail_account || '',
-      campus_id: user?.campus_id || studentProfile?.campus_id || '',
-      user_campus: user?.user_campus || user?.campus_id || studentProfile?.campus_id || null,
+      campus_id: studentProfile?.campus_id || '',
+      user_campus: user?.user_campus || studentProfile?.campus_id || '',
       college: user?.college || studentProfile?.department?.department_college || null,
       department: user?.department || studentProfile?.department?.id || null,
       student_type: resolveStudentTypeCode(user?.student_type || studentProfile?.student_type || ''),
@@ -272,11 +283,23 @@ const UserProfile = ({ user: propUser }) => {
   };
 
   const handleDeleteAccount = async () => {
-    const confirmed = window.confirm(
-      'This will permanently delete your account, profile data, and related access. This action cannot be undone.'
-    );
+    setShowDeleteModal(true);
+    setDeleteConfirmUsername('');
+    setDeleteError('');
+  };
 
-    if (!confirmed) return;
+  const confirmDeleteAccount = async () => {
+    setDeleteError('');
+
+    if (!deleteConfirmUsername.trim()) {
+      setDeleteError('Please enter your username to confirm deletion');
+      return;
+    }
+
+    if (deleteConfirmUsername.trim() !== user?.username) {
+      setDeleteError('Username does not match. Please try again.');
+      return;
+    }
 
     try {
       setDeletingAccount(true);
@@ -285,10 +308,16 @@ const UserProfile = ({ user: propUser }) => {
       window.location.href = '/login';
     } catch (error) {
       console.error('Failed to delete account:', error);
-      alert('Failed to delete account. Please try again.');
+      setDeleteError('Failed to delete account. Please try again.');
     } finally {
       setDeletingAccount(false);
     }
+  };
+
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setDeleteConfirmUsername('');
+    setDeleteError('');
   };
 
   const handlePasswordChange = (e) => {
@@ -355,55 +384,13 @@ const UserProfile = ({ user: propUser }) => {
     return dept?.department_name || deptId;
   }
 
-  // Resolve values from formData first (when editing), then from user object, then from student_profile
-  const resolvedCampus = formData.user_campus || user?.user_campus || user?.campus_id || studentProfile?.campus_id || '';
-  const resolvedCollege = formData.college || user?.college || studentProfile?.department?.department_college || '';
-  const resolvedDepartment = formData.department || user?.department || studentProfile?.department?.id || '';
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const hasProfileDetails = Boolean(
-      user?.campus_id ||
-      user?.user_campus ||
-      studentProfile?.campus_id ||
-      user?.college ||
-      studentProfile?.department?.department_college ||
-      user?.department ||
-      studentProfile?.department
-    );
-
-    if (!user || hasProfileDetails) {
-      return undefined;
-    }
-
-    const refreshProfile = async () => {
-      try {
-        const profile = await apiService.getCurrentUserProfile();
-        if (!cancelled && profile) {
-          setAuth(profile);
-        }
-      } catch (error) {
-        console.error('Failed to refresh user profile data:', error);
-      }
-    };
-
-    refreshProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    user,
-    user?.campus_id,
-    user?.user_campus,
-    user?.college,
-    user?.department,
-    studentProfile.campus_id,
-    studentProfile.department,
-    studentProfile.department_detail?.department_college,
-    setAuth,
-  ]);
+  // Resolve values from formData first (when editing), then prefer backend display labels, then fall back to lookup tables.
+  const resolvedCampusCode = formData.user_campus || user?.user_campus || studentProfile?.campus_id || '';
+  const resolvedCampusLabel = user?.campus_name || studentProfile?.campus_name || getCampusName(resolvedCampusCode);
+  const resolvedCollegeCode = formData.college || user?.college || studentProfile?.department?.department_college || '';
+  const resolvedCollegeLabel = user?.college_name || studentProfile?.college_name || getCollegeName(resolvedCollegeCode);
+  const resolvedDepartmentCode = formData.department || user?.department || studentProfile?.department?.id || '';
+  const resolvedDepartmentLabel = user?.department_name || studentProfile?.department_detail?.department_name || getDepartmentName(resolvedDepartmentCode);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -473,6 +460,75 @@ const UserProfile = ({ user: propUser }) => {
                 <button
                   type="button"
                   onClick={() => setShowPasswordModal(false)}
+                  className={`mt-3 w-full inline-flex justify-center rounded-md border shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm ${isDark ? 'bg-gray-600 text-gray-200 hover:bg-gray-500 border-gray-500' : 'border-gray-300'}`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="delete-modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={closeDeleteModal}></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className={`inline-block align-bottom rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+              <div className="px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <svg className="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4v2m0 0v2m0-6v-2m0 0V7m0 6h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                    <h3 className={`text-lg leading-6 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`} id="delete-modal-title">
+                      Delete Account
+                    </h3>
+                    <div className="mt-4">
+                      <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
+                        This action is permanent and cannot be undone. All your data, profile information, and access will be permanently removed from the system.
+                      </p>
+                      {deleteError && (
+                        <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+                          <span className="block sm:inline">{deleteError}</span>
+                        </div>
+                      )}
+                      <div className="mt-4">
+                        <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                          Enter your username to confirm deletion
+                        </label>
+                        <input
+                          type="text"
+                          value={deleteConfirmUsername}
+                          onChange={(e) => setDeleteConfirmUsername(e.target.value)}
+                          placeholder={user?.username}
+                          className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500' : 'bg-white border-gray-300 focus:border-red-500'} focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50`}
+                        />
+                        <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Your username is: <span className="font-semibold">{user?.username}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className={`bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse ${isDark ? 'bg-gray-700' : ''}`}>
+                <button
+                  type="button"
+                  onClick={confirmDeleteAccount}
+                  disabled={deletingAccount || !deleteConfirmUsername.trim()}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deletingAccount ? 'Deleting...' : 'Delete Account'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeDeleteModal}
+                  disabled={deletingAccount}
                   className={`mt-3 w-full inline-flex justify-center rounded-md border shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm ${isDark ? 'bg-gray-600 text-gray-200 hover:bg-gray-500 border-gray-500' : 'border-gray-300'}`}
                 >
                   Cancel
@@ -571,6 +627,34 @@ const UserProfile = ({ user: propUser }) => {
 
             <div>
               <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                Campus
+              </label>
+              {isEditing ? (
+                <select
+                  name="user_campus"
+                  value={formData.user_campus || ''}
+                  onChange={handleCampusChange}
+                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+                >
+                  <option value="">Select Campus</option>
+                  {campuses.map(campus => (
+                    <option key={campus.id} value={campus.id}>
+                      {campus.campus_name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={resolvedCampusLabel}
+                  readOnly
+                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
+                />
+              )}
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                 Campus ID
               </label>
               <input
@@ -579,11 +663,15 @@ const UserProfile = ({ user: propUser }) => {
                 value={formData.campus_id}
                 onChange={handleInputChange}
                 readOnly={!isEditing}
+                placeholder={isEditing ? "Enter campus ID" : "Not provided"}
                 className={`w-full px-3 py-2 border rounded-lg ${isEditing
                   ? isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
                   : isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
                   } ${!isEditing ? 'cursor-not-allowed' : ''} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
               />
+              <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Your institution ID number
+              </p>
             </div>
 
             <div>
@@ -658,44 +746,13 @@ const UserProfile = ({ user: propUser }) => {
 
             <div>
               <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                Campus
-              </label>
-              {isEditing ? (
-                <select
-                  value={formData.user_campus || ''}
-                  onChange={handleCampusChange}
-                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
-                >
-                  <option value="">Select Campus</option>
-                  {campuses.map(campus => (
-                    <option key={campus.id} value={campus.id}>
-                      {campus.campus_name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={getCampusName(resolvedCampus)}
-                  readOnly
-                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
-                />
-              )}
-            </div>
-
-            <div>
-              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                 College
               </label>
               {isEditing ? (
                 <select
                   value={formData.college || ''}
                   onChange={handleCollegeChange}
-                  disabled={!formData.user_campus}
-                  className={`w-full px-3 py-2 border rounded-lg ${!formData.user_campus
-                    ? isDark ? 'bg-gray-600 border-gray-600 text-gray-400' : 'bg-gray-100 border-gray-300 text-gray-500'
-                    : isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
                 >
                   <option value="">Select College</option>
                   {colleges.map(college => (
@@ -707,7 +764,7 @@ const UserProfile = ({ user: propUser }) => {
               ) : (
                 <input
                   type="text"
-                  value={getCollegeName(resolvedCollege)}
+                  value={resolvedCollegeLabel}
                   readOnly
                   className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
                 />
@@ -738,7 +795,7 @@ const UserProfile = ({ user: propUser }) => {
               ) : (
                 <input
                   type="text"
-                  value={getDepartmentName(resolvedDepartment)}
+                  value={resolvedDepartmentLabel}
                   readOnly
                   className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
                 />
@@ -850,29 +907,43 @@ const UserProfile = ({ user: propUser }) => {
             </div>
           )}
 
-          {user?.role !== 'officer' && (
-            <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-900/50 dark:bg-red-950/20">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        </div>
+      </div>
+
+      {/* Danger Zone - Sudden Actions Section */}
+      {user?.role !== 'officer' && (
+        <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-900/50 dark:bg-red-950/20">
+          <div className="mb-4">
+            <h3 className={`text-xl font-bold ${isDark ? 'text-red-200' : 'text-red-900'}`}>
+              Danger Zone
+            </h3>
+
+          </div>
+
+          <div className="space-y-3">
+            <div className={`rounded-lg border ${isDark ? 'border-red-900/50 bg-red-950/30' : 'border-red-200 bg-red-100/50'} p-4`}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h4 className="text-lg font-semibold text-red-900 dark:text-red-200">Danger Zone</h4>
-                  <p className="mt-1 text-sm text-red-800 dark:text-red-300">
-                    Permanently delete your account and remove your access from the system.
+                  <h4 className={`font-semibold ${isDark ? 'text-red-200' : 'text-red-900'}`}>
+                    Delete Account
+                  </h4>
+                  <p className={`text-sm mt-1 ${isDark ? 'text-red-300' : 'text-red-800'}`}>
+                    Permanently delete your account and remove all your data from the system.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleDeleteAccount}
                   disabled={deletingAccount}
-                  className="inline-flex items-center justify-center rounded-lg border border-red-600 bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center justify-center rounded-lg border border-red-600 bg-red-600 px-6 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap"
                 >
                   {deletingAccount ? 'Deleting...' : 'Delete Account'}
                 </button>
               </div>
             </div>
-          )}
-
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from django.db.models import Avg, Count, Q
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
@@ -299,10 +297,9 @@ class FeedbackResponseViewSet(viewsets.ModelViewSet):
         if FeedbackResponse.objects.filter(
             template=template,
             user=request.user,
-            submitted_at__gte=timezone.now() - timedelta(hours=24),
         ).exists():
             return Response(
-                {'error': 'You have already submitted feedback for this form today'},
+                {'error': 'You have already submitted feedback for this form'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

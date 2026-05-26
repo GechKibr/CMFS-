@@ -183,6 +183,24 @@ const FeedbackFormBuilder = ({ onSave }) => {
       return;
     }
 
+    // Validate number fields have min and max
+    for (const field of fields) {
+      if (field.field_type === 'number') {
+        if (field.min_value === null || field.min_value === undefined || field.min_value === '') {
+          alert(`Field "${field.label}" is a number field. Minimum value is required.`);
+          return;
+        }
+        if (field.max_value === null || field.max_value === undefined || field.max_value === '') {
+          alert(`Field "${field.label}" is a number field. Maximum value is required.`);
+          return;
+        }
+        if (Number(field.min_value) >= Number(field.max_value)) {
+          alert(`Field "${field.label}": Minimum value must be less than maximum value.`);
+          return;
+        }
+      }
+    }
+
     if (audienceScope === 'campus' && !targetCampus) {
       alert('Please select a target campus');
       return;
@@ -507,29 +525,62 @@ const FieldEditor = ({ field, index, totalFields, onUpdate, onRemove, onMove }) 
       )}
 
       {field.field_type === 'number' && (
-        <div className="my-4 p-3 bg-white rounded space-y-3">
+        <div className="my-4 p-3 bg-blue-50 rounded border-2 border-blue-200 space-y-3">
+          <p className="text-sm font-semibold text-blue-900 mb-3">📊 Number Field Configuration (Required)</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Value</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Minimum Value <span className="text-red-500">*</span>
+              </label>
               <input
                 type="number"
-                value={field.min_value || ''}
+                value={field.min_value !== null && field.min_value !== undefined ? field.min_value : ''}
                 onChange={(e) => onUpdate({ min_value: e.target.value ? Number(e.target.value) : null })}
-                placeholder="Min (optional)"
-                className="w-full p-2 border border-gray-300 rounded"
+                placeholder="Enter minimum value"
+                className={`w-full p-2 border-2 rounded ${
+                  field.min_value === null || field.min_value === undefined || field.min_value === ''
+                    ? 'border-red-300 bg-red-50'
+                    : 'border-gray-300'
+                }`}
               />
+              {(field.min_value === null || field.min_value === undefined || field.min_value === '') && (
+                <p className="text-xs text-red-600 mt-1">⚠️ Required for number fields</p>
+              )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Maximum Value</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Maximum Value <span className="text-red-500">*</span>
+              </label>
               <input
                 type="number"
-                value={field.max_value || ''}
+                value={field.max_value !== null && field.max_value !== undefined ? field.max_value : ''}
                 onChange={(e) => onUpdate({ max_value: e.target.value ? Number(e.target.value) : null })}
-                placeholder="Max (optional)"
-                className="w-full p-2 border border-gray-300 rounded"
+                placeholder="Enter maximum value"
+                className={`w-full p-2 border-2 rounded ${
+                  field.max_value === null || field.max_value === undefined || field.max_value === ''
+                    ? 'border-red-300 bg-red-50'
+                    : 'border-gray-300'
+                }`}
               />
+              {(field.max_value === null || field.max_value === undefined || field.max_value === '') && (
+                <p className="text-xs text-red-600 mt-1">⚠️ Required for number fields</p>
+              )}
             </div>
           </div>
+          {field.min_value !== null && field.min_value !== undefined && field.max_value !== null && field.max_value !== undefined && (
+            <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded">
+              <p className="text-xs text-green-800">
+                ✓ Valid range: <strong>{field.min_value}</strong> to <strong>{field.max_value}</strong>
+              </p>
+            </div>
+          )}
+          {field.min_value !== null && field.min_value !== undefined && field.max_value !== null && field.max_value !== undefined && Number(field.min_value) >= Number(field.max_value) && (
+            <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded">
+              <p className="text-xs text-red-800">
+                ⚠️ Minimum must be less than maximum
+              </p>
+            </div>
+          )}
         </div>
       )}
 

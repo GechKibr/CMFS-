@@ -146,7 +146,16 @@ class EmailLogSerializer(serializers.ModelSerializer):
 class StudentSerializer(serializers.ModelSerializer):
     user_detail = UserSummarySerializer(source='user', read_only=True)
     student_type_detail = serializers.CharField(source='get_student_type_display', read_only=True)
+    campus = serializers.ChoiceField(choices=CAMPUS_CHOICES, required=False, allow_null=True, allow_blank=True)
     department_detail = DepartmentSerializer(source='department', read_only=True)
+    campus_name = serializers.SerializerMethodField()
+    college_name = serializers.SerializerMethodField()
+
+    def get_campus_name(self, obj):
+        return dict(CAMPUS_CHOICES).get(obj.campus, obj.campus)
+
+    def get_college_name(self, obj):
+        return obj.department.get_department_college_display() if obj.department else None
 
     class Meta:
         model = Student
@@ -154,14 +163,17 @@ class StudentSerializer(serializers.ModelSerializer):
             'id',
             'user',
             'user_detail',
+            'campus',
             'student_type',
             'student_type_detail',
             'campus_id',
+            'campus_name',
             'department',
+            'college_name',
             'department_detail',
             'year_of_study',
         ]
-        read_only_fields = ['user_detail', 'student_type_detail', 'department_detail']
+        read_only_fields = ['user_detail', 'student_type_detail', 'campus_name', 'college_name', 'department_detail']
 
     def validate_user(self, value):
         if value.role != User.ROLE_USER:
@@ -349,8 +361,8 @@ class UserProfileMixin:
                 if student_profile is None:
                     student_profile = Student(user=user)
 
-                if campus_id_value is serializers.empty and campus_value not in (None, serializers.empty):
-                    campus_id_value = campus_value
+                if profile_data['user_campus'] is not serializers.empty:
+                    student_profile.campus = campus_value
 
                 if campus_id_value is not serializers.empty:
                     student_profile.campus_id = campus_id_value or None
@@ -489,11 +501,15 @@ class UserReadWriteBaseSerializer(UserProfileMixin, serializers.ModelSerializer)
         student_profile = getattr(instance, 'student_profile', None)
         if student_profile is not None:
             data['campus_id'] = student_profile.campus_id
-            data['user_campus'] = student_profile.campus_id
+            data['user_campus'] = student_profile.campus
+            data['campus'] = student_profile.campus
+            data['campus_name'] = dict(CAMPUS_CHOICES).get(student_profile.campus, student_profile.campus)
             data['student_type'] = student_profile.student_type
             data['year_of_study'] = student_profile.year_of_study
             data['department'] = student_profile.department_id
             data['college'] = student_profile.department.department_college if student_profile.department else None
+            data['college_name'] = student_profile.department.get_department_college_display() if student_profile.department else None
+            data['department_name'] = student_profile.department.department_name if student_profile.department else None
             # Include full student profile for frontend
             data['student_profile'] = StudentSerializer(student_profile).data
 
@@ -504,6 +520,10 @@ class UserReadWriteBaseSerializer(UserProfileMixin, serializers.ModelSerializer)
             data['college'] = officer_profile.college or (
                 officer_profile.department.department_college if officer_profile.department else None
             )
+            data['college_name'] = officer_profile.get_college_display() if officer_profile.college else (
+                officer_profile.department.get_department_college_display() if officer_profile.department else None
+            )
+            data['department_name'] = officer_profile.department.department_name if officer_profile.department else None
             # Include full officer profile for frontend
             data['officer_profile'] = OfficerSerializer(officer_profile).data
 

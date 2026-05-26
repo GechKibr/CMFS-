@@ -40,6 +40,9 @@ class FeedbackTemplateSerializer(serializers.ModelSerializer):
     target_college_name = serializers.CharField(source='get_target_college_display', read_only=True, allow_null=True)
     target_department_name = serializers.CharField(source='target_department.department_name', read_only=True, allow_null=True)
     target_user_ids = serializers.SerializerMethodField()
+    has_submitted = serializers.SerializerMethodField()
+    user_submission = serializers.SerializerMethodField()
+    created_by_officer_info = serializers.SerializerMethodField()
     
     class Meta:
         model = FeedbackTemplate
@@ -47,7 +50,8 @@ class FeedbackTemplateSerializer(serializers.ModelSerializer):
                  'audience_scope', 'target_campus', 'target_college', 'target_department',
                  'target_campus_name', 'target_college_name', 'target_department_name', 'target_user_ids',
                  'created_at', 'updated_at', 'fields', 
-                 'created_by', 'created_by_role', 'approved_by', 'approved_at']
+                 'created_by', 'created_by_role', 'created_by_officer_info', 'approved_by', 'approved_at',
+                 'has_submitted', 'user_submission']
         read_only_fields = ['created_by', 'office', 'approved_by', 'approved_at']
     
     def get_created_by_role(self, obj):
@@ -57,8 +61,87 @@ class FeedbackTemplateSerializer(serializers.ModelSerializer):
             return 'officer'
         return 'user'
 
+    def get_created_by_officer_info(self, obj):
+        """Get officer profile information including department, college, and campus"""
+        officer_profile = getattr(obj.created_by, 'officer_profile', None)
+        if not officer_profile:
+            return None
+        
+        info = {
+            'officer_id': obj.created_by.id,
+            'officer_name': obj.created_by.full_name,
+            'employee_id': officer_profile.employee_id,
+            'department_id': officer_profile.department_id,
+            'department_name': officer_profile.department.department_name if officer_profile.department else None,
+            'college': officer_profile.college,
+            'college_name': dict(ACADEMIC_UNITS).get(officer_profile.college) if officer_profile.college else None,
+        }
+        
+        # If department exists, get its college
+        if officer_profile.department:
+            info['college'] = officer_profile.department.department_college
+            info['college_name'] = dict(ACADEMIC_UNITS).get(officer_profile.department.department_college)
+        
+        return info
+
     def get_target_user_ids(self, obj):
         return list(obj.target_users.values_list('id', flat=True))
+
+    def get_has_submitted(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+
+        if not request or not user or not user.is_authenticated:
+            return False
+
+        return FeedbackResponse.objects.filter(template=obj, user=user).exists()
+
+    def get_user_submission(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+
+        if not request or not user or not user.is_authenticated:
+            return None
+
+        response = (
+            FeedbackResponse.objects
+            .filter(template=obj, user=user)
+            .prefetch_related('answers__field')
+            .order_by('-submitted_at')
+            .first()
+        )
+
+        if not response:
+            return None
+
+        answers = []
+        for answer in response.answers.all():
+            field = answer.field
+            if field.field_type == TemplateField.FIELD_TEXT:
+                value = answer.text_value or ''
+            elif field.field_type == TemplateField.FIELD_NUMBER:
+                value = answer.number_value
+            elif field.field_type == TemplateField.FIELD_RATING:
+                value = answer.rating_value
+            elif field.field_type == TemplateField.FIELD_CHOICE:
+                value = answer.choice_value or ''
+            elif field.field_type == TemplateField.FIELD_CHECKBOX:
+                value = answer.checkbox_values or []
+            else:
+                value = None
+
+            answers.append({
+                'field_id': str(field.id),
+                'label': field.label,
+                'field_type': field.field_type,
+                'value': value,
+            })
+
+        return {
+            'id': str(response.id),
+            'submitted_at': response.submitted_at.isoformat(),
+            'answers': answers,
+        }
 
 
 class FeedbackTemplateCreateSerializer(serializers.ModelSerializer):

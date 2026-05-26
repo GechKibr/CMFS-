@@ -49,7 +49,7 @@ const FeedbackList = ({ userRole, onSelectTemplate }) => {
         <h2 className="text-2xl font-bold text-gray-800 m-0">Feedback Forms</h2>
         {userRole === 'officer' && (
           <button
-            className="bg-green-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors"
+            className="px-6 py-3 rounded-lg font-semibold text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
             onClick={() => onSelectTemplate('create')}
           >
             Create New Form
@@ -62,14 +62,7 @@ const FeedbackList = ({ userRole, onSelectTemplate }) => {
           <div key={template.id} className="bg-white border border-gray-300 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-lg font-semibold text-gray-800 m-0">{template.title}</h3>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${
-                template.status === 'draft' ? 'bg-gray-100 text-gray-600' :
-                template.status === 'active' ? 'bg-green-100 text-green-800' :
-                template.status === 'closed' ? 'bg-red-100 text-red-800' :
-                template.status === 'inactive' ? 'bg-gray-100 text-gray-700' :
-                template.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-red-100 text-red-800'
-              }`}>
+              <span className="px-3 py-1 rounded text-xs font-semibold uppercase bg-gray-100 text-gray-700">
                 {template.status}
               </span>
             </div>
@@ -89,7 +82,7 @@ const FeedbackList = ({ userRole, onSelectTemplate }) => {
             <div className="flex gap-2 flex-wrap">
               {userRole === 'user' && template.status === 'active' && (
                 <button
-                  className="px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded hover:bg-blue-600 transition-colors"
+                  className="px-4 py-2 text-gray-700 border border-gray-300 text-sm font-medium rounded hover:bg-gray-50 transition-colors"
                   onClick={() => onSelectTemplate(template.id)}
                 >
                   Fill Form
@@ -99,15 +92,15 @@ const FeedbackList = ({ userRole, onSelectTemplate }) => {
               {userRole === 'officer' && (
                 <>
                   <button
-                    className="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded hover:bg-gray-700 transition-colors"
+                    className="px-4 py-2 text-gray-700 border border-gray-300 text-sm font-medium rounded hover:bg-gray-50 transition-colors"
                     onClick={() => onSelectTemplate(template.id, 'analytics')}
                   >
-                    Analytics
+                    View Responses
                   </button>
 
                   {template.status === 'draft' && (
                     <button
-                      className="px-4 py-2 bg-green-500 text-white text-sm font-medium rounded hover:bg-green-600 transition-colors"
+                      className="px-4 py-2 text-gray-700 border border-gray-300 text-sm font-medium rounded hover:bg-gray-50 transition-colors"
                       onClick={() => handleStatusChange(template.id, 'active')}
                     >
                       Activate
@@ -116,7 +109,7 @@ const FeedbackList = ({ userRole, onSelectTemplate }) => {
 
                   {template.status === 'active' && (
                     <button
-                      className="px-4 py-2 bg-yellow-500 text-gray-900 text-sm font-medium rounded hover:bg-yellow-600 transition-colors"
+                      className="px-4 py-2 text-gray-700 border border-gray-300 text-sm font-medium rounded hover:bg-gray-50 transition-colors"
                       onClick={() => handleStatusChange(template.id, 'closed')}
                     >
                       Close
@@ -134,7 +127,7 @@ const FeedbackList = ({ userRole, onSelectTemplate }) => {
           <p className="text-lg mb-5">No feedback forms available</p>
           {userRole === 'officer' && (
             <button
-              className="bg-green-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors"
+              className="px-6 py-3 rounded-lg font-semibold text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
               onClick={() => onSelectTemplate('create')}
             >
               Create Your First Form

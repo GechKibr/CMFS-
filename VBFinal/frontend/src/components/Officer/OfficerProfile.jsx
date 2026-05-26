@@ -9,7 +9,7 @@ const OfficerProfile = ({ user: propUser }) => {
   const user = propUser || authUser;
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
 
   // Password change state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -73,7 +73,7 @@ const OfficerProfile = ({ user: propUser }) => {
     setIsEditing(false);
   };
 
-  
+
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
@@ -364,6 +364,51 @@ const OfficerProfile = ({ user: propUser }) => {
               <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 Must be a valid @gmail.com address.
               </p>
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                Employee ID
+              </label>
+              <input
+                type="text"
+                value={user?.employee_id || 'Not provided'}
+                readOnly
+                className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
+              />
+              {/* <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                View only - Contact admin to change
+              </p> */}
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                Department
+              </label>
+              <input
+                type="text"
+                value={user?.department_name || 'Not provided'}
+                readOnly
+                className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
+              />
+              {/* <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  View only - Contact admin to change
+                </p> */}
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                College
+              </label>
+              <input
+                type="text"
+                value={user?.college_name || 'Not provided'}
+                readOnly
+                className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'} cursor-not-allowed`}
+              />
+              {/* <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                View only - Contact admin to change
+              </p> */}
             </div>
           </div>
         </div>

@@ -213,7 +213,6 @@ const AnimatedImageCarousel = () => {
             e.target.src = "/uog.png";
           }}
         />
-        {/* Lighter overlay for better visibility */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-black/20 to-transparent"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent"></div>
         
@@ -422,7 +421,7 @@ const HeroText = () => {
         </h2>
       </div>
 
-      {/* Buttons with Staggered Animation - Brighter */}
+      {/* Only Get Started Button - Removed Create Account */}
       <div className={`flex flex-col sm:flex-row gap-5 pt-10 transform transition-all duration-1000 delay-1200 ease-out ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
         <button
           onClick={() => window.location.href = '/login'}
@@ -433,25 +432,6 @@ const HeroText = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
           </svg>
         </button>
-        <button
-          onClick={() => {
-            const state = Math.random().toString(36).substring(2, 15);
-            localStorage.setItem('oauth_state', state);
-            const params = new URLSearchParams({
-              client_id: MICROSOFT_CLIENT_ID,
-              response_type: 'code',
-              redirect_uri: `${window.location.origin}/auth/microsoft/callback`,
-              scope: 'openid email profile User.Read',
-              response_mode: 'query',
-              state: state,
-              prompt: 'select_account'
-            });
-            window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
-          }}
-          className="inline-flex items-center justify-center rounded-2xl border border-white/50 bg-white/15 backdrop-blur-sm px-10 py-4 text-lg font-semibold text-white hover:bg-white/25 transition-all duration-500 hover:-translate-y-1"
-        >
-          Create Account
-        </button>
       </div>
     </div>
   );
@@ -461,24 +441,8 @@ const LandingPage = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
 
-
-  // Microsoft login redirect function
-  const handleMicrosoftLogin = () => {
-    const state = Math.random().toString(36).substring(2, 15);
-    localStorage.setItem('oauth_state', state);
-    
-    const params = new URLSearchParams({
-      client_id: MICROSOFT_CLIENT_ID,
-      response_type: 'code',
-      redirect_uri: `${window.location.origin}/auth/microsoft/callback`,
-      scope: MICROSOFT_SCOPE,
-      response_mode: 'query',
-      state: state,
-      prompt: 'select_account'
-    });
-    
-    const loginUrl = `${MICROSOFT_AUTH_URL}?${params.toString()}`;
-    window.location.href = loginUrl;
+  const scrollToSection = (id) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
@@ -498,7 +462,6 @@ const LandingPage = () => {
           {/* Background Image with EXTREMELY SLOW Carousel */}
           <div className="absolute inset-0 z-0">
             <AnimatedImageCarousel />
-            {/* Lighter overlay for better brightness */}
             <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/15 to-transparent"></div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"></div>
           </div>
@@ -609,7 +572,7 @@ const LandingPage = () => {
           </div>
         </section>
 
-        {/* CTA Section - Brighter */}
+        {/* CTA Section - Only Get Started Button (Removed Create Account) */}
         <section className="py-24 bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-700">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <Reveal>
@@ -622,13 +585,7 @@ const LandingPage = () => {
                     onClick={() => navigate('/login')}
                     className="px-10 py-4 rounded-xl bg-white text-blue-700 font-semibold text-lg shadow-xl transition-all duration-500 hover:shadow-2xl hover:-translate-y-1"
                   >
-                    Sign In
-                  </button>
-                  <button
-                    onClick={handleMicrosoftLogin}
-                    className="px-10 py-4 rounded-xl border-2 border-white/40 text-white font-semibold text-lg transition-all duration-500 hover:bg-white/15 hover:-translate-y-1"
-                  >
-                    Create Account
+                    Get Started
                   </button>
                 </div>
               </div>
@@ -639,7 +596,7 @@ const LandingPage = () => {
 
       <PublicFooter />
 
-      <style>{`
+      <style jsx>{`
         @keyframes float-card-slow {
           0% { transform: translateY(0px); }
           50% { transform: translateY(-15px); }

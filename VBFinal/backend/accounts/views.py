@@ -62,7 +62,7 @@ class AdminOnlyModelViewSet(viewsets.ModelViewSet):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.select_related('student_profile', 'officer_profile').all()
+    queryset = User.objects.select_related('student_profile__department', 'officer_profile__department').all()
     public_actions = {
         'register',
         'login',

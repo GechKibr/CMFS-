@@ -367,6 +367,8 @@ class Complaint(models.Model):
             return True
         if self.claimed_by_id == officer.id:
             return True
+        if self.assignments.filter(officer_id=officer.id, ended_at__isnull=True).exists():
+            return True
         if self.current_resolver_id:
             return self.current_resolver.officers.filter(officer_id=officer.id, active=True, officer__is_active=True).exists()
         if self.category_id:

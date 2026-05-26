@@ -81,6 +81,7 @@ def accessible_complaints_for(user):
             Complaint.objects.filter(
                 models.Q(submitted_by=user)
                 | models.Q(claimed_by=user)
+                | models.Q(assignments__officer=user, assignments__ended_at__isnull=True)
                 | models.Q(cc_list__email=user.email)
                 | models.Q(current_resolver__officers__officer=user, current_resolver__officers__active=True, current_resolver__officers__officer__is_active=True)
                 | (
@@ -108,6 +109,13 @@ def can_manage_complaint(user, complaint):
         and complaint.current_resolver_id
         and complaint.current_resolver.officers.filter(officer=user, active=True, officer__is_active=True).exists()
     )
+    is_active_assignee = bool(
+        user
+        and user.is_authenticated
+        and user.is_officer()
+        and complaint
+        and complaint.assignments.filter(officer=user, ended_at__isnull=True).exists()
+    )
 
     return bool(
         user
@@ -115,6 +123,7 @@ def can_manage_complaint(user, complaint):
         and (
             user.is_admin()
             or (user.is_officer() and complaint.claimed_by_id == user.id)
+            or is_active_assignee
             or is_category_resolver
         )
     )
@@ -497,6 +506,15 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         output_serializer = ComplaintSerializer(complaint, context={'request': request})
         return DRFResponse(output_serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=False, methods=['get'], url_path='escalation-details')
+    def escalation_details(self, request):
+        if not request.user.is_authenticated or not request.user.is_admin():
+            return DRFResponse({'error': 'Only admins can view escalation details.'}, status=status.HTTP_403_FORBIDDEN)
+
+        from .escalation_service import EscalationService
+
+        return DRFResponse(EscalationService.get_escalation_details(), status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['get'], url_path='assigned-complaints')
     def assigned_complaints(self, request):
         user = request.user
@@ -514,6 +532,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
 
             complaints_qs = Complaint.objects.filter(
                 models.Q(claimed_by=user)
+                | models.Q(assignments__officer=user, assignments__ended_at__isnull=True)
                 | models.Q(
                     current_resolver__officers__officer=user,
                     current_resolver__officers__active=True,
@@ -747,8 +766,8 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         campus = request.query_params.get('campus')
         college = request.query_params.get('college')
         department_id = request.query_params.get('department')
-
-        qs = CategoryResolver.objects.filter(category=complaint.category, active=True).select_related('officer', 'department')
+        # Collect resolvers from the complaint's category first
+        qs = CategoryResolver.objects.filter(category=complaint.category, active=True).select_related('department')
         if campus is not None:
             qs = qs.filter(campus=campus)
         if college is not None:
@@ -759,7 +778,40 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         # Only include resolvers that actually match the complaint's scope
         resolvers = [r for r in qs if r.matches_complaint_scope(complaint)]
         serializer = CategoryResolverSerializer(resolvers, many=True)
-        return DRFResponse({'count': len(resolvers), 'results': serializer.data}, status=status.HTTP_200_OK)
+        results = []
+        for data in serializer.data:
+            rec = data.copy()
+            rec['is_parent_category'] = False
+            rec['parent_category_id'] = None
+            rec['parent_category_name'] = None
+            results.append(rec)
+
+        # Also include resolvers from parent categories that match the complaint's scope.
+        # Walk up the ancestry and collect matching resolvers for display so UI can offer
+        # escalation targets in parent categories that match campus/college/department.
+        if complaint.category_id and complaint.category:
+            for parent in complaint.category.ancestors():
+                parent_qs = CategoryResolver.objects.filter(category=parent, active=True).select_related('department')
+                if campus is not None:
+                    parent_qs = parent_qs.filter(campus=campus)
+                if college is not None:
+                    parent_qs = parent_qs.filter(college=college)
+                if department_id is not None:
+                    parent_qs = parent_qs.filter(department_id=department_id)
+
+                parent_resolvers = [r for r in parent_qs if r.matches_complaint_scope(complaint)]
+                if not parent_resolvers:
+                    # continue to next ancestor if none match here
+                    continue
+                parent_serializer = CategoryResolverSerializer(parent_resolvers, many=True)
+                for data in parent_serializer.data:
+                    rec = data.copy()
+                    rec['is_parent_category'] = True
+                    rec['parent_category_id'] = parent.category_id
+                    rec['parent_category_name'] = parent.name
+                    results.append(rec)
+
+        return DRFResponse({'count': len(results), 'results': results}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='change-status')
     def change_status(self, request, pk=None):

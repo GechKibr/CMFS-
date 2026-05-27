@@ -129,6 +129,8 @@ const AdminUserOptions = () => {
     return null;
   }
 
+  const isAdminUser = user.role === 'admin';
+
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <DashboardNavbar onSidebarToggle={handleSidebarToggle} />
@@ -216,22 +218,31 @@ const AdminUserOptions = () => {
                   Edit Details
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleToggleUserStatus}
-                  disabled={actionLoading}
-                  className={`px-4 py-2 rounded-md text-white disabled:opacity-50 ${user.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-                >
-                  {user.is_active ? 'Deactivate User' : 'Activate User'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteUser}
-                  disabled={actionLoading}
-                  className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                >
-                  Delete User
-                </button>
+                {!isAdminUser && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleToggleUserStatus}
+                      disabled={actionLoading}
+                      className={`px-4 py-2 rounded-md text-white disabled:opacity-50 ${user.is_active ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                    >
+                      {user.is_active ? 'Deactivate User' : 'Activate User'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteUser}
+                      disabled={actionLoading}
+                      className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      Delete User
+                    </button>
+                  </>
+                )}
+                {isAdminUser && (
+                  <span className={`text-sm self-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Admin accounts cannot be deactivated or deleted.
+                  </span>
+                )}
               </div>
             </section>
           </div>

@@ -163,7 +163,7 @@ export const CategoryManagement = () => {
     <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
       <div>
         <h3 className="text-lg font-semibold text-gray-700">{title}</h3>
-        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>View records or add a new office.</p>
+        {/* <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>View records or add a new office.</p> */}
       </div>
       <button
         onClick={openCreateModal}

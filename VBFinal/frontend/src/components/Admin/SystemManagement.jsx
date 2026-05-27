@@ -33,6 +33,19 @@ const parseStoredSchedules = () => {
   }
 };
 
+const formatTimeRemaining = (iso) => {
+  if (!iso) return '';
+  const now = new Date();
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return '';
+  const diffMs = then.getTime() - now.getTime();
+  if (diffMs <= 0) return 'Overdue';
+  const mins = Math.floor(diffMs / 60000);
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return `${hrs}h ${remMins}m`;
+};
+
 
 const SystemManagement = () => {
   const { isDark } = useTheme();
@@ -96,13 +109,11 @@ const SystemManagement = () => {
   const [maintenanceSchedules, setMaintenanceSchedules] = useState([]);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
 
-  const [jwtSessionTimeout, setJwtSessionTimeout] = useState(30);
-  const [availableTimeouts, setAvailableTimeouts] = useState([15, 30, 60, 120, 240]);
+  // JWT/session config removed - using .env settings instead
 
   const systemTabs = [
     { id: 'overview', name: 'Overview', icon: '📊' },
     { id: 'maintenance', name: 'Maintenance', icon: '🔧' },
-    { id: 'security', name: 'Security & Configuration', icon: '🔒' },
     { id: 'contact', name: 'Contact', icon: '✉️' }
   ];
 
@@ -137,17 +148,7 @@ const SystemManagement = () => {
     }
   }, []);
 
-  const loadJwtConfig = useCallback(async () => {
-    try {
-      const response = await apiService.getJwtConfig();
-      if (response) {
-        setJwtSessionTimeout(response.session_timeout_minutes);
-        setAvailableTimeouts(response.available_options);
-      }
-    } catch (error) {
-      console.error('Failed to load JWT config:', error);
-    }
-  }, []);
+  // JWT/session config removed - handled via backend .env; no client-side config load
 
   // Load backend maintenance configuration
   const loadMaintenanceConfig = useCallback(async () => {
@@ -171,13 +172,11 @@ const SystemManagement = () => {
 
   useEffect(() => {
     loadSystemStats();
-    loadJwtConfig();
     loadMaintenanceConfig();
     loadEscalationDetails();
 
-    return () => {
-    };
-  }, [loadJwtConfig, loadSystemStats, loadMaintenanceConfig, loadEscalationDetails]);
+    return () => { };
+  }, [loadSystemStats, loadMaintenanceConfig, loadEscalationDetails]);
 
   useEffect(() => {
     setMaintenanceSchedules(parseStoredSchedules());
@@ -216,18 +215,7 @@ const SystemManagement = () => {
   }, [currentMaintenanceMessage, maintenanceDuration, maintenanceEndTime, maintenanceSchedules]);
 
   // Real-time system stats from backend
-  const updateJwtTimeout = async (timeoutMinutes) => {
-    try {
-      const response = await apiService.updateJwtTimeout(timeoutMinutes);
-      if (response.success) {
-        setJwtSessionTimeout(timeoutMinutes);
-        alert(response.message);
-      }
-    } catch (error) {
-      console.error('Failed to update JWT timeout:', error);
-      alert('Failed to update session timeout');
-    }
-  };
+  // updateJwtTimeout removed; session timeout configured in backend .env
 
 
   const handleMaintenanceToggle = async () => {
@@ -444,7 +432,13 @@ const SystemManagement = () => {
                     {complaint.category} · {complaint.assigned_officer}
                   </div>
                   <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
-                    Escalates in {complaint.time_until_escalation_hours} hours
+                    {complaint.escalation_deadline ? (
+                      <>
+                        Escalates at {new Date(complaint.escalation_deadline).toLocaleString()} ({formatTimeRemaining(complaint.escalation_deadline)})
+                      </>
+                    ) : (
+                      <>Escalates in {complaint.time_until_escalation_hours} hours</>
+                    )}
                   </div>
                 </div>
                 <div className={`text-xs px-2 py-1 rounded ${complaint.escalation_options?.can_escalate_parent_category ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -808,45 +802,7 @@ const SystemManagement = () => {
 
 
 
-  const renderSecurity = () => (
-    <div className="space-y-6">
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-        <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-          Security & Configuration
-        </h3>
-        <div className="space-y-4">
-          <div>
-            <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              JWT Session Timeout
-            </label>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <select
-                value={jwtSessionTimeout}
-                onChange={(e) => setJwtSessionTimeout(parseInt(e.target.value, 10))}
-                className={`w-full sm:w-72 p-3 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-              >
-                {availableTimeouts.map((timeout) => (
-                  <option key={timeout} value={timeout}>
-                    {timeout} minutes
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => updateJwtTimeout(jwtSessionTimeout)}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                Update Timeout
-              </button>
-            </div>
-          </div>
-          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            Changes apply to new sessions and help enforce consistent admin session security.
-          </p>
-        </div>
-      </div>
-
-    </div>
-  );
+  // Security & Configuration UI removed: handled via backend .env
 
   const renderTabContent = () => {
     switch (activeSystemTab) {
@@ -854,8 +810,7 @@ const SystemManagement = () => {
         return renderSystemOverview();
       case 'maintenance':
         return renderMaintenance();
-      case 'security':
-        return renderSecurity();
+      // 'security' tab removed
       case 'contact':
         return <ContactManagement />;
       default:

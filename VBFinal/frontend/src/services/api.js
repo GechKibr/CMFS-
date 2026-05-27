@@ -281,16 +281,6 @@ class ApiService {
     return this.request('/officer/templates/');
   }
 
-  async getJwtConfig() {
-    return this.request('/system/jwt-session/');
-  }
-
-  async updateJwtTimeout(timeoutMinutes) {
-    return this.request('/system/jwt-session/', {
-      method: 'POST',
-      body: JSON.stringify({ timeout_minutes: timeoutMinutes }),
-    });
-  }
 
   async checkTokenExpiry() {
     return this.request('/accounts/token/check-expiry/', {
@@ -590,6 +580,21 @@ class ApiService {
   // Contact
   async sendContact(data) {
     return this.request('/contact/', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getContactMessages() {
+    return this.request('/contact/');
+  }
+
+  async getMyContactMessages() {
+    return this.request('/contact/my-messages/');
+  }
+
+  async replyToContactMessage(id, response_message) {
+    return this.request(`/contact/${id}/reply/`, {
+      method: 'POST',
+      body: JSON.stringify({ response_message })
+    });
   }
 
 

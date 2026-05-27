@@ -7,19 +7,49 @@ const ContactManagement = () => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [replySaving, setReplySaving] = useState(false);
+  const [replyError, setReplyError] = useState('');
+  const [replySuccess, setReplySuccess] = useState('');
 
   useEffect(() => {
-    apiService.request('/contact/')
+    apiService.getContactMessages()
       .then(d => setMessages(d.results ?? d))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 
-  const handleDelete = async (id) => {
-    if (!confirm('Delete this message?')) return;
-    await apiService.request(`/contact/${id}/`, { method: 'DELETE' });
-    setMessages(prev => prev.filter(m => m.id !== id));
-    if (selected?.id === id) setSelected(null);
+  const openMessage = (message) => {
+    setSelected(message);
+    setReplyText(message?.response_message || '');
+    setReplyError('');
+    setReplySuccess('');
+  };
+
+  const handleReplySubmit = async () => {
+    if (!selected) return;
+
+    const responseMessage = replyText.trim();
+    if (!responseMessage) {
+      setReplyError('Please write a response before saving.');
+      return;
+    }
+
+    try {
+      setReplySaving(true);
+      setReplyError('');
+      setReplySuccess('');
+      const updated = await apiService.replyToContactMessage(selected.id, responseMessage);
+      setSelected(updated);
+      setReplyText(updated.response_message || responseMessage);
+      setMessages(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+      setReplySuccess('Response saved successfully.');
+    } catch (error) {
+      console.error('Failed to save contact response:', error);
+      setReplyError('Failed to save response. Please try again.');
+    } finally {
+      setReplySaving(false);
+    }
   };
 
   const td = 'px-4 py-3 text-sm';
@@ -54,9 +84,8 @@ const ContactManagement = () => {
                   <td className={`${td} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {new Date(msg.created_at).toLocaleDateString()}
                   </td>
-                  <td className={`${td} space-x-3`}>
-                    <button onClick={() => setSelected(msg)} className="text-blue-600 hover:text-blue-800 font-medium">View</button>
-                    <button onClick={() => handleDelete(msg.id)} className="text-red-600 hover:text-red-800 font-medium">Delete</button>
+                  <td className={td}>
+                    <button onClick={() => openMessage(msg)} className="text-blue-600 hover:text-blue-800 font-medium">View</button>
                   </td>
                 </tr>
               ))}
@@ -76,15 +105,44 @@ const ContactManagement = () => {
             <div className={`text-sm space-y-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
               <p><span className="font-medium">From:</span> {selected.name} &lt;{selected.email}&gt;</p>
               <p><span className="font-medium">Date:</span> {new Date(selected.created_at).toLocaleString()}</p>
+              {selected.replied_at && (
+                <p><span className="font-medium">Replied:</span> {new Date(selected.replied_at).toLocaleString()}</p>
+              )}
             </div>
             <div className={`p-4 rounded-lg text-sm whitespace-pre-wrap ${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-50 text-gray-800'}`}>
               {selected.message}
             </div>
+            <div>
+              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                Admin Response
+              </label>
+              <textarea
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                rows={4}
+                className={`w-full px-3 py-2 border rounded-lg text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+                placeholder="Write response to this message"
+              />
+            </div>
+            {replyError && (
+              <div className={`text-sm rounded-lg px-3 py-2 border ${isDark ? 'border-red-900/50 bg-red-950/30 text-red-200' : 'border-red-200 bg-red-100 text-red-700'}`}>
+                {replyError}
+              </div>
+            )}
+            {replySuccess && (
+              <div className={`text-sm rounded-lg px-3 py-2 border ${isDark ? 'border-emerald-900/50 bg-emerald-950/30 text-emerald-200' : 'border-emerald-200 bg-emerald-100 text-emerald-700'}`}>
+                {replySuccess}
+              </div>
+            )}
             <div className="flex justify-end gap-3">
-              <a href={`mailto:${selected.email}?subject=Re: ${encodeURIComponent(selected.subject)}`}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                Reply via Email
-              </a>
+              <button
+                type="button"
+                onClick={handleReplySubmit}
+                disabled={replySaving}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50"
+              >
+                {replySaving ? 'Saving...' : 'Save Response'}
+              </button>
               <button onClick={() => setSelected(null)}
                 className={`px-4 py-2 border rounded-lg text-sm ${isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
                 Close

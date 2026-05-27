@@ -5,10 +5,6 @@ import apiService from '../../services/api';
 const initialForm = {
   resolver: '',
   officer: '',
-  can_claim: true,
-  can_close: true,
-  can_escalate: true,
-  receives_notifications: true,
   active: true,
 };
 
@@ -24,13 +20,6 @@ const getResolverLabel = (resolver) => {
   const level = resolver.escalation_level ? `L${resolver.escalation_level}` : '';
   return [category, scope, level].filter(Boolean).join(' • ');
 };
-
-const Flag = ({ on, label }) => (
-  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs ${on ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-    <span>{on ? '✓' : '–'}</span>
-    <span>{label}</span>
-  </span>
-);
 
 const OfficersManagement = () => {
   const { isDark } = useTheme();
@@ -110,10 +99,6 @@ const OfficersManagement = () => {
     setFormData({
       resolver: String(membership.resolver ?? ''),
       officer: String(membership.officer ?? ''),
-      can_claim: Boolean(membership.can_claim),
-      can_close: Boolean(membership.can_close),
-      can_escalate: Boolean(membership.can_escalate),
-      receives_notifications: Boolean(membership.receives_notifications),
       active: Boolean(membership.active),
     });
   };
@@ -131,10 +116,10 @@ const OfficersManagement = () => {
       const payload = {
         resolver: formData.resolver,
         officer: formData.officer,
-        can_claim: formData.can_claim,
-        can_close: formData.can_close,
-        can_escalate: formData.can_escalate,
-        receives_notifications: formData.receives_notifications,
+        can_claim: true,
+        can_close: true,
+        can_escalate: true,
+        receives_notifications: true,
         active: formData.active,
       };
 
@@ -180,9 +165,9 @@ const OfficersManagement = () => {
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
           <div>
             <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Officer Memberships</h3>
-            <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            {/* <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               Manage which officers belong to each resolver, plus their permissions.
-            </p>
+            </p> */}
           </div>
           <button
             type="button"
@@ -265,41 +250,6 @@ const OfficersManagement = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-900 text-gray-100' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>
-              <input
-                type="checkbox"
-                checked={formData.can_claim}
-                onChange={(e) => setFormData((prev) => ({ ...prev, can_claim: e.target.checked }))}
-              />
-              <span>Can claim</span>
-            </label>
-            <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-900 text-gray-100' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>
-              <input
-                type="checkbox"
-                checked={formData.can_close}
-                onChange={(e) => setFormData((prev) => ({ ...prev, can_close: e.target.checked }))}
-              />
-              <span>Can close</span>
-            </label>
-            <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-900 text-gray-100' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>
-              <input
-                type="checkbox"
-                checked={formData.can_escalate}
-                onChange={(e) => setFormData((prev) => ({ ...prev, can_escalate: e.target.checked }))}
-              />
-              <span>Can escalate</span>
-            </label>
-            <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-900 text-gray-100' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>
-              <input
-                type="checkbox"
-                checked={formData.receives_notifications}
-                onChange={(e) => setFormData((prev) => ({ ...prev, receives_notifications: e.target.checked }))}
-              />
-              <span>Receives notifications</span>
-            </label>
-          </div>
-
           <label className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-900 text-gray-100' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>
             <input
               type="checkbox"
@@ -337,7 +287,6 @@ const OfficersManagement = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Officer</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Resolver</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Permissions</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
               </tr>
@@ -345,7 +294,7 @@ const OfficersManagement = () => {
             <tbody className={`divide-y ${isDark ? 'divide-gray-700' : 'divide-gray-200'}`}>
               {filteredMemberships.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className={`px-6 py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <td colSpan={4} className={`px-6 py-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     No officer memberships found.
                   </td>
                 </tr>
@@ -362,14 +311,6 @@ const OfficersManagement = () => {
                       <td className={`px-6 py-4 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                         <div className="font-medium">{membership.resolver_name || getResolverLabel(resolver)}</div>
                         <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{membership.scope_label || resolver?.scope_label || 'University'}</div>
-                      </td>
-                      <td className={`px-6 py-4 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                        <div className="flex flex-wrap gap-2">
-                          <Flag on={membership.can_claim} label="Claim" />
-                          <Flag on={membership.can_close} label="Close" />
-                          <Flag on={membership.can_escalate} label="Escalate" />
-                          <Flag on={membership.receives_notifications} label="Notify" />
-                        </div>
                       </td>
                       <td className={`px-6 py-4 text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                         <span className={`inline-flex rounded-full px-2 py-1 text-xs ${membership.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>

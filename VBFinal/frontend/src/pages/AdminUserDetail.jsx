@@ -191,23 +191,6 @@ const AdminUserDetail = () => {
     }
   };
 
-  const handleDelete = async () => {
-    if (!user) return;
-
-    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      await apiService.deleteUser(user.id);
-      window.alert('User deleted successfully');
-      navigate('/admin?tab=users');
-    } catch (error) {
-      console.error('Failed to delete user:', error);
-      window.alert('Failed to delete user');
-    }
-  };
-
   const toggleUserStatus = async () => {
     if (!user) return;
 
@@ -236,6 +219,8 @@ const AdminUserDetail = () => {
   if (!user) {
     return null;
   }
+
+  const isAdminUser = user.role === 'admin';
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -284,9 +269,6 @@ const AdminUserDetail = () => {
                 <button onClick={loadUser} className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200">
                   Refresh
                 </button>
-                <button onClick={handleDelete} className="px-3 py-2 rounded bg-red-600 text-white hover:bg-red-700">
-                  Delete
-                </button>
               </div>
             </div>
 
@@ -314,12 +296,18 @@ const AdminUserDetail = () => {
             <section className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg border p-6`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Edit User</h3>
-                <button
-                  onClick={toggleUserStatus}
-                  className={`px-3 py-2 rounded text-sm ${formData.is_active ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
-                >
-                  {formData.is_active ? 'Deactivate User' : 'Activate User'}
-                </button>
+                {!isAdminUser ? (
+                  <button
+                    onClick={toggleUserStatus}
+                    className={`px-3 py-2 rounded text-sm ${formData.is_active ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                  >
+                    {formData.is_active ? 'Deactivate User' : 'Activate User'}
+                  </button>
+                ) : (
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Admin users cannot be deactivated.
+                  </span>
+                )}
               </div>
 
               <form onSubmit={handleSave} className="space-y-4">
@@ -375,9 +363,6 @@ const AdminUserDetail = () => {
                       <option value="">Select College</option>
                       {filteredColleges.map((college) => <option key={college.id} value={college.id}>{college.college_name}</option>)}
                     </select>
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Department</label>
                     <select name="department" value={formData.department} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}>
                       <option value="">Select Department</option>
                       {filteredDepartments.map((department) => <option key={department.id} value={department.id}>{department.department_name}</option>)}

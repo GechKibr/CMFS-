@@ -51,6 +51,8 @@ const FeedbackTemplateManagement = () => {
     }
   };
 
+  const templateActionButtonClass = 'bg-slate-600 text-white px-4 py-2 rounded text-sm hover:bg-slate-700 transition-colors';
+
   const convertToCSV = (data) => {
     const headers = ['Field', 'Type', 'Average/Count', 'Details'];
     const rows = Object.entries(data?.field_analytics || {}).map(([field, analytics]) => [
@@ -368,7 +370,7 @@ const FeedbackTemplateManagement = () => {
                         setSelectedTemplate(null);
                         setViewingTemplateResponses(template);
                       }}
-                      className="bg-indigo-600 text-white px-4 py-2 rounded text-sm hover:bg-indigo-700 transition-colors"
+                      className={templateActionButtonClass}
                     >
                       View Responses
                     </button>
@@ -378,7 +380,7 @@ const FeedbackTemplateManagement = () => {
                         setViewingTemplateResponses(null);
                         setSelectedTemplate(template.id);
                       }}
-                      className="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700 transition-colors"
+                      className={templateActionButtonClass}
                     >
                       View Analytics
                     </button>
@@ -387,7 +389,7 @@ const FeedbackTemplateManagement = () => {
                       <button
                         type="button"
                         onClick={() => handleAction('activate', template.id, 'Template activated successfully!')}
-                        className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 transition-colors"
+                        className={templateActionButtonClass}
                       >
                         Activate
                       </button>
@@ -397,7 +399,7 @@ const FeedbackTemplateManagement = () => {
                       <button
                         type="button"
                         onClick={() => handleAction('close', template.id, 'Template closed successfully!')}
-                        className="bg-yellow-600 text-white px-4 py-2 rounded text-sm hover:bg-yellow-700 transition-colors"
+                        className={templateActionButtonClass}
                       >
                         Close
                       </button>
@@ -406,21 +408,21 @@ const FeedbackTemplateManagement = () => {
                     <button
                       type="button"
                       onClick={() => exportResults(template.id, 'csv')}
-                      className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition-colors"
+                      className={templateActionButtonClass}
                     >
                       Export CSV
                     </button>
                     <button
                       type="button"
                       onClick={() => exportResults(template.id, 'json')}
-                      className="bg-cyan-600 text-white px-4 py-2 rounded text-sm hover:bg-cyan-700 transition-colors"
+                      className={templateActionButtonClass}
                     >
                       Export JSON
                     </button>
                     <button
                       type="button"
                       onClick={() => handleAction('delete', template.id, 'Template deleted successfully!')}
-                      className="bg-gray-600 text-white px-4 py-2 rounded text-sm hover:bg-gray-700 transition-colors"
+                      className={templateActionButtonClass}
                     >
                       Delete
                     </button>

@@ -197,10 +197,10 @@ const AnimatedImageCarousel = () => {
     <div className="relative overflow-hidden rounded-2xl shadow-2xl">
       <div
         className={`relative transition-all duration-1200 ease-in-out ${isAnimating
-            ? direction === 'next'
-              ? 'opacity-0 translate-x-12'
-              : 'opacity-0 -translate-x-12'
-            : 'opacity-100 translate-x-0'
+          ? direction === 'next'
+            ? 'opacity-0 translate-x-12'
+            : 'opacity-0 -translate-x-12'
+          : 'opacity-100 translate-x-0'
           }`}
       >
         <img
@@ -253,8 +253,8 @@ const AnimatedImageCarousel = () => {
               }, 300);
             }}
             className={`transition-all duration-500 rounded-full ${currentIndex === index
-                ? 'w-6 h-1.5 bg-white'
-                : 'w-1.5 h-1.5 bg-white/50 hover:bg-white/70'
+              ? 'w-6 h-1.5 bg-white'
+              : 'w-1.5 h-1.5 bg-white/50 hover:bg-white/70'
               }`}
           />
         ))}
@@ -504,12 +504,12 @@ const LandingPage = () => {
                 <p className="text-sm font-semibold uppercase tracking-[0.28em] text-blue-600 dark:text-blue-400">
                   Features
                 </p>
-                <h2 className="mt-4 text-3xl sm:text-4xl font-bold text-slate-800 dark:text-white">
+                {/* <h2 className="mt-4 text-3xl sm:text-4xl font-bold text-slate-800 dark:text-white">
                   Everything You Need
                 </h2>
                 <p className="mt-4 text-lg text-slate-600 dark:text-slate-300">
                   Complete solution for complaints, appointments, templates, and helpdesk support
-                </p>
+                </p> */}
               </div>
             </Reveal>
 

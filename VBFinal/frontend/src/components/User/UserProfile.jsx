@@ -11,6 +11,17 @@ const UserProfile = ({ user: propUser }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactError, setContactError] = useState('');
+  const [contactSuccess, setContactSuccess] = useState('');
+  const [contactMessagesLoading, setContactMessagesLoading] = useState(false);
+  const [myContactMessages, setMyContactMessages] = useState([]);
+  const [contactData, setContactData] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    message: ''
+  });
 
   // Campus, College, Department data
   const [campuses, setCampuses] = useState([]);
@@ -93,6 +104,15 @@ const UserProfile = ({ user: propUser }) => {
       phone: user?.phone || ''
     });
   }, [resolveStudentTypeCode, user?.id, user?.first_name, user?.last_name, user?.username, user?.gmail_account, user?.college, user?.department, user?.student_type, user?.year_of_study, user?.phone, user?.user_campus, studentProfile?.campus_id, studentProfile?.student_type, studentProfile?.year_of_study, studentProfile?.department, studentProfile?.department?.department_college]);
+
+  useEffect(() => {
+    const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim();
+    setContactData(prev => ({
+      ...prev,
+      name: fullName || user?.username || '',
+      email: user?.gmail_account || user?.email || ''
+    }));
+  }, [user?.id, user?.first_name, user?.last_name, user?.username, user?.gmail_account, user?.email]);
 
   useEffect(() => {
     if (!studentTypes.length) {
@@ -182,6 +202,26 @@ const UserProfile = ({ user: propUser }) => {
     fetchAssignedResolvers();
     return () => { cancelled = true; };
   }, [user]);
+
+  const loadMyContactMessages = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      setContactMessagesLoading(true);
+      const data = await apiService.getMyContactMessages();
+      const messages = Array.isArray(data) ? data : data.results || [];
+      setMyContactMessages(messages);
+    } catch (error) {
+      console.error('Failed to fetch contact messages:', error);
+      setMyContactMessages([]);
+    } finally {
+      setContactMessagesLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadMyContactMessages();
+  }, [loadMyContactMessages]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -359,6 +399,49 @@ const UserProfile = ({ user: propUser }) => {
       setPasswordError(error.message || 'Failed to update password');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleContactInputChange = (e) => {
+    const { name, value } = e.target;
+    setContactData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleContactSubmit = async (e) => {
+    e.preventDefault();
+    setContactError('');
+    setContactSuccess('');
+
+    const payload = {
+      name: (contactData.name || '').trim(),
+      email: (contactData.email || '').trim(),
+      subject: (contactData.subject || '').trim(),
+      message: (contactData.message || '').trim()
+    };
+
+    if (!payload.name || !payload.email || !payload.subject || !payload.message) {
+      setContactError('Please fill in all contact fields before sending.');
+      return;
+    }
+
+    try {
+      setContactLoading(true);
+      await apiService.sendContact(payload);
+      setContactSuccess('Your message has been sent successfully.');
+      setContactData(prev => ({
+        ...prev,
+        subject: '',
+        message: ''
+      }));
+      await loadMyContactMessages();
+    } catch (error) {
+      console.error('Failed to send contact message:', error);
+      setContactError('Failed to send your message. Please try again.');
+    } finally {
+      setContactLoading(false);
     }
   };
 
@@ -909,6 +992,159 @@ const UserProfile = ({ user: propUser }) => {
 
         </div>
       </div>
+
+      {user?.role !== 'officer' && (
+        <div className="mt-8 rounded-xl border border-blue-200 bg-blue-50 p-6 dark:border-blue-900/50 dark:bg-blue-950/20">
+          <div className="mb-4">
+            <h3 className={`text-xl font-bold ${isDark ? 'text-blue-200' : 'text-blue-900'}`}>
+              Contact Support
+            </h3>
+            {/* <p className={`mt-1 text-sm ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
+              Send a message to the support team directly from your profile.
+            </p> */}
+          </div>
+
+          {contactError && (
+            <div className={`mb-4 rounded-lg border px-4 py-3 text-sm ${isDark ? 'border-red-900/50 bg-red-950/30 text-red-200' : 'border-red-200 bg-red-100 text-red-700'}`}>
+              {contactError}
+            </div>
+          )}
+
+          {contactSuccess && (
+            <div className={`mb-4 rounded-lg border px-4 py-3 text-sm ${isDark ? 'border-emerald-900/50 bg-emerald-950/30 text-emerald-200' : 'border-emerald-200 bg-emerald-100 text-emerald-700'}`}>
+              {contactSuccess}
+            </div>
+          )}
+
+          <form onSubmit={handleContactSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                  Name
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={contactData.name}
+                  onChange={handleContactInputChange}
+                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+                  placeholder="Your full name"
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                  Email
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={contactData.email}
+                  onChange={handleContactInputChange}
+                  className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+                  placeholder="your.email@example.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                Subject
+              </label>
+              <input
+                type="text"
+                name="subject"
+                value={contactData.subject}
+                onChange={handleContactInputChange}
+                className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+                placeholder="What do you need help with?"
+              />
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                Message
+              </label>
+              <textarea
+                name="message"
+                value={contactData.message}
+                onChange={handleContactInputChange}
+                rows={4}
+                className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500' : 'bg-white border-gray-300 focus:border-blue-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+                placeholder="Describe your issue or question"
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={contactLoading}
+                className="inline-flex items-center justify-center rounded-lg border border-blue-600 bg-blue-600 px-6 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {contactLoading ? 'Sending...' : 'Send Message'}
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-6 border-t border-blue-200/60 pt-5 dark:border-blue-900/40">
+            <h4 className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-blue-200' : 'text-blue-900'}`}>
+              Sent Message List
+            </h4>
+
+            {contactMessagesLoading ? (
+              <p className={`mt-3 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Loading your messages...</p>
+            ) : myContactMessages.length === 0 ? (
+              <p className={`mt-3 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>No sent messages yet.</p>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {myContactMessages.map((item) => {
+                  const hasResponse = Boolean((item.response_message || '').trim());
+                  return (
+                    <div
+                      key={item.id}
+                      className={`rounded-lg border p-4 ${isDark ? 'border-slate-700 bg-slate-900/40' : 'border-slate-200 bg-white/70'}`}
+                    >
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <h5 className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.subject}</h5>
+                        <span className={`text-xs font-medium ${hasResponse ? (isDark ? 'text-emerald-300' : 'text-emerald-700') : (isDark ? 'text-amber-300' : 'text-amber-700')}`}>
+                          {hasResponse ? 'Responded' : 'Pending response'}
+                        </span>
+                      </div>
+                      <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{item.message}</p>
+                      <p className={`mt-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Sent: {item.created_at ? new Date(item.created_at).toLocaleString() : '-'}
+                      </p>
+
+                      <div className={`mt-3 rounded-md border p-3 ${hasResponse
+                        ? (isDark ? 'border-emerald-900/50 bg-emerald-950/20' : 'border-emerald-200 bg-emerald-50')
+                        : (isDark ? 'border-amber-900/50 bg-amber-950/20' : 'border-amber-200 bg-amber-50')
+                        }`}>
+                        <p className={`text-xs font-semibold uppercase tracking-wide ${hasResponse
+                          ? (isDark ? 'text-emerald-300' : 'text-emerald-700')
+                          : (isDark ? 'text-amber-300' : 'text-amber-700')
+                          }`}>
+                          Reply
+                        </p>
+                        <p className={`mt-1 text-sm whitespace-pre-wrap ${hasResponse
+                          ? (isDark ? 'text-emerald-100' : 'text-emerald-900')
+                          : (isDark ? 'text-amber-100' : 'text-amber-900')
+                          }`}>
+                          {hasResponse ? item.response_message : 'No reply yet.'}
+                        </p>
+                        <p className={`mt-2 text-xs ${hasResponse
+                          ? (isDark ? 'text-emerald-300' : 'text-emerald-700')
+                          : (isDark ? 'text-amber-300' : 'text-amber-700')
+                          }`}>
+                          Replied: {item.replied_at ? new Date(item.replied_at).toLocaleString() : '-'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Danger Zone - Sudden Actions Section */}
       {user?.role !== 'officer' && (

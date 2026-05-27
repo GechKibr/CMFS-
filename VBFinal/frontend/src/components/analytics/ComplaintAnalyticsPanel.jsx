@@ -387,6 +387,18 @@ const ComplaintAnalyticsPanel = ({
                 <div key={label} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
                   <p className="mt-2 text-2xl font-black text-gray-900">{value}</p>
+                  {label === 'Resolution rate' && (
+                    <p className="mt-2 text-xs leading-5 text-gray-500">
+                      This is the share of all complaints that are already marked resolved or closed.
+                      Formula: resolved complaints ÷ total complaints.
+                    </p>
+                  )}
+                  {label === 'Avg resolution' && (
+                    <p className="mt-2 text-xs leading-5 text-gray-500">
+                      This shows the average time it takes to resolve a complaint, measured from submission to final resolution.
+                      If available, the dashboard shows a human-friendly label like hours or days.
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

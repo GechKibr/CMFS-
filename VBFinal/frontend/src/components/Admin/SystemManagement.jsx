@@ -15,6 +15,8 @@ const toDateTimeLocalValue = (value) => {
   return localDate.toISOString().slice(0, 16);
 };
 
+const getCurrentDateTimeLocalValue = () => toDateTimeLocalValue(new Date().toISOString());
+
 const getDurationMinutes = (startIso, endIso, fallback = 30) => {
   if (!startIso || !endIso) return fallback;
   const start = new Date(startIso).getTime();
@@ -108,6 +110,7 @@ const SystemManagement = () => {
   const [maintenanceDuration, setMaintenanceDuration] = useState(30);
   const [maintenanceSchedules, setMaintenanceSchedules] = useState([]);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
+  const [showPastSchedules, setShowPastSchedules] = useState(false);
 
   // JWT/session config removed - using .env settings instead
 
@@ -252,7 +255,7 @@ const SystemManagement = () => {
     const now = new Date();
 
     if (scheduledTime <= now) {
-      alert('Please select a future date and time.');
+      alert('Please select a future date and time. Past times are ignored.');
       return;
     }
 
@@ -301,6 +304,18 @@ const SystemManagement = () => {
       setScheduledMaintenanceTime('');
     }
   };
+
+  const visibleMaintenanceSchedules = maintenanceSchedules
+    .slice()
+    .sort((a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime())
+    .filter((schedule) => {
+      if (showPastSchedules) {
+        return true;
+      }
+
+      const endTime = new Date(schedule.scheduled_end || schedule.scheduled_start).getTime();
+      return Number.isNaN(endTime) ? true : endTime >= Date.now();
+    });
 
   const handleApplySchedule = async (schedule) => {
     try {
@@ -603,7 +618,7 @@ const SystemManagement = () => {
 
                 <div>
                   <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Scheduled Start (Optional)
+                    Scheduled Start
                   </label>
                   <input
                     type="datetime-local"
@@ -615,7 +630,7 @@ const SystemManagement = () => {
 
                 <div>
                   <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Scheduled End (Optional)
+                    Scheduled End
                   </label>
                   <input
                     type="datetime-local"
@@ -682,8 +697,12 @@ const SystemManagement = () => {
                 type="datetime-local"
                 value={scheduledMaintenanceTime}
                 onChange={(e) => setScheduledMaintenanceTime(e.target.value)}
+                min={getCurrentDateTimeLocalValue()}
                 className={`w-full p-3 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
               />
+              <p className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Past times are disabled for new schedules.
+              </p>
             </div>
             <div>
               <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
@@ -727,72 +746,82 @@ const SystemManagement = () => {
         {/* Scheduled Maintenance List */}
         {maintenanceSchedules.length > 0 && (
           <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
-            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-4`}>
-              Maintenance Schedule Manager
-            </h3>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Maintenance Schedule Manager
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowPastSchedules((prev) => !prev)}
+                className={`px-3 py-2 rounded-lg text-sm border ${isDark ? 'border-gray-600 text-gray-200 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+              >
+                {showPastSchedules ? 'Hide Past Schedules' : 'Show Past Schedules'}
+              </button>
+            </div>
             <div className="space-y-3">
-              {maintenanceSchedules
-                .slice()
-                .sort((a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime())
-                .map((schedule) => (
-                  <div
-                    key={schedule.id}
-                    className={`p-4 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-700/40' : 'border-gray-200 bg-gray-50'}`}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {schedule.title || 'Maintenance Window'}
-                        </div>
-                        <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                          {new Date(schedule.scheduled_start).toLocaleString()} - {new Date(schedule.scheduled_end).toLocaleString()}
-                        </div>
-                        <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                          Duration: {schedule.duration_minutes || getDurationMinutes(schedule.scheduled_start, schedule.scheduled_end, 30)} min
-                        </div>
+              {visibleMaintenanceSchedules.length > 0 ? visibleMaintenanceSchedules.map((schedule) => (
+                <div
+                  key={schedule.id}
+                  className={`p-4 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-700/40' : 'border-gray-200 bg-gray-50'}`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {schedule.title || 'Maintenance Window'}
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full font-semibold ${schedule.status === 'active'
-                        ? 'bg-red-100 text-red-700'
-                        : schedule.status === 'applied'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-gray-100 text-gray-700'
-                        }`}>
-                        {(schedule.status || 'scheduled').toUpperCase()}
-                      </span>
+                      <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {new Date(schedule.scheduled_start).toLocaleString()} - {new Date(schedule.scheduled_end).toLocaleString()}
+                      </div>
+                      <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Duration: {schedule.duration_minutes || getDurationMinutes(schedule.scheduled_start, schedule.scheduled_end, 30)} min
+                      </div>
                     </div>
-
-                    <div className={`text-sm mt-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {schedule.message}
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        onClick={() => handleApplySchedule(schedule)}
-                        className="px-3 py-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm"
-                      >
-                        Apply to Backend
-                      </button>
-                      <button
-                        onClick={() => handleRunScheduleNow(schedule)}
-                        className="px-3 py-1.5 rounded bg-orange-500 text-white hover:bg-orange-600 text-sm"
-                      >
-                        Run Now
-                      </button>
-                      <button
-                        onClick={() => handleEditSchedule(schedule)}
-                        className="px-3 py-1.5 rounded bg-emerald-500 text-white hover:bg-emerald-600 text-sm"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSchedule(schedule.id)}
-                        className="px-3 py-1.5 rounded bg-rose-500 text-white hover:bg-rose-600 text-sm"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full font-semibold ${schedule.status === 'active'
+                      ? 'bg-red-100 text-red-700'
+                      : schedule.status === 'applied'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-100 text-gray-700'
+                      }`}>
+                      {(schedule.status || 'scheduled').toUpperCase()}
+                    </span>
                   </div>
-                ))}
+
+                  <div className={`text-sm mt-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {schedule.message}
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleApplySchedule(schedule)}
+                      className="px-3 py-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm"
+                    >
+                      Apply to Backend
+                    </button>
+                    <button
+                      onClick={() => handleRunScheduleNow(schedule)}
+                      className="px-3 py-1.5 rounded bg-orange-500 text-white hover:bg-orange-600 text-sm"
+                    >
+                      Run Now
+                    </button>
+                    <button
+                      onClick={() => handleEditSchedule(schedule)}
+                      className="px-3 py-1.5 rounded bg-emerald-500 text-white hover:bg-emerald-600 text-sm"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSchedule(schedule.id)}
+                      className="px-3 py-1.5 rounded bg-rose-500 text-white hover:bg-rose-600 text-sm"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  No upcoming schedules found.
+                </div>
+              )}
             </div>
           </div>
         )}

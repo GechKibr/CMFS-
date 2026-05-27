@@ -35,7 +35,7 @@ const AdminComplaintDetail = () => {
   const navigate = useNavigate();
   const { complaintId } = useParams();
   const { isDark } = useTheme();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [complaint, setComplaint] = useState(null);
@@ -45,6 +45,7 @@ const AdminComplaintDetail = () => {
   const [newResponse, setNewResponse] = useState('');
   const [responseTitle, setResponseTitle] = useState('');
   const [responseType, setResponseType] = useState('update');
+  const [editingResponseId, setEditingResponseId] = useState(null);
 
   const [_showReassignModal, setShowReassignModal] = useState(false);
   const [reassignOfficerId, setReassignOfficerId] = useState('');
@@ -109,6 +110,23 @@ const AdminComplaintDetail = () => {
     ? `${complaint.claimed_by.first_name || ''} ${complaint.claimed_by.last_name || ''}`.trim() || complaint.claimed_by.email
     : 'Not claimed';
 
+  const canManageResponse = (response) => {
+    if (!response) return false;
+
+    const responderId = response.responder?.id;
+    const responderEmail = response.responder?.email;
+
+    if (user?.id && responderId && String(user.id) === String(responderId)) {
+      return true;
+    }
+
+    if (user?.email && responderEmail) {
+      return String(user.email).toLowerCase() === String(responderEmail).toLowerCase();
+    }
+
+    return false;
+  };
+
   const loadPageData = useCallback(async () => {
     setLoading(true);
     try {
@@ -158,6 +176,41 @@ const AdminComplaintDetail = () => {
     }
   };
 
+  const resetResponseForm = () => {
+    setNewResponse('');
+    setResponseTitle('');
+    setResponseType('update');
+    setEditingResponseId(null);
+  };
+
+  const handleEditResponse = (response) => {
+    setEditingResponseId(response.id || response.response_id || null);
+    setResponseTitle(response.title || '');
+    setNewResponse(response.message || '');
+    setResponseType(response.response_type || 'update');
+  };
+
+  const handleDeleteResponse = async (response) => {
+    const responseId = response.id || response.response_id;
+    if (!responseId) {
+      window.alert('Unable to delete this response.');
+      return;
+    }
+
+    if (!window.confirm('Delete this response?')) return;
+
+    try {
+      await apiService.deleteResponse(responseId);
+      if (editingResponseId && String(editingResponseId) === String(responseId)) {
+        resetResponseForm();
+      }
+      await loadResponses();
+    } catch (error) {
+      console.error('Failed to delete response:', error);
+      window.alert('Failed to delete response. Please try again.');
+    }
+  };
+
   const addResponse = async () => {
     if (!complaint || !newResponse.trim() || !responseTitle.trim()) {
       window.alert('Please fill in both title and message');
@@ -165,20 +218,24 @@ const AdminComplaintDetail = () => {
     }
 
     try {
-      await apiService.addComplaintResponse(complaint.complaint_id, {
+      const responsePayload = {
         title: responseTitle,
         message: newResponse,
         response_type: responseType,
         is_public: true,
-      });
+      };
 
-      setNewResponse('');
-      setResponseTitle('');
-      setResponseType('update');
+      if (editingResponseId) {
+        await apiService.updateResponse(editingResponseId, responsePayload);
+      } else {
+        await apiService.addComplaintResponse(complaint.complaint_id, responsePayload);
+      }
+
+      resetResponseForm();
       await loadResponses();
     } catch (error) {
-      console.error('Failed to add response:', error);
-      window.alert('Failed to add response. Please try again.');
+      console.error('Failed to save response:', error);
+      window.alert(`Failed to ${editingResponseId ? 'update' : 'add'} response. Please try again.`);
     }
   };
 
@@ -589,48 +646,7 @@ const AdminComplaintDetail = () => {
               </section>
             )} */}
 
-            <section className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg border p-6 space-y-4`}>
-              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Management</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className={`block text-sm mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Status</label>
-                  <select
-                    value={complaint.status}
-                    onChange={(e) => updateComplaintStatus(e.target.value)}
-                    className={`w-full rounded px-3 py-2 border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="resolved">Resolved</option>
-                    <option value="closed">Closed</option>
-                    <option value="escalated">Escalated</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={`block text-sm mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Category</label>
-                  <select
-                    value={complaint.category?.category_id || ''}
-                    onChange={(e) => assignCategory(e.target.value)}
-                    className={`w-full rounded px-3 py-2 border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="">No Category</option>
-                    {categories.map((category) => (
-                      <option key={category.category_id} value={category.category_id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={`block text-sm mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Assigned To</label>
-                  <div className={`w-full rounded px-3 py-2 border text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-gray-50 border-gray-300 text-gray-800'}`}>
-                    {complaint.assigned_to || complaint.assigned_officer
-                      ? `${(complaint.assigned_to || complaint.assigned_officer).first_name || ''} ${(complaint.assigned_to || complaint.assigned_officer).last_name || ''}`.trim()
-                      : 'Unassigned'}
-                  </div>
-                </div>
-              </div>
-            </section>
+
 
             {complaint.attachments?.length > 0 && (
               <section className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg border p-6`}>
@@ -649,19 +665,12 @@ const AdminComplaintDetail = () => {
             )}
 
             <section className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg border p-6`}>
-              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-3`}>Add Admin Response</h3>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-3`}>
+                {editingResponseId ? 'Edit Admin Response' : 'Add Admin Response'}
+              </h3>
               <div className="space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <select
-                    value={responseType}
-                    onChange={(e) => setResponseType(e.target.value)}
-                    className={`w-full border rounded px-3 py-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="initial">Initial Response</option>
-                    <option value="update">Status Update</option>
-                    <option value="resolution">Final Resolution</option>
-                    <option value="escalation">Escalation Response</option>
-                  </select>
+
                   <input
                     type="text"
                     value={responseTitle}
@@ -683,8 +692,16 @@ const AdminComplaintDetail = () => {
                     onClick={addResponse}
                     className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded"
                   >
-                    Add Admin Response
+                    {editingResponseId ? 'Update Response' : 'Add Admin Response'}
                   </button>
+                  {editingResponseId && (
+                    <button
+                      onClick={resetResponseForm}
+                      className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
                 </div>
               </div>
             </section>
@@ -718,6 +735,24 @@ const AdminComplaintDetail = () => {
                           {new Date(response.created_at).toLocaleString()}
                         </span>
                       </div>
+                      {canManageResponse(response) && (
+                        <div className="mb-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleEditResponse(response)}
+                            className="text-sm px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteResponse(response)}
+                            className="text-sm px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-700"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                       <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>{response.message}</p>
                       <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         By {response.responder?.first_name || 'Admin'} {response.responder?.last_name || ''}

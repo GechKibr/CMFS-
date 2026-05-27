@@ -518,8 +518,14 @@ class SystemViewSet(viewsets.ViewSet):
             data=request.data,
             partial=request.method == 'PATCH',
         )
-        serializer.is_valid(raise_exception=True)
-        serializer.save(updated_by=request.user)
+        try:
+            serializer.is_valid(raise_exception=True)
+            serializer.save(updated_by=request.user)
+        except DjangoValidationError as exc:
+            return Response(
+                {'error': exc.message_dict or exc.messages},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         config.refresh_from_db()
         
         # Invalidate cache after update

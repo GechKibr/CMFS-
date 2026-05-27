@@ -1,4 +1,5 @@
 from django.contrib.auth import authenticate
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
@@ -116,6 +117,18 @@ class MaintenanceConfigurationSerializer(serializers.ModelSerializer):
         model = MaintenanceConfiguration
         fields = ['is_enabled', 'message', 'scheduled_start', 'scheduled_end', 'updated_at']
         read_only_fields = ['updated_at']
+
+    def validate(self, attrs):
+        instance = getattr(self, 'instance', None)
+        scheduled_start = attrs.get('scheduled_start', getattr(instance, 'scheduled_start', None))
+        scheduled_end = attrs.get('scheduled_end', getattr(instance, 'scheduled_end', None))
+
+        if scheduled_start and scheduled_end and scheduled_end <= scheduled_start:
+            raise serializers.ValidationError({
+                'scheduled_end': 'Scheduled end time must be after scheduled start time.'
+            })
+
+        return attrs
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

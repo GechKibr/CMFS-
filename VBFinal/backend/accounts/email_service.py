@@ -92,30 +92,36 @@ class EmailService:
 
     @staticmethod
     def send_complaint_notification(user, complaint):
-        subject = f"Complaint Update: {complaint.title}"
-        message = f"Your complaint (ID: {complaint.complaint_id}) status: {complaint.status}"
+        # Complaint-related email sending disabled to avoid SMTP blocking during submissions.
         destination = getattr(user, 'preferred_notification_email', None) or user.email
-        
-        return EmailService.send_email(
-            subject=subject,
-            message=message,
-            recipient_list=[destination],
-            email_type='complaint_notification',
-            recipient_user=user
-        )
+        try:
+            log_email(
+                email=destination,
+                subject=f"Complaint Update: {complaint.title}",
+                message=f"Skipped sending complaint notification (complaint id: {getattr(complaint, 'complaint_id', None)})",
+                email_type='complaint_notification',
+                recipient=user,
+                status='skipped'
+            )
+        except Exception:
+            pass
+        return True
 
     @staticmethod
     def send_assignment_notification(officer, complaint):
-        subject = f"New Complaint Assigned: {complaint.title}"
-        message = f"You have been assigned complaint ID: {complaint.complaint_id}"
-        
-        return EmailService.send_email(
-            subject=subject,
-            message=message,
-            recipient_list=[officer.email],
-            email_type='assignment_notification',
-            recipient_user=officer
-        )
+        # Assignment emails disabled during complaint submission flow.
+        try:
+            log_email(
+                email=officer.email,
+                subject=f"New Complaint Assigned: {complaint.title}",
+                message=f"Skipped sending assignment notification (complaint id: {getattr(complaint, 'complaint_id', None)})",
+                email_type='assignment_notification',
+                recipient=officer,
+                status='skipped'
+            )
+        except Exception:
+            pass
+        return True
 
     @staticmethod
     def send_cc_complaint_notification(user, complaint):
@@ -186,26 +192,32 @@ class EmailService:
         </html>
         """
         
-        message = f"You've been CC'd on complaint '{complaint.title}'. Submitted by {submitted_by}. Visit the dashboard to view it."
-        
-        return EmailService.send_email(
-            subject=subject,
-            message=message,
-            recipient_list=[user.email],
-            email_type='cc_complaint',
-            recipient_user=user,
-            html_message=html_message
-        )
+        # CC emails disabled to prevent blocking complaint submission.
+        try:
+            log_email(
+                email=user.email,
+                subject=subject,
+                message=f"Skipped CC email for complaint {getattr(complaint, 'complaint_id', None)}",
+                email_type='cc_complaint',
+                recipient=user,
+                status='skipped'
+            )
+        except Exception:
+            pass
+        return True
 
     @staticmethod
     def send_escalation_alert(officer, complaint):
-        subject = f"Complaint Escalated: {complaint.title}"
-        message = f"Complaint ID {complaint.complaint_id} has been escalated to your level"
-        
-        return EmailService.send_email(
-            subject=subject,
-            message=message,
-            recipient_list=[officer.email],
-            email_type='escalation_alert',
-            recipient_user=officer
-        )
+        # Escalation email sending disabled for now.
+        try:
+            log_email(
+                email=officer.email,
+                subject=f"Complaint Escalated: {complaint.title}",
+                message=f"Skipped escalation email for complaint {getattr(complaint, 'complaint_id', None)}",
+                email_type='escalation_alert',
+                recipient=officer,
+                status='skipped'
+            )
+        except Exception:
+            pass
+        return True

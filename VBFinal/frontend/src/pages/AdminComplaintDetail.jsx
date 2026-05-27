@@ -40,7 +40,6 @@ const AdminComplaintDetail = () => {
   const [loading, setLoading] = useState(true);
   const [complaint, setComplaint] = useState(null);
   const [responses, setResponses] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [officers, setOfficers] = useState([]);
   const [newResponse, setNewResponse] = useState('');
   const [responseTitle, setResponseTitle] = useState('');
@@ -65,9 +64,8 @@ const AdminComplaintDetail = () => {
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
 
   const loadBaseData = useCallback(async () => {
-    const [complaintData, categoriesData, officersData, campusesData, collegesData, departmentsData] = await Promise.all([
+    const [complaintData, officersData, campusesData, collegesData, departmentsData] = await Promise.all([
       apiService.getComplaint(complaintId),
-      apiService.getAllCategories(),
       apiService.getAllUsers(),
       apiService.getCampuses(),
       apiService.getColleges(),
@@ -75,7 +73,6 @@ const AdminComplaintDetail = () => {
     ]);
 
     setComplaint(complaintData);
-    setCategories(categoriesData.results || categoriesData || []);
     setCampuses(campusesData.results || campusesData || []);
     setColleges(collegesData.results || collegesData || []);
     setDepartments(departmentsData.results || departmentsData || []);
@@ -147,34 +144,6 @@ const AdminComplaintDetail = () => {
     }
     loadPageData();
   }, [complaintId, loadPageData, navigate]);
-
-  const updateComplaintStatus = async (newStatus) => {
-    if (!complaint) return;
-
-    try {
-      await apiService.updateComplaint(complaint.complaint_id, { status: newStatus });
-      setComplaint((prev) => ({ ...prev, status: newStatus }));
-    } catch (error) {
-      console.error('Failed to update complaint status:', error);
-      window.alert('Failed to update complaint status');
-    }
-  };
-
-  const assignCategory = async (categoryId) => {
-    if (!complaint) return;
-
-    try {
-      await apiService.updateComplaint(complaint.complaint_id, { category: categoryId || null });
-      const updatedCategory = categoryId
-        ? categories.find((cat) => String(cat.category_id) === String(categoryId))
-        : null;
-      setComplaint((prev) => ({ ...prev, category: updatedCategory }));
-      setSelectedCategory(categoryId || '');
-    } catch (error) {
-      console.error('Failed to assign category:', error);
-      window.alert('Failed to assign category');
-    }
-  };
 
   const resetResponseForm = () => {
     setNewResponse('');

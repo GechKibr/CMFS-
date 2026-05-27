@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 
 from django.db import transaction
+from django.db.models import Prefetch
 
-from .models import Assignment, CategoryResolver, Complaint
+from .models import Assignment, CategoryResolver, Complaint, ResolverOfficer
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,12 @@ class ComplaintService:
         queryset = CategoryResolver.objects.filter(category=complaint.category, active=True).select_related(
             "category",
             "department",
+        ).prefetch_related(
+            Prefetch(
+                "officers",
+                queryset=ResolverOfficer.objects.filter(active=True, officer__is_active=True).only("officer_id", "resolver_id"),
+                to_attr="active_officers",
+            )
         )
 
         if preferred_resolver_ids:
@@ -26,7 +33,7 @@ class ComplaintService:
             preferred_resolvers = [
                 resolver
                 for resolver in resolvers
-                if resolver.officers.filter(active=True, officer__is_active=True, officer_id__in=preferred_officer_ids).exists()
+                if bool({member.officer_id for member in getattr(resolver, "active_officers", [])} & preferred_officer_ids)
             ]
             if preferred_resolvers:
                 resolvers = preferred_resolvers

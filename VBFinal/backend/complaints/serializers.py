@@ -1,7 +1,9 @@
 from pathlib import Path
+import threading
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import close_old_connections
 from django.db import transaction
 from django.urls import reverse
 from rest_framework import serializers
@@ -38,6 +40,26 @@ ALLOWED_ATTACHMENT_CONTENT_TYPES = {
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
+
+
+def _send_cc_complaint_notifications_async(complaint_id, officer_ids):
+    def worker():
+        close_old_connections()
+        try:
+            from accounts.email_service import EmailService
+
+            complaint = Complaint.objects.select_related("submitted_by", "category").get(pk=complaint_id)
+            officers = User.objects.filter(id__in=officer_ids, role="officer").distinct()
+
+            for officer in officers:
+                try:
+                    EmailService.send_cc_complaint_notification(officer, complaint)
+                except Exception:
+                    continue
+        finally:
+            close_old_connections()
+
+    threading.Thread(target=worker, daemon=True).start()
 MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024
 MAX_ATTACHMENTS_PER_COMPLAINT = 5
 
@@ -372,7 +394,6 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        from accounts.email_service import EmailService
         from .service import service
 
         cc_emails = validated_data.pop("cc_emails", [])
@@ -418,16 +439,21 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
 
                 cc_office_officer_ids = set()
                 if office_categories.exists():
-                    for resolver in CategoryResolver.objects.filter(category__in=office_categories, active=True).select_related("category", "department"):
+                    office_resolvers = CategoryResolver.objects.filter(
+                        category__in=office_categories,
+                        active=True,
+                    ).select_related("category", "department").prefetch_related("officers__officer")
+
+                    for resolver in office_resolvers:
                         if resolver.matches_complaint_scope(complaint):
-                            cc_office_officer_ids.update(
-                                resolver.officers.filter(active=True, officer__is_active=True).values_list("officer_id", flat=True)
-                            )
+                            for resolver_officer in resolver.officers.all():
+                                if resolver_officer.active and resolver_officer.officer and resolver_officer.officer.is_active:
+                                    cc_office_officer_ids.add(resolver_officer.officer_id)
 
                 cc_officer_ids = {int(officer_id) for officer_id in cc_officer_ids}
                 cc_officer_ids.update(cc_office_officer_ids)
 
-                cc_officers = User.objects.filter(id__in=cc_officer_ids, role="officer").distinct()
+                cc_officers = list(User.objects.filter(id__in=cc_officer_ids, role="officer").distinct())
                 seen_emails = set()
                 for officer in cc_officers:
                     if not officer.email or officer.email in seen_emails:
@@ -447,10 +473,9 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
                         ),
                     )
 
-                    try:
-                        EmailService.send_cc_complaint_notification(officer, complaint)
-                    except Exception:
-                        continue
+                if cc_officers:
+                    officer_ids = [officer.id for officer in cc_officers if officer.id]
+                    transaction.on_commit(lambda officer_ids=officer_ids, complaint_id=complaint.pk: _send_cc_complaint_notifications_async(complaint_id, officer_ids))
 
                 if resolver_ids:
                     selected_resolvers = list(

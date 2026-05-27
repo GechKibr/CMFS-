@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import apiService from '../../services/api';
@@ -22,6 +22,7 @@ const UserProfile = ({ user: propUser }) => {
     subject: '',
     message: ''
   });
+  const hasHydratedAcademicScope = useRef(false);
 
   // Campus, College, Department data
   const [campuses, setCampuses] = useState([]);
@@ -81,7 +82,7 @@ const UserProfile = ({ user: propUser }) => {
     username: user?.username || '',
     gmail_account: user?.gmail_account || '',
     campus_id: studentProfile?.campus_id || '',
-    user_campus: user?.user_campus || studentProfile?.campus_id || '',
+    user_campus: studentProfile?.campus_id || user?.campus_id || user?.user_campus || '',
     college: user?.college || studentProfile?.department?.department_college || null,
     department: user?.department || studentProfile?.department?.id || null,
     student_type: resolveStudentTypeCode(user?.student_type || studentProfile?.student_type || ''),
@@ -96,14 +97,14 @@ const UserProfile = ({ user: propUser }) => {
       username: user?.username || '',
       gmail_account: user?.gmail_account || '',
       campus_id: studentProfile?.campus_id || '',
-      user_campus: user?.user_campus || studentProfile?.campus_id || '',
+      user_campus: studentProfile?.campus_id || user?.campus_id || user?.user_campus || '',
       college: user?.college || studentProfile?.department?.department_college || null,
       department: user?.department || studentProfile?.department?.id || null,
       student_type: resolveStudentTypeCode(user?.student_type || studentProfile?.student_type || ''),
       year_of_study: user?.year_of_study || studentProfile?.year_of_study || '',
       phone: user?.phone || ''
     });
-  }, [resolveStudentTypeCode, user?.id, user?.first_name, user?.last_name, user?.username, user?.gmail_account, user?.college, user?.department, user?.student_type, user?.year_of_study, user?.phone, user?.user_campus, studentProfile?.campus_id, studentProfile?.student_type, studentProfile?.year_of_study, studentProfile?.department, studentProfile?.department?.department_college]);
+  }, [resolveStudentTypeCode, user?.id, user?.first_name, user?.last_name, user?.username, user?.gmail_account, user?.college, user?.department, user?.student_type, user?.year_of_study, user?.phone, user?.user_campus, user?.campus_id, studentProfile?.campus_id, studentProfile?.student_type, studentProfile?.year_of_study, studentProfile?.department, studentProfile?.department?.department_college]);
 
   useEffect(() => {
     const fullName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim();
@@ -164,13 +165,6 @@ const UserProfile = ({ user: propUser }) => {
       return;
     }
 
-    setFormData(prev => ({
-      ...prev,
-      college: '',
-      department: null
-    }));
-    setDepartments([]);
-
     const loadColleges = async () => {
       try {
         const collegesData = await apiService.getColleges(formData.user_campus);
@@ -183,6 +177,18 @@ const UserProfile = ({ user: propUser }) => {
     };
 
     loadColleges();
+
+    if (!hasHydratedAcademicScope.current) {
+      hasHydratedAcademicScope.current = true;
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      college: '',
+      department: null
+    }));
+    setDepartments([]);
   }, [formData.user_campus]);
 
   useEffect(() => {

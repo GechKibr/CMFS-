@@ -36,8 +36,8 @@ const AdminComplaints = () => {
     return status || 'pending';
   };
 
-  const normalizeValue = (value) => (value === null || value === undefined ? '' : String(value));
-  const normalizeText = (value) => normalizeValue(value).trim().toLowerCase();
+  const normalizeValue = useCallback((value) => (value === null || value === undefined ? '' : String(value)), []);
+  const normalizeText = useCallback((value) => normalizeValue(value).trim().toLowerCase(), [normalizeValue]);
   // Prefer department-specific fields before college fields to avoid showing colleges for department selects
   const getOptionValue = (option) => option?.id ?? option?.category_id ?? option?.campus_id ?? option?.department_id ?? option?.college_id ?? '';
   const getOptionLabel = (option) => option?.name ?? option?.category_name ?? option?.campus_name ?? option?.department_name ?? option?.college_name ?? option?.code ?? option?.department_college ?? '';
@@ -53,12 +53,12 @@ const AdminComplaints = () => {
     return '';
   };
 
-  const matchesResolverOption = (resolverValue, option, optionKeys) => {
+  const matchesResolverOption = useCallback((resolverValue, option, optionKeys) => {
     const normalizedResolverValue = normalizeText(resolverValue);
     if (!normalizedResolverValue) return false;
 
     return optionKeys.some((key) => normalizeText(option?.[key]) === normalizedResolverValue);
-  };
+  }, [normalizeText]);
 
   const selectedCategoryResolvers = useMemo(() => {
     if (!editForm.category) return [];
@@ -77,7 +77,7 @@ const AdminComplaints = () => {
         ['id', 'code', 'campus_name', 'name']
       )
     ));
-  }, [campuses, selectedCategoryResolvers]);
+  }, [campuses, matchesResolverOption, selectedCategoryResolvers]);
 
   const filteredColleges = useMemo(() => {
     const resolversForCampus = editForm.campus
@@ -97,7 +97,7 @@ const AdminComplaints = () => {
         ['id', 'code', 'college_code', 'college_name', 'name']
       )
     ));
-  }, [campuses, colleges, editForm.campus, selectedCategoryResolvers]);
+  }, [campuses, colleges, editForm.campus, matchesResolverOption, selectedCategoryResolvers]);
 
   const filteredDepartments = useMemo(() => {
     // Narrow departments by selected college first, then apply resolver-specified department filtering.
@@ -137,7 +137,7 @@ const AdminComplaints = () => {
         .map((v) => String(v).trim().toLowerCase());
       return resolverDeptValues.some((rv) => candidates.includes(rv));
     });
-  }, [campuses, colleges, departments, editForm.campus, editForm.college, selectedCategoryResolvers]);
+  }, [colleges, departments, editForm.college, matchesResolverOption, selectedCategoryResolvers]);
 
   useEffect(() => {
     loadData();

@@ -195,17 +195,16 @@ const AnimatedImageCarousel = () => {
 
   return (
     <div className="relative overflow-hidden rounded-2xl shadow-2xl">
-      <div 
-        className={`relative transition-all duration-1200 ease-in-out ${
-          isAnimating 
-            ? direction === 'next' 
-              ? 'opacity-0 translate-x-12' 
+      <div
+        className={`relative transition-all duration-1200 ease-in-out ${isAnimating
+            ? direction === 'next'
+              ? 'opacity-0 translate-x-12'
               : 'opacity-0 -translate-x-12'
             : 'opacity-100 translate-x-0'
-        }`}
+          }`}
       >
-        <img 
-          src={campusImages[currentIndex].src} 
+        <img
+          src={campusImages[currentIndex].src}
           alt={campusImages[currentIndex].alt}
           className="w-full h-[600px] object-cover brightness-110 contrast-105"
           onError={(e) => {
@@ -215,7 +214,7 @@ const AnimatedImageCarousel = () => {
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-black/20 to-transparent"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent"></div>
-        
+
         <div className="absolute bottom-6 left-6 text-white opacity-80">
           <p className="text-sm font-light tracking-wide">{campusImages[currentIndex].name}</p>
         </div>
@@ -253,11 +252,10 @@ const AnimatedImageCarousel = () => {
                 }, 1200);
               }, 300);
             }}
-            className={`transition-all duration-500 rounded-full ${
-              currentIndex === index 
-                ? 'w-6 h-1.5 bg-white' 
+            className={`transition-all duration-500 rounded-full ${currentIndex === index
+                ? 'w-6 h-1.5 bg-white'
                 : 'w-1.5 h-1.5 bg-white/50 hover:bg-white/70'
-            }`}
+              }`}
           />
         ))}
       </div>
@@ -275,8 +273,8 @@ const FloatingImageCards = () => {
           className="group relative overflow-hidden rounded-2xl shadow-xl transform transition-all duration-700 hover:scale-105 hover:shadow-2xl animate-float-card-slow"
           style={{ animationDelay: `${index * 1.5}s` }}
         >
-          <img 
-            src={image.src} 
+          <img
+            src={image.src}
             alt={image.alt}
             className="w-full h-72 object-cover transition-transform duration-1000 group-hover:scale-110 brightness-105"
             onError={(e) => {
@@ -366,9 +364,9 @@ const renderFeaturePreview = (slug, isDark) => {
         <span>Live Support</span>
         <span>24/7</span>
       </div>
-      <img 
-        src="/helpdesk.jpg" 
-        alt="Helpdesk Support" 
+      <img
+        src="/helpdesk.jpg"
+        alt="Helpdesk Support"
         className="w-full h-32 object-cover rounded-xl"
         onError={(e) => {
           e.target.onerror = null;
@@ -440,10 +438,6 @@ const HeroText = () => {
 const LandingPage = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
-
-  const scrollToSection = (id) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   return (
     <div className={`min-h-screen flex flex-col ${isDark ? 'bg-gradient-to-br from-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-100 to-slate-50'} scroll-smooth`}>

@@ -26,7 +26,7 @@ const UserAnnouncements = () => {
       const items = Array.isArray(data) ? data : data.results || [];
       // Filter out expired announcements
       const now = new Date();
-      const activeAnnouncements = items.filter(ann => 
+      const activeAnnouncements = items.filter(ann =>
         !ann.expires_at || new Date(ann.expires_at) > now
       );
       setAnnouncements(activeAnnouncements.sort((a, b) => {
@@ -125,11 +125,10 @@ const UserAnnouncements = () => {
       {announcements.map((announcement) => (
         <div
           key={announcement.id}
-          className={`rounded-lg border transition-all ${
-            isDark
+          className={`rounded-lg border transition-all ${isDark
               ? 'bg-gray-800 border-gray-700 hover:border-blue-600'
               : 'bg-white border-gray-200 hover:border-blue-400'
-          }`}
+            }`}
         >
           <div className="p-6 flex justify-between items-start">
             <div className="flex-1 cursor-pointer" onClick={() => setExpandedId(expandedId === announcement.id ? null : announcement.id)}>
@@ -167,15 +166,13 @@ const UserAnnouncements = () => {
                 Comments
               </button>
               <button
-                className={`ml-4 p-2 rounded-full transition-colors ${
-                  isDark
+                className={`ml-4 p-2 rounded-full transition-colors ${isDark
                     ? 'hover:bg-gray-700'
                     : 'hover:bg-gray-100'
-                }`}
+                  }`}
               >
-                <span className={`text-xl transition-transform ${
-                  expandedId === announcement.id ? 'rotate-180' : ''
-                }`}>▶</span>
+                <span className={`text-xl transition-transform ${expandedId === announcement.id ? 'rotate-180' : ''
+                  }`}></span>
               </button>
             </div>
           </div>

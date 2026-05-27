@@ -9,7 +9,7 @@ import DashboardNavbar from '../components/UI/DashboardNavbar';
 import Sidebar from '../components/UI/Sidebar';
 import apiService from '../services/api';
 import OfficerSchedule from '../components/Officer/OfficerSchedule';
-import { getAssignedComplaints as cacheGetAssigned, getCCComplaints as cacheGetCC, invalidateAssigned, invalidateCC } from '../services/complaintCache';
+import { getAssignedComplaints as cacheGetAssigned, getCCComplaints as cacheGetCC } from '../services/complaintCache';
 import OfficerProfile from '../components/Officer/OfficerProfile';
 import PublicAnnouncementBoard from '../components/Officer/PublicAnnouncementBoard';
 import Modal from '../components/UI/Modal';
@@ -104,6 +104,17 @@ const OfficerDashboard = () => {
     } catch (error) {
       console.error('Error fetching CC complaints:', error);
       setCcComplaints([]);
+    }
+  }, []);
+
+  const fetchOfficers = useCallback(async () => {
+    try {
+      const data = await apiService.getAllUsers();
+      const allUsers = data.results || data || [];
+      setOfficers(allUsers.filter((userItem) => userItem.role === 'officer' || userItem.is_staff));
+    } catch (error) {
+      console.error('Error fetching officers:', error);
+      setOfficers([]);
     }
   }, []);
 

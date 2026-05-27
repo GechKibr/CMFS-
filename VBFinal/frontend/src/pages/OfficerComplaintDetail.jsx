@@ -280,7 +280,7 @@ const OfficerComplaintDetail = () => {
                   <div className="text-xs uppercase tracking-wide text-gray-500">Claimed by</div>
                   <div className="mt-1 font-medium text-gray-800">{claimedByLabel}</div>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                {/* <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
                   <div className="text-xs uppercase tracking-wide text-gray-500">Reassign Options</div>
                   <div className="mt-1 text-sm text-gray-800">
                     <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -288,7 +288,7 @@ const OfficerComplaintDetail = () => {
                       <button type="button" onClick={openOtherResolvers} className="px-3 py-1 rounded bg-gray-200 text-sm">Browse other resolvers</button>
                     </div>
                   </div>
-                </div>
+                </div> */}
                 <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
                   <div className="text-xs uppercase tracking-wide text-gray-500">Category</div>
                   <div className="mt-1 font-medium text-gray-800">{complaint.category?.name || complaint.category?.office_name || 'Uncategorized'}</div>
@@ -330,9 +330,9 @@ const OfficerComplaintDetail = () => {
                 <button onClick={handleUpdateStatus} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">
                   Update Status
                 </button>
-                <button onClick={openOtherResolvers} className="px-4 py-2 rounded bg-yellow-600 text-white hover:bg-yellow-700">
+                {/* <button onClick={openOtherResolvers} className="px-4 py-2 rounded bg-yellow-600 text-white hover:bg-yellow-700">
                   Reassign
-                </button>
+                </button> */}
               </div>
 
               {showOtherResolvers && (

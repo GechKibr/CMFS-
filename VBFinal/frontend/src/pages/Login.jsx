@@ -99,14 +99,14 @@ const Login = () => {
             <svg className="w-full h-full" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
               <defs>
                 <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5"/>
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
                 </pattern>
               </defs>
               <rect width="1000" height="1000" fill="url(#grid)" />
             </svg>
           </div>
         </div>
-        
+
         {/* University Logo and Text */}
         <div className="relative z-10 flex flex-col items-center justify-center w-full h-full p-12 text-center">
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
@@ -134,8 +134,8 @@ const Login = () => {
         <div className="w-full max-w-md space-y-6">
           {/* Home Page Link */}
           <div className="text-center">
-            <Link 
-              to="/" 
+            <Link
+              to="/"
               className="inline-flex items-center text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
             >
               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -335,12 +335,7 @@ const Login = () => {
               </button>
 
               <div className="text-center mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  © 2024 University of Gondar. All rights reserved.
-                </p>
-                <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                  Secure Login • Protected by SSL Encryption
-                </p>
+
               </div>
             </form>
           </div>

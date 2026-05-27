@@ -112,7 +112,7 @@ const AdminDashboard = ({ initialTab = 'overview' }) => {
       <div className="space-y-6">
         <ComplaintAnalyticsPanel
           title="University of Gondar Complaint Overview"
-          subtitle="Live complaint counts, daily volume, and category mix."
+          subtitle="complaint counts, daily volume, and category mix."
           accent="blue"
           recentComplaintLinkBuilder={(item) => `/admin?tab=complaints&complaintId=${item.complaint_id}`}
         />

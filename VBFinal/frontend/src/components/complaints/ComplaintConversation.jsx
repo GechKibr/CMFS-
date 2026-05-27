@@ -391,7 +391,7 @@ const ComplaintConversation = ({ complaint, role = 'user' }) => {
                     {/* Response title */}
                     {isResponse && item.title && (
                       <p className={`text-xs mt-1 font-medium opacity-80 ${isResponse && isDark ? 'text-blue-200' : isResponse ? 'text-blue-100' : ''}`}>
-                        📌 {item.title}
+                        {item.title}
                       </p>
                     )}
 

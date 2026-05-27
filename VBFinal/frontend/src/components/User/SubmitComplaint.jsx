@@ -113,7 +113,7 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
         const firstOfficer = resolver.officers && resolver.officers.length > 0 ? resolver.officers[0] : null;
         const officerId = firstOfficer?.id || resolver.officer_id || null;
         const officerName = firstOfficer ? `${firstOfficer.first_name} ${firstOfficer.last_name}`.trim() || firstOfficer.email : (resolver.officer_name || '');
-        
+
         return {
           ...resolver,
           id: resolver.resolver_id || resolver.id,
@@ -620,7 +620,7 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
 
       {/* Main Card */}
       <div className={`${isDark ? 'bg-gray-800/90 backdrop-blur-sm' : 'bg-white'} rounded-2xl shadow-2xl border ${isDark ? 'border-gray-700' : 'border-gray-100'} overflow-hidden`}>
-        
+
         {/* Header */}
         <div className={`relative overflow-hidden px-6 sm:px-8 py-6 border-b ${isDark ? 'border-gray-700 bg-gradient-to-r from-gray-800 to-gray-750' : 'border-gray-100 bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50'}`}>
           <div className="absolute top-0 right-0 w-72 h-72 opacity-5">
@@ -669,10 +669,10 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
                   <div
                     className={`
                       w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-all duration-300 z-10
-                      ${currentStep > step.number 
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg' 
-                        : currentStep === step.number 
-                          ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg scale-110 ring-4 ring-blue-500/20' 
+                      ${currentStep > step.number
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg'
+                        : currentStep === step.number
+                          ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg scale-110 ring-4 ring-blue-500/20'
                           : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
                       }
                     `}
@@ -700,7 +700,7 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
                 <label className={`block text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-3`}>
                   Select Complaint Category <span className="text-red-500">*</span>
                 </label>
-                
+
                 <div className="mb-4">
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex-1">
@@ -726,7 +726,7 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
                         onChange={(e) => setCategoryRegexEnabled(e.target.checked)}
                         className="rounded"
                       />
-                      Regex Search
+                      Search
                     </label>
                   </div>
                 </div>
@@ -766,7 +766,7 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
                     })}
                   </div>
                 </div>
-                
+
                 {formErrors.category && <p className="text-red-500 text-sm mt-2">{formErrors.category}</p>}
 
                 {/* Anonymous Option */}
@@ -796,8 +796,8 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
                   <div className={`mt-6 rounded-xl border p-5 ${isDark ? 'border-gray-700 bg-gray-700/30' : 'border-gray-200 bg-gray-50'}`}>
                     <div className="flex justify-between items-center mb-4">
                       <div>
-                        <h4 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Assign Resolvers</h4>
-                        <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Select officers who should handle this complaint</p>
+                        <h4 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Select office</h4>
+                        {/* <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Select officers who should handle this complaint</p> */}
                       </div>
                       <div className="flex gap-2">
                         <button type="button" onClick={selectAllResolverRoutes} className={`text-xs px-3 py-1.5 rounded-lg ${isDark ? 'bg-gray-600 text-gray-200 hover:bg-gray-500' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}>Select All</button>
@@ -878,7 +878,7 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
                         <input type="text" value={ccSearchText} onChange={(e) => setCcSearchText(e.target.value)} placeholder="Search CC recipients..." className={`w-full pl-10 pr-4 py-2 rounded-lg border text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`} />
                       </div>
                       <label className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                        <input type="checkbox" checked={ccRegexEnabled} onChange={(e) => setCcRegexEnabled(e.target.checked)} className="rounded" /> Regex
+                        <input type="checkbox" checked={ccRegexEnabled} onChange={(e) => setCcRegexEnabled(e.target.checked)} className="rounded" /> Search
                       </label>
                     </div>
 
@@ -1023,7 +1023,7 @@ const SubmitComplaint = ({ setSubmitSuccess, onComplaintSubmitted }) => {
                 </div>
                 <h3 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Ready to Submit?</h3>
                 <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Please confirm that all information is correct before submitting.</p>
-                
+
                 <div className={`p-4 rounded-xl mb-6 text-left ${isDark ? 'bg-yellow-900/20 border border-yellow-800' : 'bg-yellow-50 border border-yellow-200'}`}>
                   <div className="flex gap-3">
                     <svg className="w-5 h-5 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

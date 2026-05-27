@@ -46,7 +46,7 @@ const AdminComplaintDetail = () => {
   const [responseTitle, setResponseTitle] = useState('');
   const [responseType, setResponseType] = useState('update');
 
-  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [_showReassignModal, setShowReassignModal] = useState(false);
   const [reassignOfficerId, setReassignOfficerId] = useState('');
   const [categoryResolvers, setCategoryResolvers] = useState([]);
   const [, setSelectedCategory] = useState('');
@@ -98,7 +98,7 @@ const AdminComplaintDetail = () => {
     setResponses(data.results || data || []);
   }, [complaintId]);
 
-  const timelineHighlights = useMemo(() => {
+  const _timelineHighlights = useMemo(() => {
     if (!complaint) return [];
     const entries = Array.isArray(complaint.timeline_entries) ? complaint.timeline_entries : [];
     return entries.slice(-5).reverse();
@@ -182,7 +182,7 @@ const AdminComplaintDetail = () => {
     }
   };
 
-  const loadReassignmentData = async () => {
+  const _loadReassignmentData = async () => {
     try {
       const resolversData = await apiService.getAllCategoryResolvers();
 
@@ -204,7 +204,7 @@ const AdminComplaintDetail = () => {
     }
   };
 
-  const recommendedOfficers = useMemo(() => {
+  const _recommendedOfficers = useMemo(() => {
     if (!reassignScope.category) return [];
 
     const categoryOfficers = categoryResolvers
@@ -227,7 +227,7 @@ const AdminComplaintDetail = () => {
     return officers.filter((officer) => categoryOfficerIds.includes(String(officer.id)));
   }, [officers, categoryResolvers, reassignScope.category]);
 
-  const filteredColleges = useMemo(() => {
+  const _filteredColleges = useMemo(() => {
     if (!reassignScope.campus) return colleges;
     return colleges.filter((college) => {
       const campusRef =
@@ -240,7 +240,7 @@ const AdminComplaintDetail = () => {
     });
   }, [colleges, reassignScope.campus]);
 
-  const filteredDepartments = useMemo(() => {
+  const _filteredDepartments = useMemo(() => {
     if (!reassignScope.college) return departments;
     return departments.filter((department) => {
       const collegeRef =
@@ -253,7 +253,7 @@ const AdminComplaintDetail = () => {
     });
   }, [departments, reassignScope.college]);
 
-  const handleReassignScopeChange = (key, value) => {
+  const _handleReassignScopeChange = (key, value) => {
     setReassignScope((prev) => {
       const next = { ...prev, [key]: String(value) };
 
@@ -333,7 +333,7 @@ const AdminComplaintDetail = () => {
     });
   };
 
-  const handleReassign = async () => {
+  const _handleReassign = async () => {
     if (!reassignScope.category) {
       window.alert('Please assign a category before reassigning');
       return;
@@ -365,7 +365,7 @@ const AdminComplaintDetail = () => {
       // Attempt to pick a matching resolver that includes the chosen officer and matches the scope.
       let resolverIdToUse = null;
 
-      const mapCampusToValue = (val) => {
+      const _mapCampusToValue = (val) => {
         if (!val && val !== 0) return '';
         if (!Number.isNaN(Number(val))) return String(Number(val));
         const match = campuses.find((c) => {
@@ -376,7 +376,7 @@ const AdminComplaintDetail = () => {
         return String(val);
       };
 
-      const mapCollegeToValue = (val) => {
+      const _mapCollegeToValue = (val) => {
         if (!val && val !== 0) return '';
         if (!Number.isNaN(Number(val))) return String(Number(val));
         const match = colleges.find((col) => {
@@ -387,7 +387,7 @@ const AdminComplaintDetail = () => {
         return String(val);
       };
 
-      const mapDepartmentToValue = (val) => {
+      const _mapDepartmentToValue = (val) => {
         if (!val && val !== 0) return '';
         if (!Number.isNaN(Number(val))) return String(Number(val));
         const match = departments.find((d) => {
@@ -404,7 +404,6 @@ const AdminComplaintDetail = () => {
       // After updating, ask the server for eligible resolvers for the updated complaint
       // and pick one that contains the selected officer. This avoids client/server
       // resolver-matching mismatches when scope values are normalized differently.
-      let resolverIdToUse = null;
       try {
         const eligible = await apiService.getComplaintEligibleResolvers(complaint.complaint_id, {
           campus: updatePayload.campus || undefined,

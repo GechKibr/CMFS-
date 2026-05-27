@@ -22,7 +22,8 @@ def check_escalations():
         
         logger.info(
             f"Escalation check completed - "
-            f"Escalated: {results['escalated']}, "
+            f"Escalated (same category): {results['escalated_same_category']}, "
+            f"Escalated (parent category): {results['escalated_parent_category']}, "
             f"Failed: {results['failed']}, "
             f"Total checked: {results['total_checked']}"
         )

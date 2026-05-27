@@ -308,6 +308,8 @@ class Complaint(models.Model):
             raise ValidationError({"is_anonymous": "This category does not support anonymous complaints."})
 
         if not self.is_anonymous and not self.submitted_by_id and not self.reporter_email:
+            if getattr(self, "_skip_identity_validation", False):
+                return
             raise ValidationError({"submitted_by": "A complainant or contact email is required unless the complaint is anonymous."})
 
         if self.current_resolver and self.category and self.current_resolver.category_id != self.category_id:
@@ -329,7 +331,12 @@ class Complaint(models.Model):
             raise ValidationError({"resolution_deadline": "Resolution deadline must be on or after the escalation deadline."})
 
     def save(self, *args, **kwargs):
-        self.full_clean()
+        self._skip_identity_validation = self.pk is not None and not self.submitted_by_id and not self.reporter_email
+        try:
+            self.full_clean()
+        finally:
+            if hasattr(self, "_skip_identity_validation"):
+                delattr(self, "_skip_identity_validation")
         return super().save(*args, **kwargs)
 
     @property
@@ -463,6 +470,10 @@ class Complaint(models.Model):
             reason="Escalated to next resolver level",
             actor=actor,
         )
+
+    # Backward-compatible alias used by older service/view code paths.
+    def escalate_to_next_level(self, actor=None):
+        return self.escalate_to_next_resolver(actor=actor)
 
     def escalate_to_parent_category(self, actor=None):
         parent = self.category.parent if self.category_id and self.category and self.category.parent_id else None

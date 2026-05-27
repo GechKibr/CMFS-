@@ -398,45 +398,32 @@ const AdminComplaintDetail = () => {
         return String(val);
       };
 
+      // First update the complaint scope on the server.
+      await apiService.updateComplaint(complaint.complaint_id, updatePayload);
+
+      // After updating, ask the server for eligible resolvers for the updated complaint
+      // and pick one that contains the selected officer. This avoids client/server
+      // resolver-matching mismatches when scope values are normalized differently.
+      let resolverIdToUse = null;
       try {
-        // Find resolver that matches chosen category, scope and includes the selected officer
+        const eligible = await apiService.getComplaintEligibleResolvers(complaint.complaint_id, {
+          campus: updatePayload.campus || undefined,
+          college: updatePayload.college || undefined,
+          department: updatePayload.department || undefined,
+        });
+        const resolvers = eligible.results || eligible || [];
         const officerStr = String(reassignOfficerId);
-        for (const resolver of (categoryResolvers || [])) {
-          if (!resolver || !resolver.active) continue;
-          if (!resolver.category || String(resolver.category) !== String(reassignScope.category)) continue;
-
-          const rCampus = resolver.campus ?? resolver.campus_id ?? resolver.campus_name ?? '';
-          const rCollege = resolver.college ?? resolver.college_id ?? resolver.college_name ?? '';
-          const rDepartment = resolver.department ?? resolver.department_id ?? resolver.department_name ?? resolver.department_id ?? '';
-
-          const rCampusVal = mapCampusToValue(rCampus);
-          const rCollegeVal = mapCollegeToValue(rCollege);
-          const rDepartmentVal = mapDepartmentToValue(rDepartment);
-
-          const campusMatch = !rCampusVal || String(rCampusVal) === String(reassignScope.campus);
-          const collegeMatch = !rCollegeVal || String(rCollegeVal) === String(reassignScope.college);
-          const deptMatch = !rDepartmentVal || String(rDepartmentVal) === String(reassignScope.department);
-
-          if (!(campusMatch && collegeMatch && deptMatch)) continue;
-
-          // Check officer membership
-          let officerMatch = false;
-          if (resolver.officer_id && String(resolver.officer_id) === officerStr) officerMatch = true;
-          if (resolver.officers && Array.isArray(resolver.officers)) {
-            officerMatch = resolver.officers.some((o) => String(o?.id || o?.officer || o) === officerStr) || officerMatch;
-          }
-
-          if (officerMatch) {
-            resolverIdToUse = resolver.resolver_id || resolver.id || resolver.resolverId || null;
+        for (const r of resolvers) {
+          if (!r) continue;
+          const officers = r.officers || [];
+          if (Array.isArray(officers) && officers.some((o) => String(o?.id || o?.officer || o) === officerStr)) {
+            resolverIdToUse = r.resolver_id || r.id || r.resolverId || null;
             break;
           }
         }
       } catch (e) {
-        // ignore matching failures and fallback to no resolver id
-        console.warn('Resolver matching failed', e);
+        console.warn('Failed to fetch eligible resolvers', e);
       }
-
-      await apiService.updateComplaint(complaint.complaint_id, updatePayload);
 
       const reassignBody = { officer_id: normalize(reassignOfficerId) };
       if (resolverIdToUse) reassignBody.resolver_id = resolverIdToUse;
@@ -637,34 +624,11 @@ const AdminComplaintDetail = () => {
                 </div>
                 <div>
                   <label className={`block text-sm mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Assigned To</label>
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-full rounded px-3 py-2 border text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-gray-50 border-gray-300 text-gray-800'}`}>
-                      {complaint.assigned_to || complaint.assigned_officer
-                        ? `${(complaint.assigned_to || complaint.assigned_officer).first_name || ''} ${(complaint.assigned_to || complaint.assigned_officer).last_name || ''}`.trim()
-                        : 'Unassigned'}
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (!complaint.category?.category_id && !complaint.category?.id) {
-                          window.alert('Update category first, then reassign.');
-                          return;
-                        }
-                        setSelectedCategory(getSelectedValue(complaint.category?.category_id || complaint.category?.id));
-                        setShowReassignModal(true);
-                        loadReassignmentData();
-                      }}
-                      disabled={!complaint.category?.category_id && !complaint.category?.id}
-                      className="text-xs px-3 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
-                      title="Reassign using current category"
-                    >
-                      Reassign
-                    </button>
+                  <div className={`w-full rounded px-3 py-2 border text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-gray-50 border-gray-300 text-gray-800'}`}>
+                    {complaint.assigned_to || complaint.assigned_officer
+                      ? `${(complaint.assigned_to || complaint.assigned_officer).first_name || ''} ${(complaint.assigned_to || complaint.assigned_officer).last_name || ''}`.trim()
+                      : 'Unassigned'}
                   </div>
-                  {!complaint.category?.category_id && (
-                    <p className={`text-xs mt-1 ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
-                      Set a category to enable reassignment.
-                    </p>
-                  )}
                 </div>
               </div>
             </section>
@@ -768,137 +732,7 @@ const AdminComplaintDetail = () => {
         </main>
       </div>
 
-      {showReassignModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto`}>
-            <h3 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Reassign Complaint
-            </h3>
 
-            <div className="mb-4">
-              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                Complaint Scope
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Category</label>
-                  <select
-                    value={reassignScope.category}
-                    onChange={(e) => handleReassignScopeChange('category', e.target.value)}
-                    className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="">Select category</option>
-                    {categories.map((category) => (
-                      <option key={category.category_id} value={category.category_id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Campus</label>
-                  <select
-                    value={reassignScope.campus}
-                    onChange={(e) => handleReassignScopeChange('campus', e.target.value)}
-                    className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="">Select campus</option>
-                    {campuses.map((campus) => {
-                      const value = campus.campus_id || campus.id || campus.name;
-                      return (
-                        <option key={value} value={value}>
-                          {campus.campus_name || campus.name || value}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-                <div>
-                  <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>College</label>
-                  <select
-                    value={reassignScope.college}
-                    onChange={(e) => handleReassignScopeChange('college', e.target.value)}
-                    className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="">Select college</option>
-                    {filteredColleges.map((college) => {
-                      const value = college.college_id || college.id || college.name;
-                      return (
-                        <option key={value} value={value}>
-                          {college.college_name || college.name || value}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-                <div>
-                  <label className={`block text-xs mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Department</label>
-                  <select
-                    value={reassignScope.department}
-                    onChange={(e) => handleReassignScopeChange('department', e.target.value)}
-                    className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                  >
-                    <option value="">Select department</option>
-                    {filteredDepartments.map((department) => {
-                      const value = department.department_id || department.id || department.department_name;
-                      return (
-                        <option key={value} value={value}>
-                          {department.department_name || department.name || value}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                Select Officer
-              </label>
-              <select
-                value={reassignOfficerId}
-                onChange={(e) => setReassignOfficerId(e.target.value)}
-                className={`w-full p-2 border rounded ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
-                disabled={!reassignScope.category}
-              >
-                <option value="">{reassignScope.category ? 'Select an officer...' : 'Assign category first'}</option>
-                {recommendedOfficers.map((officer) => {
-                  return (
-                    <option key={officer.id} value={officer.id}>
-                      {officer.first_name} {officer.last_name} ({officer.email})
-                    </option>
-                  );
-                })}
-              </select>
-              {reassignScope.category && recommendedOfficers.length === 0 && (
-                <p className={`text-xs mt-1 ${isDark ? 'text-yellow-300' : 'text-yellow-700'}`}>
-                  No active resolvers found for this category.
-                </p>
-              )}
-            </div>
-
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => {
-                  setShowReassignModal(false);
-                  setReassignOfficerId('');
-                }}
-                className={`px-4 py-2 rounded ${isDark ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-300 hover:bg-gray-400 text-gray-700'}`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReassign}
-                disabled={!reassignOfficerId}
-                className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Reassign Complaint
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

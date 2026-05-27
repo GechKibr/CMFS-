@@ -9,6 +9,7 @@ import DashboardNavbar from '../components/UI/DashboardNavbar';
 import Sidebar from '../components/UI/Sidebar';
 import apiService from '../services/api';
 import OfficerSchedule from '../components/Officer/OfficerSchedule';
+import { getAssignedComplaints as cacheGetAssigned, getCCComplaints as cacheGetCC, invalidateAssigned, invalidateCC } from '../services/complaintCache';
 import OfficerProfile from '../components/Officer/OfficerProfile';
 import PublicAnnouncementBoard from '../components/Officer/PublicAnnouncementBoard';
 import Modal from '../components/UI/Modal';
@@ -51,6 +52,12 @@ const OfficerDashboard = () => {
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [reassignOfficerId, setReassignOfficerId] = useState('');
   const [reassignReason, setReassignReason] = useState('');
+  const [showScopeModal, setShowScopeModal] = useState(false);
+  const [scopeEditingComplaint, setScopeEditingComplaint] = useState(null);
+  const [scopeForm, setScopeForm] = useState({ campus: '', college: '', department: '' });
+  const [scopeCampuses, setScopeCampuses] = useState([]);
+  const [scopeColleges, setScopeColleges] = useState([]);
+  const [scopeDepartments, setScopeDepartments] = useState([]);
   const [officers, setOfficers] = useState([]);
   const [viewingTemplateResponses, setViewingTemplateResponses] = useState(null);
 
@@ -64,7 +71,7 @@ const OfficerDashboard = () => {
     }
   }, [location.search, menuItems]);
 
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     setLoading(true);
     try {
       const data = await apiService.getFeedbackTemplates();
@@ -75,16 +82,12 @@ const OfficerDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-
+  }, []);
 
   const fetchComplaints = useCallback(async () => {
     setComplaintsLoading(true);
     try {
-      // Load complaints explicitly assigned to the current officer.
-      const data = await apiService.getAssignedComplaints();
-      const assignedComplaints = Array.isArray(data) ? data : data.results || [];
+      const assignedComplaints = await cacheGetAssigned();
       setComplaints(assignedComplaints);
     } catch (error) {
       console.error('Error fetching complaints:', error);
@@ -96,34 +99,13 @@ const OfficerDashboard = () => {
 
   const fetchCCComplaints = useCallback(async () => {
     try {
-      const data = await apiService.getCCComplaints();
-      setCcComplaints(Array.isArray(data) ? data : data.results || []);
+      const cc = await cacheGetCC();
+      setCcComplaints(cc);
     } catch (error) {
       console.error('Error fetching CC complaints:', error);
       setCcComplaints([]);
     }
   }, []);
-
-  const fetchOfficers = async () => {
-    try {
-      const usersData = await apiService.getAllUsers();
-      const allUsers = Array.isArray(usersData?.results)
-        ? usersData.results
-        : Array.isArray(usersData)
-          ? usersData
-          : [];
-
-      const officerUsers = allUsers.filter((u) => {
-        const role = (u.role || '').toString().toLowerCase();
-        return role === 'officer' || role.includes('officer') || u.is_staff === true;
-      });
-
-      setOfficers(officerUsers.length > 0 ? officerUsers : allUsers);
-    } catch (error) {
-      console.error('Error fetching officers:', error);
-      setOfficers([]);
-    }
-  };
 
   useEffect(() => {
     if (activeTab === 'manage-templates') {
@@ -136,7 +118,7 @@ const OfficerDashboard = () => {
     if (activeTab === 'dashboard') {
       fetchTemplates();
     }
-  }, [activeTab, user?.id, fetchComplaints, fetchCCComplaints]);
+  }, [activeTab, user?.id, fetchTemplates, fetchComplaints, fetchCCComplaints]);
 
 
   const handleReassign = async () => {
@@ -184,6 +166,23 @@ const OfficerDashboard = () => {
     }
 
     return 'Unassigned';
+  };
+
+  const userCanReassign = (complaint) => {
+    if (!user) return false;
+    if (user.is_admin) return true;
+    if (!user.is_officer) return false;
+    if (!complaint) return false;
+    // claimed_by
+    if (complaint.claimed_by && String(complaint.claimed_by.id) === String(user.id)) return true;
+    // assigned officer
+    if (complaint.assigned_officer && String(complaint.assigned_officer.id) === String(user.id)) return true;
+    if (complaint.assigned_to && String(complaint.assigned_to.id) === String(user.id)) return true;
+    // current resolver membership
+    if (complaint.current_resolver && Array.isArray(complaint.current_resolver.officers)) {
+      if (complaint.current_resolver.officers.some((o) => String(o?.id || o?.officer || o) === String(user.id))) return true;
+    }
+    return false;
   };
 
   const fetchResponses = useCallback(async (complaintId = null) => {
@@ -537,7 +536,7 @@ const OfficerDashboard = () => {
                                     if (!officers || officers.length === 0) return 0;
                                     const names = officers.map(o => (o.first_name || o.last_name) ? `${o.first_name || ''} ${o.last_name || ''}`.trim() : o.email || `Officer ${o.id}`);
                                     if (names.length <= 3) return names.join(', ');
-                                    return `${names.slice(0,3).join(', ')} (+${names.length - 3} more)`;
+                                    return `${names.slice(0, 3).join(', ')} (+${names.length - 3} more)`;
                                   })()
                                 }
                               </span>
@@ -558,6 +557,33 @@ const OfficerDashboard = () => {
                               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                             >
                               View & Manage
+                            </button>
+                            <button
+                              onClick={async () => {
+                                // open scope edit modal
+                                setScopeEditingComplaint(complaint);
+                                setScopeForm({
+                                  campus: complaint.campus || '',
+                                  college: complaint.college || '',
+                                  department: complaint.department ? String(complaint.department?.id || complaint.department?.department_id || complaint.department) : '',
+                                });
+                                try {
+                                  const [campusesRes, collegesRes, departmentsRes] = await Promise.all([
+                                    apiService.getCampuses(),
+                                    apiService.getColleges(),
+                                    apiService.getDepartments(),
+                                  ]);
+                                  setScopeCampuses(campusesRes.results || campusesRes || []);
+                                  setScopeColleges(collegesRes.results || collegesRes || []);
+                                  setScopeDepartments(departmentsRes.results || departmentsRes || []);
+                                } catch (e) {
+                                  console.warn('Failed to load scope lists', e);
+                                }
+                                setShowScopeModal(true);
+                              }}
+                              className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+                            >
+                              Edit Scope
                             </button>
                           </div>
                         </div>
@@ -969,23 +995,25 @@ const OfficerDashboard = () => {
                       </div>
                     </div>
 
-                    <div>
-                      <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Reassign</label>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={async () => {
-                            await fetchOfficers();
-                            setShowReassignModal((prev) => !prev);
-                          }}
-                          className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
-                        >
-                          {showReassignModal ? 'Cancel Reassign' : 'Reassign'}
-                        </button>
+                    {userCanReassign(selectedComplaint) && (
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Reassign</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              await fetchOfficers();
+                              setShowReassignModal((prev) => !prev);
+                            }}
+                            className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                          >
+                            {showReassignModal ? 'Cancel Reassign' : 'Reassign'}
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
-                  {showReassignModal && (
+                  {userCanReassign(selectedComplaint) && showReassignModal && (
                     <div className={`p-4 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <select
@@ -1022,6 +1050,119 @@ const OfficerDashboard = () => {
                   <ComplaintConversation complaint={selectedComplaint} role={user?.role} />
                 </div>
               )}
+            </Modal>
+
+            <Modal
+              isOpen={showScopeModal}
+              onClose={() => {
+                setShowScopeModal(false);
+                setScopeEditingComplaint(null);
+              }}
+              title={scopeEditingComplaint ? `Edit Scope: ${scopeEditingComplaint.title}` : 'Edit Scope'}
+              size="md"
+            >
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Campus</label>
+                  <select
+                    value={scopeForm.campus || ''}
+                    onChange={async (e) => {
+                      const val = e.target.value || '';
+                      setScopeForm((s) => ({ ...s, campus: val, college: '', department: '' }));
+                      try {
+                        const collegesRes = await apiService.getColleges(val || null);
+                        setScopeColleges(collegesRes.results || collegesRes || []);
+                        setScopeDepartments([]);
+                      } catch (err) {
+                        console.warn('Failed to load colleges for campus', err);
+                      }
+                    }}
+                    className="w-full rounded px-3 py-2 border"
+                  >
+                    <option value="">-- Any campus --</option>
+                    {scopeCampuses.map((c) => (
+                      <option key={c.campus_id || c.id || c.name} value={c.campus_id ?? c.id ?? c.name}>{c.campus_name || c.name || c.display_name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">College</label>
+                  <select
+                    value={scopeForm.college || ''}
+                    onChange={async (e) => {
+                      const val = e.target.value || '';
+                      setScopeForm((s) => ({ ...s, college: val, department: '' }));
+                      try {
+                        const deps = await apiService.getDepartments(val || null);
+                        setScopeDepartments(deps.results || deps || []);
+                      } catch (err) {
+                        console.warn('Failed to load departments for college', err);
+                      }
+                    }}
+                    className="w-full rounded px-3 py-2 border"
+                  >
+                    <option value="">-- Any college --</option>
+                    {scopeColleges.map((col) => (
+                      <option key={col.college_id || col.id || col.name} value={col.college_id ?? col.id ?? col.name}>{col.college_name || col.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Department</label>
+                  <select
+                    value={scopeForm.department || ''}
+                    onChange={(e) => setScopeForm((s) => ({ ...s, department: e.target.value || '' }))}
+                    className="w-full rounded px-3 py-2 border"
+                  >
+                    <option value="">-- Any department --</option>
+                    {scopeDepartments.map((d) => (
+                      <option key={d.department_id || d.id || d.name} value={d.department_id ?? d.id ?? d.department_name ?? d.name}>{d.department_name || d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => {
+                      setShowScopeModal(false);
+                      setScopeEditingComplaint(null);
+                    }}
+                    className="px-4 py-2 rounded bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!scopeEditingComplaint) return;
+                      try {
+                        const normalize = (v) => {
+                          if (v === '' || v === null || v === undefined) return null;
+                          if (!Number.isNaN(Number(v))) return Number(v);
+                          return v;
+                        };
+                        const payload = {
+                          campus: normalize(scopeForm.campus),
+                          college: normalize(scopeForm.college),
+                          department: normalize(scopeForm.department),
+                        };
+                        await apiService.updateComplaint(scopeEditingComplaint.complaint_id, payload);
+                        alert('Scope updated');
+                        setShowScopeModal(false);
+                        setScopeEditingComplaint(null);
+                        fetchComplaints();
+                      } catch (err) {
+                        console.error('Failed to update scope', err);
+                        alert(err.message || 'Failed to update scope');
+                      }
+                    }}
+                    className="px-4 py-2 rounded bg-blue-600 text-white"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
             </Modal>
           </div>
         </main>

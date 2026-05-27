@@ -38,7 +38,13 @@ class EscalationService:
             return []
 
         parent = complaint.category.parent
-        resolvers = EscalationService._matching_resolvers_for_category(parent, complaint)
+        # For parent category display, expose all active parent resolvers
+        # regardless of campus/college/department scope.
+        resolvers = list(
+            parent.resolvers.filter(active=True)
+            .select_related('department')
+            .order_by('escalation_level', 'created_at', 'resolver_id')
+        )
         if not resolvers:
             return []
 
@@ -98,7 +104,7 @@ class EscalationService:
         for complaint in escalatable_complaints:
             try:
                 # Try to escalate within same category first (to broader scope)
-                if complaint.escalate_to_next_level():
+                if complaint.escalate_to_next_resolver():
                     escalation_results['escalated_same_category'] += 1
                     EscalationService.send_escalation_notifications(complaint)
                 # If no next level in same category, try parent category escalation

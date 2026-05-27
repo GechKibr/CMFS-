@@ -786,20 +786,13 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             rec['parent_category_name'] = None
             results.append(rec)
 
-        # Also include resolvers from parent categories that match the complaint's scope.
-        # Walk up the ancestry and collect matching resolvers for display so UI can offer
-        # escalation targets in parent categories that match campus/college/department.
+        # Also include all resolvers from parent categories.
+        # Parent resolver display is intentionally scope-agnostic so officers/admins can
+        # view all available parent routing options in one place.
         if complaint.category_id and complaint.category:
             for parent in complaint.category.ancestors():
                 parent_qs = CategoryResolver.objects.filter(category=parent, active=True).select_related('department')
-                if campus is not None:
-                    parent_qs = parent_qs.filter(campus=campus)
-                if college is not None:
-                    parent_qs = parent_qs.filter(college=college)
-                if department_id is not None:
-                    parent_qs = parent_qs.filter(department_id=department_id)
-
-                parent_resolvers = [r for r in parent_qs if r.matches_complaint_scope(complaint)]
+                parent_resolvers = list(parent_qs.order_by('escalation_level', 'created_at', 'resolver_id'))
                 if not parent_resolvers:
                     # continue to next ancestor if none match here
                     continue
@@ -859,7 +852,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         if not complaint.current_resolver:
             return DRFResponse({'error': 'No current resolver set'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if complaint.escalate_to_next_level():
+        if complaint.escalate_to_next_resolver():
             complaint.refresh_from_db()
             return DRFResponse(
                 {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import apiService from '../../services/api';
@@ -10,10 +10,23 @@ const AdminComplaints = () => {
   const [complaints, setComplaints] = useState([]);
   const [filteredComplaints, setFilteredComplaints] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [categoryResolvers, setCategoryResolvers] = useState([]);
+  const [campuses, setCampuses] = useState([]);
+  const [colleges, setColleges] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [filters, setFilters] = useState({
     status: 'all',
     category: 'all'
   });
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingComplaint, setEditingComplaint] = useState(null);
+  const [editForm, setEditForm] = useState({
+    category: '',
+    campus: '',
+    college: '',
+    department: '',
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
   const [loading, setLoading] = useState(true);
   const focusedComplaintId = new URLSearchParams(location.search).get('complaintId');
 
@@ -22,6 +35,109 @@ const AdminComplaints = () => {
     if (status === 'rejected') return 'closed';
     return status || 'pending';
   };
+
+  const normalizeValue = (value) => (value === null || value === undefined ? '' : String(value));
+  const normalizeText = (value) => normalizeValue(value).trim().toLowerCase();
+  // Prefer department-specific fields before college fields to avoid showing colleges for department selects
+  const getOptionValue = (option) => option?.id ?? option?.category_id ?? option?.campus_id ?? option?.department_id ?? option?.college_id ?? '';
+  const getOptionLabel = (option) => option?.name ?? option?.category_name ?? option?.campus_name ?? option?.department_name ?? option?.college_name ?? option?.code ?? option?.department_college ?? '';
+  const getComplaintFieldValue = (value) => normalizeValue(value);
+
+  const getResolverFieldValue = (resolver, keys) => {
+    for (const key of keys) {
+      const value = resolver?.[key];
+      if (value !== null && value !== undefined && value !== '') {
+        return String(value);
+      }
+    }
+    return '';
+  };
+
+  const matchesResolverOption = (resolverValue, option, optionKeys) => {
+    const normalizedResolverValue = normalizeText(resolverValue);
+    if (!normalizedResolverValue) return false;
+
+    return optionKeys.some((key) => normalizeText(option?.[key]) === normalizedResolverValue);
+  };
+
+  const selectedCategoryResolvers = useMemo(() => {
+    if (!editForm.category) return [];
+
+    return categoryResolvers.filter((resolver) =>
+      String(resolver.category) === String(editForm.category) && resolver.active
+    );
+  }, [categoryResolvers, editForm.category]);
+
+  const filteredCampuses = useMemo(() => {
+    if (!selectedCategoryResolvers.length) return campuses;
+    return campuses.filter((campus) => selectedCategoryResolvers.some((resolver) =>
+      matchesResolverOption(
+        getResolverFieldValue(resolver, ['campus', 'campus_id', 'scope_campus', 'campus_name']),
+        campus,
+        ['id', 'code', 'campus_name', 'name']
+      )
+    ));
+  }, [campuses, selectedCategoryResolvers]);
+
+  const filteredColleges = useMemo(() => {
+    const resolversForCampus = editForm.campus
+      ? selectedCategoryResolvers.filter((resolver) => matchesResolverOption(
+        getResolverFieldValue(resolver, ['campus', 'campus_id', 'scope_campus', 'campus_name']),
+        campuses.find((campus) => matchesResolverOption(editForm.campus, campus, ['id', 'code', 'campus_name', 'name'])),
+        ['id', 'code', 'campus_name', 'name']
+      ))
+      : selectedCategoryResolvers;
+
+    if (!resolversForCampus.length) return colleges;
+
+    return colleges.filter((college) => resolversForCampus.some((resolver) =>
+      matchesResolverOption(
+        getResolverFieldValue(resolver, ['college', 'college_id', 'scope_college', 'college_name']),
+        college,
+        ['id', 'code', 'college_code', 'college_name', 'name']
+      )
+    ));
+  }, [campuses, colleges, editForm.campus, selectedCategoryResolvers]);
+
+  const filteredDepartments = useMemo(() => {
+    // Narrow departments by selected college first, then apply resolver-specified department filtering.
+    const resolverDeptValues = selectedCategoryResolvers
+      .map((resolver) => getResolverFieldValue(resolver, ['department', 'department_id', 'scope_department', 'department_name']))
+      .filter(Boolean)
+      .map((v) => String(v).trim().toLowerCase());
+
+    // If a college is selected in the edit form, restrict departments to that college's departments
+    let baseDepartments = departments;
+    if (editForm.college) {
+      const selectedCollegeObj = colleges.find((c) => String(getOptionValue(c)) === String(editForm.college) || matchesResolverOption(editForm.college, c, ['id', 'code', 'college_code', 'college_name', 'name']));
+      if (selectedCollegeObj) {
+        baseDepartments = departments.filter((department) => {
+          const deptCollegeCandidates = [department.college, department.college_id, department.department_college, department.college_name]
+            .filter(Boolean)
+            .map((v) => String(v).trim().toLowerCase());
+
+          const collegeCandidates = [selectedCollegeObj.id, selectedCollegeObj.code, selectedCollegeObj.college_id, selectedCollegeObj.college_name, selectedCollegeObj.name]
+            .filter(Boolean)
+            .map((v) => String(v).trim().toLowerCase());
+
+          return deptCollegeCandidates.some((dc) => collegeCandidates.includes(dc));
+        });
+      }
+    }
+
+    // If no resolvers specify departments for this category/scope, return the base (college-filtered or all) departments
+    if (!resolverDeptValues.length) {
+      return baseDepartments;
+    }
+
+    // Otherwise, further filter by resolver department identifiers
+    return baseDepartments.filter((department) => {
+      const candidates = [department.id, department.department_id, department.department_name, department.name]
+        .filter(Boolean)
+        .map((v) => String(v).trim().toLowerCase());
+      return resolverDeptValues.some((rv) => candidates.includes(rv));
+    });
+  }, [campuses, colleges, departments, editForm.campus, editForm.college, selectedCategoryResolvers]);
 
   useEffect(() => {
     loadData();
@@ -46,13 +162,21 @@ const AdminComplaints = () => {
 
   const loadData = async () => {
     try {
-      const [complaintsData, categoriesData] = await Promise.all([
+      const [complaintsData, categoriesData, resolversData, campusesData, collegesData, departmentsData] = await Promise.all([
         apiService.getComplaints(),
-        apiService.getAllCategories()
+        apiService.getAllCategories(),
+        apiService.getAllCategoryResolvers(),
+        apiService.getCampuses(),
+        apiService.getColleges(),
+        apiService.getDepartments()
       ]);
 
       setComplaints(complaintsData.results || complaintsData);
       setCategories(categoriesData.results || categoriesData || []);
+      setCategoryResolvers(resolversData.results || resolversData || []);
+      setCampuses(campusesData.results || campusesData || []);
+      setColleges(collegesData.results || collegesData || []);
+      setDepartments(departmentsData.results || departmentsData || []);
 
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -72,6 +196,73 @@ const AdminComplaints = () => {
     } catch (error) {
       console.error('Failed to update complaint status:', error);
       alert('Failed to update complaint status');
+    }
+  };
+
+  const openEditModal = (complaint) => {
+    setEditingComplaint(complaint);
+    setEditForm({
+      category: getComplaintFieldValue(complaint?.category?.category_id ?? complaint?.category?.id ?? complaint?.category),
+      campus: getComplaintFieldValue(complaint?.campus),
+      college: getComplaintFieldValue(complaint?.college),
+      department: getComplaintFieldValue(complaint?.department?.id ?? complaint?.department),
+    });
+    setEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setEditModalOpen(false);
+    setEditingComplaint(null);
+    setSavingEdit(false);
+  };
+
+  const handleEditFieldChange = (field, value) => {
+    setEditForm((prev) => {
+      const next = { ...prev, [field]: String(value) };
+      if (field === 'category') {
+        next.campus = '';
+        next.college = '';
+        next.department = '';
+      }
+      if (field === 'campus') {
+        next.college = '';
+        next.department = '';
+      }
+      if (field === 'college') {
+        next.department = '';
+      }
+      return next;
+    });
+  };
+
+  const saveComplaintEdits = async () => {
+    if (!editingComplaint) return;
+
+    try {
+      setSavingEdit(true);
+
+      const normalize = (value) => {
+        if (value === '' || value === null || value === undefined) return null;
+        if (!Number.isNaN(Number(value))) return Number(value);
+        return value;
+      };
+
+      await apiService.updateComplaint(editingComplaint.complaint_id, {
+        category: normalize(editForm.category),
+        campus: normalize(editForm.campus),
+        college: normalize(editForm.college),
+        department: normalize(editForm.department),
+      });
+
+      const refreshedComplaint = await apiService.getComplaint(editingComplaint.complaint_id);
+      setComplaints((prev) => prev.map((complaint) => (
+        complaint.complaint_id === refreshedComplaint.complaint_id ? refreshedComplaint : complaint
+      )));
+      closeEditModal();
+    } catch (error) {
+      console.error('Failed to update complaint scope:', error);
+      alert('Failed to update complaint details');
+      setSavingEdit(false);
     }
   };
 
@@ -237,6 +428,12 @@ const AdminComplaints = () => {
                       >
                         View
                       </button>
+                      <button
+                        onClick={() => openEditModal(complaint)}
+                        className="text-emerald-600 hover:text-emerald-900"
+                      >
+                        Reassign
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -245,6 +442,114 @@ const AdminComplaints = () => {
           </div>
         )}
       </div>
+
+      {editModalOpen && editingComplaint && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className={`${isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} w-full max-w-2xl rounded-lg shadow-xl overflow-hidden`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <div>
+                <h3 className="text-lg font-semibold">Reassign Complaint</h3>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{editingComplaint.title}</p>
+              </div>
+              <button
+                onClick={closeEditModal}
+                className={`px-3 py-2 rounded ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>Category</label>
+                <select
+                  value={editForm.category}
+                  onChange={(e) => handleEditFieldChange('category', e.target.value)}
+                  className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                >
+                  <option value="">No Category</option>
+                  {categories.map((category) => (
+                    <option key={category.category_id ?? category.id} value={String(getOptionValue(category))}>
+                      {getOptionLabel(category)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>Campus</label>
+                  <select
+                    value={editForm.campus}
+                    onChange={(e) => handleEditFieldChange('campus', e.target.value)}
+                    className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value="">No Campus</option>
+                    {filteredCampuses.map((campus) => (
+                      <option key={campus.id ?? campus.code} value={String(getOptionValue(campus))}>
+                        {getOptionLabel(campus)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>College</label>
+                  <select
+                    value={editForm.college}
+                    onChange={(e) => handleEditFieldChange('college', e.target.value)}
+                    className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value="">No College</option>
+                    {filteredColleges.map((college) => (
+                      <option key={college.id ?? college.code} value={String(getOptionValue(college))}>
+                        {getOptionLabel(college)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-1`}>Department</label>
+                  <select
+                    value={editForm.department}
+                    onChange={(e) => handleEditFieldChange('department', e.target.value)}
+                    className={`w-full border rounded px-3 py-2 text-sm ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value="">No Department</option>
+                    {filteredDepartments.map((department) => (
+                      <option key={department.id ?? department.department_name} value={String(getOptionValue(department))}>
+                        {getOptionLabel(department)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Changing the scope updates routing for this complaint.
+              </div>
+            </div>
+
+            <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t ${isDark ? 'border-gray-700 bg-gray-900/30' : 'border-gray-200 bg-gray-50'}`}>
+              <button
+                onClick={closeEditModal}
+                disabled={savingEdit}
+                className={`px-4 py-2 rounded ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-100 border border-gray-300'} disabled:opacity-50`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveComplaintEdits}
+                disabled={savingEdit}
+                className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+              >
+                {savingEdit ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

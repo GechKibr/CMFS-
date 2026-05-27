@@ -400,6 +400,17 @@ class ApiService {
     return this.request(`/complaints/${id}/eligible-officers/${query}`);
   }
 
+  async getComplaintEligibleResolvers(id, { campus = null, college = null, department = null } = {}) {
+    const params = new URLSearchParams();
+    if (campus !== null && campus !== undefined && campus !== '') params.append('campus', String(campus));
+    if (college !== null && college !== undefined && college !== '') params.append('college', String(college));
+    if (department !== null && department !== undefined && department !== '') params.append('department', String(department));
+
+    const query = params.toString();
+    const endpoint = query ? `/complaints/${id}/eligible-resolvers/?${query}` : `/complaints/${id}/eligible-resolvers/`;
+    return this.request(endpoint);
+  }
+
   async getOtherCategoryResolvers({ exclude_category = null, category = null, complaint = null, campus = null, college = null, department = null } = {}) {
     const params = new URLSearchParams();
     if (exclude_category) params.append('exclude_category', exclude_category);

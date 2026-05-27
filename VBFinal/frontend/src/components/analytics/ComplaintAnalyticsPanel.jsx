@@ -366,7 +366,7 @@ const ComplaintAnalyticsPanel = ({
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Admin Intelligence</p>
+
                 <h4 className="mt-1 text-xl font-bold text-gray-900">System-wide statistics</h4>
               </div>
               <p className="text-sm text-gray-500">Realtime metrics for complaints, staff, SLA, and transparency.</p>
